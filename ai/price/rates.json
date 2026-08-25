@@ -1,0 +1,17 @@
+{
+  "_comment": "Cluster wage rates in rupees per hour. Sourced per cluster, not guessed. Update as clusters onboard.",
+  "default_wage_per_hour": 120,
+  "default_margin_pct": 0.15,
+  "clusters": {
+    "sambalpur": 120,
+    "bhuj": 140,
+    "varanasi": 150,
+    "channapatna": 110
+  },
+  "channel_min_discount_pct": {
+    "gem": 0.10,
+    "amazon": 0.0,
+    "flipkart": 0.0,
+    "market": 0.0
+  }
+}
