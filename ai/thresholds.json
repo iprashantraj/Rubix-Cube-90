@@ -1,0 +1,13 @@
+{
+  "_comment": "Calibrated in research/camera-thresholds/ on our own artisan photos. Read by BOTH the app camera gate and the server quality gate. Blur is content-dependent — a plain white cloth scores blurry while being sharp — so it is a suggestion, never a hard block.",
+  "blur_laplacian_variance_min": 100,
+  "brightness_mean_min": 60,
+  "brightness_mean_max": 200,
+  "blown_pixel_fraction_max": 0.05,
+  "crushed_pixel_fraction_max": 0.05,
+  "fill_fraction_min": 0.40,
+  "fill_fraction_max": 0.90,
+  "tilt_degrees_max": 8,
+  "resolution_min_px": 1000,
+  "state_hold_seconds": 0.5
+}
