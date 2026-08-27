@@ -1,4 +1,13 @@
 /*
+ * Tailwind 4 is imported here rather than configured in a tailwind.config.js — v4 has no
+ * config file, the design tokens live in the @theme block further down, and `source(none)`
+ * plus an explicit @source keeps the scanner off android/, dist/ and node_modules (it will
+ * happily walk all three and slow every rebuild to a crawl).
+ */
+@import "tailwindcss" source(none);
+@source "../../src";
+
+/*
  * Kaarigar visual system — "soft surfaces + depth".
  *
  * One accent colour, layered light-grey surfaces, very large targets. The users we are
