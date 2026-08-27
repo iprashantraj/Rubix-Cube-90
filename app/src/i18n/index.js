@@ -20,10 +20,14 @@ export const LANGUAGES = [
    * English with a heavy Hindi prosody. For a Hindi or Odia speaker that is fine and
    * probably preferable, but somebody who has chosen English as their interface language
    * has chosen it because they read and understand English, and an accent that mangles it
-   * makes the one language they picked the hardest one to follow. en-GB ships on
-   * essentially every Android build and is the most widely intelligible option.
+   * makes the one language they picked the hardest one to follow.
+   *
+   * en-US rather than en-GB: it is Android's default English voice, so it is the one least
+   * likely to be missing on a cheap phone. The tag only decides anything once the server
+   * tier declines — web/api/routers/voice.py returns 503 for English precisely so that the
+   * device voice, not Sarvam's en-IN, is what speaks it.
    */
-  { code: 'en', label: 'English', bcp47: 'en-IN', tts: 'en-GB' },
+  { code: 'en', label: 'English', bcp47: 'en-IN', tts: 'en-US' },
 ];
 
 /**

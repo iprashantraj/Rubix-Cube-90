@@ -80,6 +80,11 @@ function renderIcon(icon, size) {
 export function Screen({
   prompt,
   promptVars,
+  // What to SAY, when that is not what the heading says. /consent is the case that needs
+  // it: the heading is "आपका डेटा" and the thing that has to be heard is the notice under
+  // it. Speaking the title there announced a label and left the substance unplayed, which
+  // for a notice we then store an artifact against is not good enough. Defaults to prompt.
+  speak,
   speakAlso,
   children,
   footer,
@@ -87,13 +92,17 @@ export function Screen({
   hero = true,
   heroExtra,
   onPromptSpoken,
+  // Speak on entry even though this is not a chain — for a screen whose CONTENT is the
+  // point rather than its name. /consent is the case. Chains speak regardless; every other
+  // destination stays quiet and offers the replay button.
+  speakOnEnter = false,
   dim = false,
 }) {
   const { lang } = useVoice();
   const { pathname } = useLocation();
   // `onPromptSpoken` fires when the question has finished playing. /catalog/voice uses it
   // to open the microphone by itself, so the artisan only ever has to answer.
-  useSpeakOnEnter(prompt, promptVars, speakAlso, onPromptSpoken);
+  useSpeakOnEnter(speak ?? prompt, promptVars, speakAlso, onPromptSpoken, speakOnEnter);
 
   // resolve(), not t(): the heading and the replay button must agree with each other AND
   // with the voice about which language this string is actually in. A key missing from

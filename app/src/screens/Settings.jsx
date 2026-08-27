@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useSession } from '../store.js';
 import { record, transcribe, classifyYesNo } from '../voice/listen.js';
-import { useVoice, resetSpokenHistory } from '../voice/useVoice.js';
+import { useVoice } from '../voice/useVoice.js';
 import { LANGUAGES, t } from '../i18n/index.js';
 import { Screen, BigButton, Card, Chip, Grid, Tile, YesNo, Spinner } from '../ui/kit.jsx';
 import { THEMES, DEFAULT_THEME } from '../ui/theme.js';
@@ -115,10 +115,6 @@ export default function Settings() {
       // erased" and comes back still wearing the palette they chose has visibly kept
       // something, and that is the only evidence they have either way.
       setTheme(null);
-      // And what the app has already said out loud. Screens go quiet on a repeat visit
-      // (see useSpeakOnEnter); after an erasure the next person to hold this phone must
-      // hear the first run, not somebody else's second one.
-      resetSpokenHistory();
       useSession.persist?.clearStorage?.();
       nav('/lang', { replace: true });
     } catch (e) {
