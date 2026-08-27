@@ -67,6 +67,40 @@ indoor capture has read noise. `brass-diya-specular-02.jpg` — mean 58, *zero* 
 Neither is a wrong verdict — the photo is correctly refused. It is the instruction that is
 wrong, which on this app is the part that matters.
 
+**One thing to check on a real phone — `stripExif` may be rotating photos sideways.**
+
+Not confirmed, and I cannot confirm it without a device. But it is cheap to check and
+expensive to find later, so it is written down here rather than left in my head.
+
+A phone's camera sensor is fixed in the body sideways. When someone holds the phone upright
+to photograph a tall matka, the sensor still records a sideways picture — and rather than
+rotate the pixels, the phone saves them as they are and attaches a small note to the file
+saying "turn this 90 degrees before showing it". Every photo app reads that note, which is
+why nobody ever notices.
+
+`stripExif` (`app/src/api/upload.js:27`) removes every one of those notes, which is exactly
+what we want it to do, because one of them is the artisan's GPS location. It works by
+redrawing the photo onto a canvas and re-encoding it, so nothing hidden survives. The
+question is whether the rotation happens *before* the note is thrown away. If it does not,
+the note is gone and the sideways pixels are all that is left — permanently, with nothing
+downstream able to recover the right way up.
+
+The behaviour depends on how the WebView handles `createImageBitmap`. Some browsers apply
+the rotation automatically, some do not, and Android WebViews are not consistent about it.
+
+**How to check, about two minutes:** photograph something in portrait on a real phone, put
+it through the app, and look at the uploaded result. Upright means there is nothing to fix.
+On its side means the fix is to rotate the pixels first and strip the notes second.
+
+**Why it matters on my side of the line.** The capture gate does not care — I checked all
+four of its measurements against a rotated image today and every one gives the same answer
+either way, because they are averages, a symmetric blur kernel, and a box area. But `crop()`
+and `composite()` (steps 3 and 4 of my list) care a great deal. They cut the product out and
+place it on a clean white background, so a sideways input produces a neatly cropped,
+well-lit product lying on its side — worse than the photograph the artisan took, and it is
+the version that reaches the listing. I would rather know before I build those two than
+after.
+
 **The interrupted run, finished.** `degrade.py` had written 128 of 498 fixtures and stopped
 mid-file: `pottery-darkclay-bad-motion-03.jpg` was left truncated, every textile source had
 nothing, and **not one of the 128 had a manifest row** — the script buffered every row in
