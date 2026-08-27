@@ -4,13 +4,16 @@ import { App as CapacitorApp } from '@capacitor/app';
 import { Network } from '@capacitor/network';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { routes } from './routes.jsx';
 import { useVoice } from './voice/useVoice.js';
 import { useSession } from './store.js';
 import { applyTheme, accentColour, DEFAULT_THEME } from './ui/theme.js';
 import Splash from './ui/Splash.jsx';
+import { queryClient, persister, shouldPersistQuery } from './api/queries';
 
 const router = createBrowserRouter(routes);
+
 
 /**
  * Put the chosen palette on <html> before anything reads a colour from it.
@@ -139,9 +142,27 @@ export default function App() {
   const [splashDone, setSplashDone] = useState(false);
 
   return (
-    <>
+    /*
+     * `dehydrateOptions` is the privacy boundary, not a tuning knob.
+     *
+     * It decides what reaches localStorage, and `shouldPersistQuery` refuses the paths
+     * that must never be written down — the token exchange, an in-flight upload, and the
+     * two job polls whose stored answer would be "still running" forever. Without this
+     * predicate the persister writes every successful query it sees.
+     */
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        maxAge: 24 * 60 * 60 * 1000,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (q) =>
+            q.state.status === 'success' && shouldPersistQuery(q.queryKey),
+        },
+      }}
+    >
       <RouterProvider router={router} />
       {!splashDone && <Splash onDone={() => setSplashDone(true)} />}
-    </>
+    </PersistQueryClientProvider>
   );
 }
