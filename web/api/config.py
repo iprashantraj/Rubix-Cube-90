@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     # Object storage for raw and enhanced images.
     s3_endpoint: str = "http://localhost:9000"
     s3_bucket: str = "kaarigar"
+    # Supabase ignores the value but the S3 signature requires one.
+    s3_region: str = "us-east-1"
     s3_access_key: str = ""
     s3_secret_key: str = ""
 
