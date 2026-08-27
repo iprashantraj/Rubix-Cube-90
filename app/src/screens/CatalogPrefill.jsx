@@ -70,9 +70,9 @@ export default function CatalogPrefill() {
 
       for (let i = 0; i < MAX_POLLS && alive; i++) {
         try {
-          // Contract path (ai/contracts.md). web/api does not proxy it yet, so today this
-          // 404s and we degrade — which is exactly the behaviour we want the day the AI
-          // box is unreachable in production too.
+          // Contract path (ai/contracts.md), proxied by web/api at products.py. It 404s
+          // unless this artisan owns the job, and any failure degrades — which is exactly
+          // the behaviour we want the day the AI box is unreachable in production too.
           const job = await api.get(`/enhance/${draft.enhanceJobId}`);
 
           if (job.status === 'done') {

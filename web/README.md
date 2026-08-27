@@ -21,6 +21,15 @@ altered.
 
 Copy `api/.env.example` to `api/.env`. Nothing in `config.py` has a usable secret default.
 
+Uploaded photos are assembled to `STORAGE_DIR` (default `api/.storage/`) and
+`POST /uploads/{id}/complete` returns a `file://` url to the finished image. `ai/` opens
+that url, so in dev both services have to see the same path. Object storage is a change to
+`api/storage.py` and nothing else — no caller reads a path.
+
+```bash
+cd api && python3 test_uploads.py    # chunk assembly, no deps, no server
+```
+
 ---
 
 ## The line that matters

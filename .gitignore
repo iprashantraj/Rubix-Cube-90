@@ -22,6 +22,10 @@ research/data/
 
 # Server-side TTS clip cache. Regenerated on demand, and it is bought audio, not source.
 web/api/.cache/
+
+# Assembled uploads. Real artisan photographs — the same privacy argument as the dev
+# database two blocks up, and the default location for STORAGE_DIR.
+web/api/.storage/
 *.pt
 *.pth
 *.onnx
@@ -43,3 +47,10 @@ out/
 ios/
 *.tsbuildinfo
 next-env.d.ts
+
+# Calibration fixtures. The manifest is committed, the pixels are not — same rule
+# as research/data/. See images/README.md.
+images/raw/*
+images/out/*
+!images/raw/.gitkeep
+!images/out/.gitkeep

@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     # separate deploy units and the AI box has a GPU that this one does not.
     ai_base_url: str = "http://localhost:8001"
 
+    # Where uploaded chunks are assembled and kept.
+    #
+    # Local filesystem, not S3, and deliberately so for now: `ai/` has to be able to open
+    # the URL that `POST /uploads/{id}/complete` hands back, and in dev both services run
+    # on one machine. The url is a `file://` URI. Swapping this for S3 is a change to
+    # `routers/uploads.py::_store` and nothing else — every caller only ever sees the url.
+    #
+    # Anchored to this file rather than the working directory, for the same reason ENV_FILE
+    # is: a relative default silently resolves against wherever the process was started.
+    storage_dir: str = str(Path(__file__).resolve().parent / ".storage")
+
     # Object storage for raw and enhanced images.
     s3_endpoint: str = "http://localhost:9000"
     # Two buckets, because "public" is a property of a BUCKET, not of a key prefix. A public

@@ -52,7 +52,28 @@ const JPEG_QUALITY = 0.82;
  * half matters for both.
  */
 export async function stripExif(blob) {
-  const bitmap = await createImageBitmap(blob);
+  /*
+   * `imageOrientation: 'from-image'` — apply the rotation BEFORE the tag carrying it is
+   * destroyed.
+   *
+   * A phone's sensor is mounted sideways in the body. Held upright to photograph a tall
+   * matka, it records a sideways image and attaches an EXIF tag saying "rotate this 90°
+   * before display". Every photo app reads that tag, which is why nobody notices it exists.
+   *
+   * This function throws every tag away deliberately — one of them is the artisan's home
+   * GPS position. But the default for this option is `'none'`, and Android WebViews are not
+   * consistent about it, so the rotation could be discarded along with the tag: sideways
+   * pixels, no note, permanently, and nothing downstream able to recover the right way up.
+   *
+   * The capture gate would never have caught it — its measurements are averages, a
+   * symmetric blur kernel and a box area, identical either way. `ai/`'s crop and composite
+   * stages care enormously: they cut the product out and place it on clean white, so a
+   * sideways input produces a neatly cropped product lying on its side, and that is the
+   * version that reaches the listing.
+   * (docs/Abhay/CHANGELOG.md, 2026-08-27 — flagged there as needing a real phone to
+   * confirm. Setting it explicitly costs nothing and removes the question.)
+   */
+  const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
 
   // Scale the LONG edge, so portrait and landscape both land on the same budget and a
   // photo that is already small is never upscaled.
