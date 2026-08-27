@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { api, cachedGet } from '../api/client.js';
 import { useSession } from '../store.js';
 import { record, transcribe, classifyYesNo } from '../voice/listen.js';
 import { useVoice } from '../voice/useVoice.js';
@@ -62,8 +62,18 @@ export default function Settings() {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState(null);
 
+  // 30-minute TTL (cache.js) — a name, a craft and a place change less often than anything
+  // else in the app. `api.patch('/me')` below invalidates the entry, so a correction the
+  // artisan makes here is never the thing this cache serves back stale.
   useEffect(() => {
-    api.get('/me').then(setMe, (e) => setError(e.messageKey ?? 'error.unknown'));
+    let alive = true;
+    cachedGet('/me', { onUpdate: (d) => alive && setMe(d) }).then(
+      (d) => alive && setMe(d),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
+    );
+    return () => {
+      alive = false;
+    };
   }, []);
 
   function chooseLang(code) {

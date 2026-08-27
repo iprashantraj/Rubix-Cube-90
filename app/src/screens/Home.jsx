@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, cachedGet } from '../api/client.js';
+import { cachedGet } from '../api/client.js';
 import { useSession } from '../store.js';
 import { t } from '../i18n/index.js';
 import { useVoice } from '../voice/useVoice.js';
@@ -50,8 +50,13 @@ export default function Home() {
         // The greeting says the artisan's name, and the store's copy of it is only as
         // fresh as the last screen that wrote one. Sign in on a second phone, reinstall,
         // or let a /me PATCH land while the app is closed, and this screen greets someone
-        // it has known by name for weeks as a stranger. The server knows; ask it.
-        api.get('/me').catch(() => null),
+        // it has known by name for weeks as a stranger. The server knows; ask it —
+        // through the cache, on a 30-minute TTL, so the greeting is not what /home waits
+        // for. `onUpdate` still corrects the name the moment the server disagrees.
+        cachedGet('/me', {
+          onUpdate: (d) =>
+            alive && d?.display_name && patchArtisan({ display_name: d.display_name, craft: d.craft }),
+        }).catch(() => null),
       ]);
       if (!alive) return;
       setProducts(list(p));

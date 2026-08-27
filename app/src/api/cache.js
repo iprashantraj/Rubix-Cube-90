@@ -31,8 +31,14 @@ const MAX_ENTRIES = 60;
  *
  * /auth carries the token and the OTP exchange. /uploads answers describe an in-flight
  * capture that is meaningless a minute later.
+ *
+ * /publish and /enhance are job polls, and a cached job status is a wrong one by
+ * construction: the loop asks "are you still running?" and a copy answers "yes" forever.
+ * Both are polled with plain `api.get` today, so this is a guard on the next caller rather
+ * than a fix — which is the point. Nothing about those call sites announces that switching
+ * them to `cachedGet` would hang the screen.
  */
-const NEVER = ['/auth', '/uploads'];
+const NEVER = ['/auth', '/uploads', '/publish', '/enhance'];
 
 /**
  * How long each family of data stays fresh before a revalidation is forced.
@@ -44,6 +50,11 @@ const NEVER = ['/auth', '/uploads'];
 const TTL = [
   ['/me', 30 * 60 * 1000],
   ['/thresholds', 60 * 60 * 1000],
+  // The channel catalogue and its selector packs are effectively static config; what moves
+  // is the `connected` flag, and that only moves because of a mutation on this device,
+  // which invalidates the entry anyway. Long TTL: this is walked in and out of repeatedly
+  // during setup, with the artisan's other hand on a marketplace app.
+  ['/channels', 30 * 60 * 1000],
   ['/products', 5 * 60 * 1000],
   ['/orders', 60 * 1000],
 ];
@@ -185,12 +196,22 @@ function demo() {
 
   assert(!cacheable('/auth/verify'), 'the token exchange is never written down');
   assert(!cacheable('/uploads/abc'), 'an in-flight upload is not a cacheable fact');
+  // A poll answered from a copy says "running" forever and the screen never leaves.
+  assert(!cacheable('/publish/job-1'), 'a publish job status is never cached');
+  assert(!cacheable('/enhance/job-1'), 'an enhance job status is never cached');
+  assert(cacheable('/channels'), 'the channel list is cached — it is what /publish renders');
   c.write('/auth/verify', { token: 'secret' });
   assert(c.read('/auth/verify') === null, 'and write() refuses it even if asked');
 
   c.write('/me', { display_name: 'Utsav' });
   c.invalidate('/me');
   assert(c.read('/me') === null, 'a PATCH must not leave the old profile behind');
+
+  // GstWizard reads /me/gst-route. A readiness answer that changes the route is a PATCH /me,
+  // and invalidate() matches on the first segment, so the wizard cannot show the old route.
+  c.write('/me/gst-route', { route: 'composition' });
+  c.invalidate('/me');
+  assert(c.read('/me/gst-route') === null, 'PATCH /me clears the derived gst route too');
 
   c.write('/products', [1]);
   c.write('/products/abc', { id: 'abc' });

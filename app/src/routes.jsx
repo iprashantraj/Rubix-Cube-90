@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useSession } from './store.js';
+import { useSession, tokenValid } from './store.js';
 import { BottomNav } from './ui/kit.jsx';
 
 import Home from './screens/Home.jsx';
@@ -49,9 +50,30 @@ export function Chrome({ children }) {
 function Guard({ children }) {
   const { lang, token, consent } = useSession();
   const { pathname } = useLocation();
+
+  /*
+   * An EXPIRED token is not a session, and this is the place that decides that.
+   *
+   * `tokenValid` has existed in store.js since the beginning, with a comment explaining
+   * exactly why it matters — and nothing called it. The gate below tested `!token`, so a
+   * long-dead token still let the artisan all the way in, and the first thing to actually
+   * notice was whichever request happened to 401 first. store.js says the point is WHERE
+   * they find out: a token that quietly dies mid-catalogue lands the failure on /publish,
+   * after they have photographed and described a product. This runs on every navigation,
+   * which makes the answer "at the next screen boundary" instead.
+   *
+   * Signing out rather than only redirecting, and in an effect rather than during render:
+   * signOut() now also drops the response cache, and the previous artisan's catalogue must
+   * not still be sitting in localStorage when the next person signs in on this phone.
+   */
+  const valid = tokenValid(token);
+  useEffect(() => {
+    if (token && !valid) useSession.getState().signOut();
+  }, [token, valid]);
+
   if (!lang && pathname !== '/lang') return <Navigate to="/lang" replace />;
   if (lang && !consent && pathname !== '/consent') return <Navigate to="/consent" replace />;
-  if (consent && !token && pathname !== '/auth') return <Navigate to="/auth" replace />;
+  if (consent && !valid && pathname !== '/auth') return <Navigate to="/auth" replace />;
   return children;
 }
 

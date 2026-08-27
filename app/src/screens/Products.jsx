@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { cachedGet } from '../api/client.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
 import { Screen, BigButton, Card, Chip, Spinner } from '../ui/kit.jsx';
@@ -45,8 +45,19 @@ export default function Products() {
   const [items, setItems] = useState(null);
   const [error, setError] = useState(null);
 
+  // The catalogue renders from the last visit's copy on the frame this screen appears, and
+  // corrects itself only if the server disagrees. Leaving /products tab and coming back was
+  // a full re-fetch and a spinner for the same fourteen rows — on a metered connection that
+  // is the artisan's money, and the spinner is what the app looks like to them.
   useEffect(() => {
-    api.get('/products').then(setItems, (e) => setError(e.messageKey ?? 'error.unknown'));
+    let alive = true;
+    cachedGet('/products', { onUpdate: (d) => alive && setItems(d) }).then(
+      (d) => alive && setItems(d),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
+    );
+    return () => {
+      alive = false;
+    };
   }, []);
 
   /*
