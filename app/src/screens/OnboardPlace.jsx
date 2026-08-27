@@ -45,6 +45,52 @@ const DIGIT_WORDS = {
 };
 
 /**
+ * Numbers people say as ONE word for TWO digits.
+ *
+ * "छह दो छह दो इक्कीस" is 626221, and the old parser heard 6262 followed by a word it did
+ * not know, threw the run away and re-asked — for a perfectly clear answer. Nobody reads
+ * six digits as six separate words all the way through; they group the tail, and Hindi
+ * groups it irregularly enough that it has to be a table.
+ *
+ * Only 10-30 and the round tens are here, because those are what actually appears at the
+ * end of a spoken PIN code. A number word we do not know still breaks the run, which is the
+ * safe direction: a re-ask costs eight seconds and a wrong district costs a delivery.
+ */
+const NUMBER_WORDS = {
+  // English
+  ten: '10', eleven: '11', twelve: '12', thirteen: '13', fourteen: '14', fifteen: '15',
+  sixteen: '16', seventeen: '17', eighteen: '18', nineteen: '19', twenty: '20',
+  thirty: '30', forty: '40', fifty: '50', sixty: '60', seventy: '70', eighty: '80',
+  ninety: '90',
+  // Hindi, romanised
+  das: '10', gyarah: '11', barah: '12', terah: '13', chaudah: '14', pandrah: '15',
+  solah: '16', satrah: '17', atharah: '18', unnis: '19', bees: '20', bis: '20',
+  ikkis: '21', ikkees: '21', baees: '22', bais: '22', teis: '23', chaubis: '24',
+  pachchis: '25', pachis: '25', chhabbis: '26', sattais: '27', atthais: '28',
+  untis: '29', tees: '30', chalis: '40', pachas: '50', saath: '60', sattar: '70',
+  assi: '80', nabbe: '90',
+  // Hindi, Devanagari
+  'दस': '10', 'ग्यारह': '11', 'बारह': '12', 'तेरह': '13', 'चौदह': '14', 'पंद्रह': '15',
+  'सोलह': '16', 'सत्रह': '17', 'अठारह': '18', 'उन्नीस': '19', 'बीस': '20',
+  'इक्कीस': '21', 'बाईस': '22', 'तेईस': '23', 'चौबीस': '24', 'पच्चीस': '25',
+  'छब्बीस': '26', 'सत्ताईस': '27', 'अट्ठाईस': '28', 'उनतीस': '29', 'तीस': '30',
+  'चालीस': '40', 'पचास': '50', 'साठ': '60', 'सत्तर': '70', 'अस्सी': '80', 'नब्बे': '90',
+  // Odia
+  'ଦଶ': '10', 'କୋଡ଼ିଏ': '20', 'ଏକୋଇଶି': '21', 'ତିରିଶ': '30',
+};
+
+/**
+ * Words that may sit BETWEEN digits without ending the number.
+ *
+ * "छह दो छह दो और इक्कीस" — the "और" is not a boundary, it is how the sentence breathes.
+ * Deliberately tiny and deliberately not "any unknown word": an unknown word still splits
+ * the run, because that is what stops "ek minute, 753001" from becoming 175300 (see below).
+ */
+const JOINERS = new Set([
+  'aur', 'and', 'phir', 'then', 'और', 'फिर', 'ଆଉ', 'ଏବଂ',
+]);
+
+/**
  * Digits arrive in whichever numeral system the ASR pipeline felt like using — ASCII,
  * Devanagari (७५३००१) or Odia (୭୫୩୦୦୧). Each block is ten consecutive codepoints starting
  * at its own zero, so one subtraction handles all three and every other Indic script we
@@ -85,6 +131,13 @@ export function extractPincode(transcript) {
       run += DIGIT_WORDS[tok];
       continue;
     }
+    // "इक्कीस" contributes two digits at once. Same run, because it is the same number.
+    if (NUMBER_WORDS[tok] !== undefined) {
+      run += NUMBER_WORDS[tok];
+      continue;
+    }
+    // A joiner is not a boundary and not a digit — skip it and keep the run alive.
+    if (JOINERS.has(tok)) continue;
     // A bare numeral token ("753001", "७५३"). Anything with letters mixed in is a word we
     // do not know, and guessing at it is how you end up shipping to the wrong district.
     let numeral = '';
@@ -149,7 +202,7 @@ export default function OnboardPlace() {
       // true from the frame it appears. This used to `await say('voice.listening')` first,
       // which announced the microphone about a second before opening it and swallowed
       // whatever the artisan said in reply to the question.
-      recRef.current = await record();
+      recRef.current = await record({ onSilence: stopRec });
       setPhase('rec');
     } catch (e) {
       setPhase('fail');
@@ -185,7 +238,8 @@ export default function OnboardPlace() {
 
   async function save() {
     setError(null);
-    setPhase('busy');
+    // See OnboardName.save() — 'busy' re-asks the question mid-save.
+    setPhase('saving');
     try {
       await api.patch('/me', { pincode: pin });
       patchArtisan({ pincode: pin });
@@ -201,7 +255,7 @@ export default function OnboardPlace() {
     nav('/onboard/ready');
   }
 
-  const confirming = phase === 'confirm';
+  const confirming = phase === 'confirm' || phase === 'saving';
   // Spaced so TTS reads it back digit by digit — "seven five three zero zero one", not
   // "seven hundred and fifty-three thousand and one", which nobody can check against the
   // number on their own post office board.
@@ -274,6 +328,13 @@ if (import.meta.env.DEV) {
   ok(extractPincode('do teen 753001'), '753001', 'two leading filler digit-words');
   ok(extractPincode('753001 ek baar'), '753001', 'trailing filler digit-word');
   ok(extractPincode('753001 110001'), '', 'two candidates is ambiguous — re-ask');
+  // Grouped tails. Nobody reads all six digits separately to the end; the last two get
+  // said as one word, and this failed on a real phone for a perfectly clear answer.
+  ok(extractPincode('छह दो छह दो इक्कीस'), '626221', 'two-digit word finishes the code');
+  ok(extractPincode('chhe do chhe do ikkis'), '626221', 'romanised, same answer');
+  ok(extractPincode('छह दो छह दो और इक्कीस'), '626221', '"aur" joins, it does not break');
+  ok(extractPincode('seven five three zero zero one'), '753001', 'english is unaffected');
+  ok(extractPincode('bees'), '', 'a number word alone is not a PIN code');
   ok(extractPincode('75300'), '', 'five digits is not a pincode');
   ok(extractPincode(''), '', 'silence');
   ok(extractPincode(null), '', 'no transcript at all');

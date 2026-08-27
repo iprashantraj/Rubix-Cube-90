@@ -52,7 +52,9 @@ export default function OnboardName() {
       // true from the frame it appears. This used to `await say('voice.listening')` first,
       // which announced the microphone about a second before opening it and swallowed
       // whatever the artisan said in reply to the question.
-      recRef.current = await record();
+      // onSilence: the artisan answers and then waits. Nobody told them to press the button
+      // again, and pressing-to-stop is a habit from apps they have never used.
+      recRef.current = await record({ onSilence: stopRec });
       setPhase('rec');
     } catch (e) {
       setPhase('fail');
@@ -103,7 +105,12 @@ export default function OnboardName() {
 
   async function save() {
     setError(null);
-    setPhase('busy');
+    // 'saving', not 'busy'. `busy` drops the confirm UI, so for as long as the PATCH was in
+    // flight the screen went back to asking the question — heading, voice and all. The
+    // artisan had just answered it; being asked again reads as "that did not work", and the
+    // natural response is to say their name a second time into a screen already saving the
+    // first one.
+    setPhase('saving');
     try {
       await api.patch('/me', { display_name: heard });
       patchArtisan({ display_name: heard });
@@ -122,7 +129,7 @@ export default function OnboardName() {
     nav('/onboard/craft');
   }
 
-  const confirming = phase === 'confirm';
+  const confirming = phase === 'confirm' || phase === 'saving';
 
   return (
     <Screen prompt={confirming ? 'onboard.name_confirm' : 'onboard.name'} promptVars={{ name: heard }}>

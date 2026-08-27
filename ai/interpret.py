@@ -58,11 +58,30 @@ log = logging.getLogger(__name__)
 # deepseek-v4-flash: cheap and fast enough to sit in a conversational loop, which is what
 # this is — an artisan is waiting, mid-sentence, for the next question. A slow model here
 # costs the flow, not just the request.
-MODEL = "deepseek/deepseek-v4-flash"
+# This call extracts one field from one sentence. An INSTRUCT model is the right shape for
+# it — a reasoning model spends its budget narrating and, at the 120-token cap this used to
+# run under, returned content=null on every single request. The feature was dead while
+# every response was a 200.
+#
+# deepseek-v4-flash IS a reasoning model, and it is the default anyway because it is the
+# only thing this account's OpenRouter data policy will reach: claude-haiku-4.5 and
+# gemini-flash-lite both answer "No endpoints available matching your guardrail
+# restrictions and data policy". Widen that at openrouter.ai/settings/privacy and then set
+# OPENROUTER_MODEL to an instruct model — the budget and the reasoning-fallback parse below
+# exist to make the reasoning case work, not to make it the good option.
+MODEL = os.environ.get("OPENROUTER_MODEL", "").strip() or "deepseek/deepseek-v4-flash"
+
+# The only permitted second choice. OpenRouter tries these in order and uses the first its
+# guardrails and data policy allow, which is what makes an account-level restriction show up
+# as a slower answer rather than as a dead feature. Do not add to this list without asking —
+# the account's policy decides what may run, not this file.
+FALLBACK_MODEL = "google/gemma-4-26b-a4b-it:free"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Hard caps, applied before the request and again to the response.
-MAX_TRANSCRIPT_CHARS = 600  # a spoken answer; anything longer is not an answer
+# A ceiling, not a knife. Refused rather than trimmed: a 60-second answer is ~900 chars, so
+# anything past this is not a spoken answer to one question.
+MAX_TRANSCRIPT_CHARS = 2000
 MAX_ANSWER_CHARS = 120      # what we will store in a name/material/size field
 TIMEOUT_SECONDS = 12
 
@@ -122,8 +141,14 @@ you output beyond supplying the value.
 _INVISIBLE = re.compile(r"[​-‏‪-‮⁦-⁩﻿]")
 
 
-def clean_text(raw: str | None, limit: int) -> str:
-    """Normalise, strip invisibles and control characters, collapse space, truncate.
+def clean_text(raw: str | None, limit: int | None = None) -> str:
+    """Normalise, strip invisibles and control characters, collapse space.
+
+    `limit` truncates and is for OUR vocabulary (option slugs, the model's own answer).
+    It is deliberately NOT applied to the artisan's transcript: cutting a sentence at a
+    character count removes whichever part happened to be past it, and the answer we are
+    looking for is as likely to be at the end as the beginning. An over-long transcript is
+    refused loudly instead — see build_payload.
 
     NFKC first so that visually identical strings compare equal downstream and so that
     compatibility forms cannot be used to dodge the checks in `validate`.
@@ -140,7 +165,8 @@ def clean_text(raw: str | None, limit: int) -> str:
         ch if ch == " " or not unicodedata.category(ch).startswith("C") else " "
         for ch in text
     )
-    return re.sub(r"\s+", " ", text).strip()[:limit]
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit] if limit else text
 
 
 # The complete set of fields any request may carry. Anything not named here never reaches
@@ -178,9 +204,13 @@ def build_payload(req: dict) -> dict:
     if question not in KNOWN_QUESTIONS:
         raise ValueError(f"unknown question id: {question!r}")
 
-    transcript = clean_text(req.get("transcript"), MAX_TRANSCRIPT_CHARS)
+    # Whole, or not at all. Silently truncating meant the model was sometimes shown a
+    # sentence with the answer missing and then blamed for not finding it.
+    transcript = clean_text(req.get("transcript"))
     if not transcript:
         raise ValueError("empty transcript")
+    if len(transcript) > MAX_TRANSCRIPT_CHARS:
+        raise ValueError(f"transcript is {len(transcript)} chars; limit is {MAX_TRANSCRIPT_CHARS}")
 
     language = req.get("language") if req.get("language") in LANGUAGES else "hi"
 
@@ -220,8 +250,17 @@ def validate(raw_content: str, payload: dict) -> dict:
     try:
         body = json.loads(text)
     except (ValueError, TypeError):
-        log.warning("interpret: model returned non-JSON for %s", payload["question"])
-        return {"value": None, "confidence": 0.0}
+        # Last resort: the outermost {...} anywhere in the text. This is what rescues a
+        # reasoning model, whose answer arrives wrapped in prose it was told not to write.
+        # Greedy on purpose — the object we want is the last thing it settles on.
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        try:
+            body = json.loads(match.group(0)) if match else None
+        except (ValueError, TypeError):
+            body = None
+        if body is None:
+            log.warning("interpret: model returned non-JSON for %s", payload["question"])
+            return {"value": None, "confidence": 0.0}
 
     if not isinstance(body, dict):
         return {"value": None, "confidence": 0.0}
@@ -288,6 +327,8 @@ async def interpret(req: dict) -> dict:
 
     body = {
         "model": MODEL,
+        # OpenRouter falls through this list when the first is unavailable to the account.
+        "models": [MODEL, FALLBACK_MODEL],
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
@@ -295,8 +336,15 @@ async def interpret(req: dict) -> dict:
         # Deterministic: this is extraction, not writing. The same sentence must produce the
         # same field value every time or the confirmation step is meaningless.
         "temperature": 0,
-        "max_tokens": 120,
+        # 120 was enough for the answer and not for a reasoning model's preamble. A model
+        # that thinks before answering spends this budget on `reasoning`, hits
+        # finish_reason="length", and returns content=null — a silent failure that looks
+        # exactly like "the model did not understand the sentence".
+        "max_tokens": 400,
         "response_format": {"type": "json_object"},
+        # Ask OpenRouter to suppress reasoning where the provider supports it. Ignored by
+        # models that have none, which is the case we actually want.
+        "reasoning": {"exclude": True},
     }
 
     try:
@@ -318,9 +366,15 @@ async def interpret(req: dict) -> dict:
         raise InterpretError(f"openrouter unreachable: {e}") from e
 
     try:
-        content = data["choices"][0]["message"]["content"]
+        message = data["choices"][0]["message"]
     except (KeyError, IndexError, TypeError) as e:
         raise InterpretError(f"unexpected openrouter response shape: {e}") from e
+
+    # `content` is the answer. `reasoning` is the fallback and not a nicety: a reasoning
+    # model under a tight token budget puts everything there and leaves content null, and
+    # without this the whole feature degrades to "the model never understands anything"
+    # while every request returns 200. validate() digs the JSON object out of either.
+    content = message.get("content") or message.get("reasoning") or ""
 
     return validate(content, payload)
 

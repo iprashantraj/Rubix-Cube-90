@@ -111,9 +111,11 @@ const CRAFT_WORDS = {
 const CARRIERS = [
   // English
   /^(my name is|my name's|i am called|i'm called|this is|i am|i'm|it is|it's|its)\s+/i,
-  // Hindi, romanised and in script
-  /^(mera naam|mera nam|meraa naam|hamara naam|mera naam hai)\s+/i,
-  /^(मेरा नाम|हमारा नाम|मै|मैं)\s+/,
+  // Hindi, romanised and in script. `maro`/`mero`/`hamar` are not textbook Hindi — they are
+  // what the ASR actually returns for regional pronunciations, and the transcript is what
+  // this has to match, not the grammar.
+  /^(mera naam|mera nam|meraa naam|maro naam|mero naam|hamara naam|hamar naam|mera naam hai)\s+/i,
+  /^(मेरा नाम|मेरो नाम|हमारा नाम|हमार नाम|मै|मैं)\s+/,
   // Odia
   /^(mo naam|mora naam)\s+/i,
   /^(ମୋ ନାମ|ମୋର ନାମ)\s+/,
@@ -161,9 +163,21 @@ export function stripCarrier(transcript) {
   text = text.replace(/[.!?,]+$/, '').trim();
   if (!text) return '';
 
-  // Already a bare answer: nothing to interpret, nothing to escalate.
   const words = text.split(/\s+/).length;
-  if (!stripped && words > 3) return '';
+
+  /*
+   * Nothing was stripped, so this is either a bare answer or a sentence phrased in a way
+   * the table above does not know. Two words is the line: "Utsav" and "Utsav Sharma" are
+   * answers, and by three we are almost certainly looking at a carrier phrase we failed to
+   * recognise.
+   *
+   * This used to allow three, and "maro naam Utsav" — three words, a dialect form of "mera
+   * naam" that is not in CARRIERS — was therefore returned WHOLE and stored as a display
+   * name, without the model ever being asked. The local tier is supposed to be a fast path
+   * for answers it is sure about, and returning the question's own words is not that.
+   * Escalating instead costs one round trip and gets "Utsav".
+   */
+  if (!stripped) return words <= 2 ? text : '';
   return words <= 6 ? text : '';
 }
 
@@ -276,4 +290,16 @@ if (import.meta.env.DEV) {
   ok(matchCraft('kuch bhi'), null, 'nothing recognised');
   ok(matchCraft(''), null, 'silence');
   ok(matchCraft(null), null, 'no transcript at all');
+
+  // Names. The empty string means "escalate to the model" — never "store the sentence".
+  ok(stripCarrier('मेरा नाम उत्सव है'), 'उत्सव', 'hindi carrier and copula both stripped');
+  ok(stripCarrier('mera naam Utsav hai'), 'Utsav', 'romanised hindi');
+  ok(stripCarrier('my name is Utsav'), 'Utsav', 'english carrier');
+  ok(stripCarrier('Utsav'), 'Utsav', 'a bare name needs no interpretation');
+  ok(stripCarrier('Utsav Sharma'), 'Utsav Sharma', 'two words is still a name');
+  // The one this file got wrong on a real phone: an unknown carrier, short enough to slip
+  // through the old `words > 3` guard, stored verbatim as a display name.
+  ok(stripCarrier('maro naam Utsav'), 'Utsav', 'dialect carrier is known now');
+  ok(stripCarrier('naam mera Utsav ji'), '', 'unknown phrasing escalates, never stores');
+  ok(stripCarrier('ମୋ ନାମ ଉତ୍ସବ ଅଟେ'), 'ଉତ୍ସବ', 'odia carrier and copula');
 }
