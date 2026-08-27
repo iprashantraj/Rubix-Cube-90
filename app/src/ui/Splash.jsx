@@ -19,9 +19,15 @@ import Mark from './Mark.jsx';
  * watch a piece of weaving happen.
  *
  * ⏱ It is not a loading screen and must never become one. Nothing is fetched here, the
- * router is already mounted underneath, and the timeline is fixed at 2.1s — the app is
- * usable the moment this element leaves the tree, whatever the network is doing. Anything
- * that needs to wait for data waits on its own screen, where it can say so out loud.
+ * router is already mounted underneath, and the timeline is fixed — the app is usable the
+ * moment this element leaves the tree, whatever the network is doing. Anything that needs
+ * to wait for data waits on its own screen, where it can say so out loud.
+ *
+ * It ran for 2.1s, of which the first 1.18s were spent with the mark INVISIBLE while the
+ * loom drew itself. By then the artisan had already seen that mark twice — once on the
+ * launcher tile, once on the system splash Android draws from the same PNG — so the app
+ * appeared to show it, lose it, and find it again. Now the mark carries straight over from
+ * the system splash and the loom draws in behind it, which takes 1.2s in total.
  *
  * ♿ Reduced motion: the CSS at the bottom of styles.css freezes every animation in the
  * app, which for a purely decorative sequence would leave a half-drawn loom on screen
@@ -30,7 +36,7 @@ import Mark from './Mark.jsx';
  * rest of the app does not repeat.
  */
 
-const RUN_MS = 2100;
+const RUN_MS = 1200;
 const FADE_MS = 400;
 const STATIC_MS = 900; // reduced motion: long enough to read, short enough not to annoy
 
