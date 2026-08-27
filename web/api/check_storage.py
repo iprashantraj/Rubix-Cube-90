@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Round-trip one real image through storage, then delete it.
+"""Round-trip one real image through object storage, then delete it.
 
 Answers the only question that matters after setup: does an artisan's photo actually come
 back from a URL a marketplace page can load — and does the raw original stay unreadable.
@@ -12,7 +12,7 @@ import urllib.request
 
 from PIL import Image
 
-from api import storage
+from api import objectstore as storage
 from api.images import derive
 
 def cleanup(keys: list[str]) -> None:

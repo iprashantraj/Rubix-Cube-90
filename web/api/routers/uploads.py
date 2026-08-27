@@ -3,13 +3,17 @@
 Online-first (docs/decisions.md): this exists so a dropped connection resumes from the last
 acknowledged chunk instead of restarting a 3MB photo on a rural tower. It is not an offline
 queue and it is not a sync engine.
+
+Chunks land on disk under `settings().storage_dir` and are concatenated on `complete()`,
+which returns a url. That url is what `POST /products/{id}/images` accepts and what `ai/`
+is eventually handed. Where the bytes actually go is `../storage.py`'s problem — and, once S3 is configured,
+`../objectstore.py`'s.
 """
 
 from __future__ import annotations
 
 import logging
 import shutil
-import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -17,40 +21,34 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from .. import storage
+from .. import objectstore
+from ..config import settings
 from ..db import get_db
 from ..images import derive
 from ..models import Artisan, Upload
 from ..security import current_artisan
+from ..storage import AssemblyError, assemble, final_path, parts_dir
 
 router = APIRouter()
 log = logging.getLogger(__name__)
 
 MAX_BYTES = 25 * 1024 * 1024
+CHUNK_SIZE = 256 * 1024
 
-# Chunks land here until `complete` assembles them.
-#
-# Disk, not memory: a resumable upload is open for as long as the artisan's connection
-# takes, and holding 25MB of half-finished photos per in-flight upload in process memory is
-# how a box with several artisans on it falls over. The OS temp dir is also cleared on
-# reboot, which is the right lifetime for something abandoned mid-upload.
-#
-# ⚠️ This makes the API stateful across requests: chunk 3 must reach the same process that
-# holds chunks 1 and 2. Fine for one box. Behind more than one replica this needs to become
-# S3 multipart, which is what the original TODO here meant.
-STAGING = Path(tempfile.gettempdir()) / "kaarigar-uploads"
-
-
-def _staging_dir(upload_id: str) -> Path:
-    d = STAGING / upload_id
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+# A chunk is 256KB by contract. The slack is for a client that rounded up or is on an older
+# chunk size; the cap is here because `size` is checked once in start() and a client that
+# lies about it would otherwise write to disk without limit.
+MAX_CHUNK_BYTES = 2 * CHUNK_SIZE
 
 
 class StartUpload(BaseModel):
     size: int
     chunks: int
     content_type: str = "image/jpeg"
+
+
+def _root() -> Path:
+    return Path(settings().storage_dir)
 
 
 @router.post("/uploads")
@@ -61,13 +59,15 @@ def start(
 ) -> dict:
     if req.size <= 0 or req.size > MAX_BYTES:
         raise HTTPException(413, "image too large")
+    if req.chunks <= 0 or req.chunks > (MAX_BYTES // CHUNK_SIZE) + 1:
+        raise HTTPException(400, "bad chunk count")
     up = Upload(
         artisan_id=artisan.id, size=req.size, chunks=req.chunks,
         content_type=req.content_type, received=[],
     )
     db.add(up)
     db.commit()
-    return {"upload_id": up.id, "chunk_size": 256 * 1024}
+    return {"upload_id": up.id, "chunk_size": CHUNK_SIZE}
 
 
 def _owned(upload_id: str, db: Session, artisan: Artisan) -> Upload:
@@ -98,13 +98,17 @@ async def put_chunk(
     up = _owned(upload_id, db, artisan)
     if not 0 <= index < up.chunks:
         raise HTTPException(400, "chunk index out of range")
+    if up.url:
+        raise HTTPException(409, "upload already completed")
 
-    # This used to `await chunk.read()` and THROW THE BYTES AWAY, then `complete` wrote a
-    # fabricated `s3://raw/{id}` URL that pointed at nothing. Every product in the database
-    # therefore had an image that did not exist, which is why every row rendered the
-    # "no image yet" placeholder.
-    body = await chunk.read()
-    (_staging_dir(upload_id) / f"{index:06d}").write_bytes(body)
+    data = await chunk.read()
+    if len(data) > MAX_CHUNK_BYTES:
+        raise HTTPException(413, "chunk too large")
+
+    parts = parts_dir(_root(), up.id)
+    parts.mkdir(parents=True, exist_ok=True)
+    # Zero-padded so a plain sorted() over the directory is index order.
+    (parts / f"{index:06d}").write_bytes(data)
 
     if index not in up.received:
         up.received = sorted([*up.received, index])
@@ -120,46 +124,52 @@ def complete(
     artisan: Artisan = Depends(current_artisan),
 ) -> dict:
     up = _owned(upload_id, db, artisan)
+    # Idempotent: the app retries `complete` on a dropped response, and by then the parts
+    # are gone. Returning the url it already has is the honest answer, not a 409.
+    if up.url:
+        return {"url": up.url}
+
     if len(up.received) != up.chunks:
         missing = sorted(set(range(up.chunks)) - set(up.received))
         raise HTTPException(409, f"missing chunks: {missing[:10]}")
 
-    d = _staging_dir(up.id)
-    # Sorted by the zero-padded index, so reassembly order is the write order and does not
-    # depend on the filesystem's idea of directory ordering.
-    original = b"".join(p.read_bytes() for p in sorted(d.iterdir()))
-    if not original:
-        raise HTTPException(409, "no chunk data on this server")
-
+    parts = parts_dir(_root(), up.id)
+    final = final_path(_root(), up.id, up.content_type)
     try:
-        variants = derive(original)
-    except ValueError as e:
-        # A corrupt or non-image upload fails HERE, before it becomes a product row with a
-        # dead image. 422, not 500: the request was wrong, not the server.
-        shutil.rmtree(d, ignore_errors=True)
-        raise HTTPException(422, str(e)) from e
+        assemble(parts, up.chunks, up.size, final)
+    except AssemblyError as e:
+        # 409, not 500: the client can fix this by sending the chunks again, and upload.js
+        # retries transport and 5xx only — a 500 here would stall silently.
+        raise HTTPException(409, str(e)) from e
 
-    if not storage.available():
-        # No S3 configured — a normal dev box. Keep the staged bytes so the flow still
-        # completes and say so loudly, rather than writing another URL that points nowhere.
-        log.warning("object storage is not configured; upload %s stays local", up.id)
-        raise HTTPException(503, "object storage is not configured")
+    shutil.rmtree(parts, ignore_errors=True)
+    up.url = final.resolve().as_uri()
 
-    urls = {}
-    try:
-        for name, data in variants.items():
-            # `full` is the archival original and is NOT public — see storage.py. The
-            # derived sizes are what a marketplace page links to.
-            key = storage.key_for(artisan.id, up.id, name, public=(name != "full"))
-            urls[name] = storage.put(key, data)
-    except storage.StorageError as e:
-        # Staged chunks are deliberately left in place: the artisan already spent the data
-        # to send them, and a retry of /complete should not cost them a second upload.
-        raise HTTPException(503, f"could not store image: {e}") from e
+    # Publish, if there is anywhere to publish to.
+    #
+    # The local file:// url above is what `ai/` opens on the same machine, and it stays the
+    # answer when S3 is unconfigured — an unset bucket is a normal dev box, not an error,
+    # and answering 503 here is what blocked the image pipeline from being testable at all
+    # (docs/Abhay/PIPELINE-RECONCILIATION.md §5, finding 1).
+    #
+    # With S3 configured the derived variants go up and the artisan's ORIGINAL does not
+    # follow them into the public bucket: raw/ is a private bucket, and what a marketplace
+    # page links to is only ever something we deliberately derived for it.
+    if objectstore.available():
+        try:
+            original = final.read_bytes()
+            for name, data in derive(original).items():
+                key = objectstore.key_for(artisan.id, up.id, name, public=(name != "full"))
+                url = objectstore.put(key, data)
+                if name == "display":
+                    up.url = url
+            objectstore.put(
+                objectstore.key_for(artisan.id, up.id, "original", public=False), original
+            )
+        except (objectstore.StorageError, ValueError) as e:
+            # The bytes are already safe on disk and the url already resolves. A failed
+            # publish costs the marketplace variants, never the upload — rule 3.
+            log.warning("upload %s assembled but not published: %s", up.id, e)
 
-    # Only now is the upload really done, so only now do the chunks go.
-    shutil.rmtree(d, ignore_errors=True)
-
-    up.url = urls.get("display") or urls["full"]
     db.commit()
-    return {"url": up.url, "variants": urls}
+    return {"url": up.url}
