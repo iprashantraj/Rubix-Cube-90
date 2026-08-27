@@ -1820,13 +1820,13 @@ input {
   opacity: 0.55;
   stroke-dasharray: 84;
   stroke-dashoffset: 84;
-  animation: thread 520ms var(--ease) forwards;
+  animation: thread 380ms var(--ease) forwards;
 }
 .splash__warp line {
-  animation-delay: calc(var(--i) * 70ms);
+  animation-delay: calc(var(--i) * 45ms);
 }
 .splash__weft line {
-  animation-delay: calc(520ms + var(--i) * 70ms);
+  animation-delay: calc(240ms + var(--i) * 45ms);
 }
 @keyframes thread {
   to {
@@ -1835,20 +1835,24 @@ input {
 }
 
 /*
- * The motif, coming off the cloth. Starts slightly small and transparent so it reads as
- * emerging FROM the weave rather than being pasted on top of it.
+ * The motif. Present from the FIRST FRAME, and that is the entire fix for "the splash
+ * interferes with the app icon".
+ *
+ * The sequence a user actually sees is: tap a clay tile with a white mark on it, then the
+ * system splash (Android 12+ draws @mipmap/ic_launcher_foreground on the accent — the same
+ * mark again), then this. This element used to start at opacity 0 and fade in at 1180ms,
+ * so the mark VANISHED for over a second while the loom drew itself, and then came back.
+ * Three frames of the same picture with a hole in the middle of them reads as the app
+ * having failed to start, not as an animation.
+ *
+ * So it hands over instead: the mark is already there, exactly where the system splash left
+ * it, and the loom draws in BEHIND it. Nothing regresses, and the only thing that is new on
+ * screen is the weaving and the word.
  */
 .splash__mark {
   color: #fff;
-  opacity: 0;
-  transform: scale(0.82);
-  animation: mark-in 620ms var(--ease) 1180ms forwards;
-}
-@keyframes mark-in {
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  opacity: 1;
+  transform: scale(1);
 }
 
 .splash__word {
@@ -1858,7 +1862,7 @@ input {
   font-weight: var(--t-display-w);
   letter-spacing: -0.02em;
   opacity: 0;
-  animation: rise 500ms var(--ease) 1420ms forwards;
+  animation: rise 420ms var(--ease) 520ms forwards;
 }
 .splash__tag {
   margin: 0;
@@ -1867,7 +1871,7 @@ input {
   font-size: var(--t-body);
   line-height: var(--t-body-lh);
   opacity: 0;
-  animation: rise 500ms var(--ease) 1600ms forwards;
+  animation: rise 420ms var(--ease) 700ms forwards;
 }
 @keyframes rise {
   from {
