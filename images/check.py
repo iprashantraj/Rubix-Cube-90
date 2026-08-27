@@ -15,6 +15,10 @@ The metrics mirror `app/src/camera/gate.js` exactly — same Rec.601 luma, same 
 kernel, same 12x9 grid, same busiest-cell-relative cutoff — so a number printed here is
 the number the phone would compute. Divergence here is a bug, not a variant.
 
+The metrics come from `ai/enhance/metrics.py`, the same code the server gate runs, so a
+number printed here is the number the server computes. The gate.js mirror below — the 12x9
+framing grid and the verdict ladder — stays here, because that half describes the phone.
+
 Every run writes `images/out/metrics.csv`, one row per image, flushed as it goes. Decoding
 the set is the expensive part — 1.5 gigapixels — and nothing about calibration is answered
 in one pass, so the numbers are written down rather than recomputed. `--resume` picks up
@@ -29,7 +33,6 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import json
 import re
 import sys
 from pathlib import Path
@@ -39,6 +42,19 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
+sys.path.insert(0, str(REPO))
+
+# The measurements themselves live with the server gate that has to agree with them. Every
+# threshold in thresholds.json was calibrated with these exact functions, so a second copy
+# here would quietly turn that calibration into evidence for nothing.
+from ai.enhance.metrics import (  # noqa: E402
+    blur_score,
+    exposure,
+    full_res,
+    thresholds,
+    to_gray,
+)
+
 RAW = ROOT / "raw"
 OUT = ROOT / "out"
 METRICS = OUT / "metrics.csv"
@@ -63,110 +79,17 @@ COVERAGE = {
 }
 
 
-def thresholds() -> dict:
-    """The one file. Never a second copy — see docs/app/Camera-Pipeline.md §0."""
-    raw = json.loads((REPO / "ai" / "thresholds.json").read_text())
-    return {k: v for k, v in raw.items() if not k.startswith("_")}
-
-
-# Full resolution is where the memory goes. The obvious implementation — decode, convert
-# the whole thing to a float64 RGB array, take the luma — peaks near 1.5GB on the 22MP
-# fixtures in this set, and this machine has no swap to absorb that. Nothing measured at
-# full resolution needs the whole image at once: Laplacian variance and the exposure
-# histogram are both reductions. So they are accumulated over horizontal bands and peak
-# memory stays flat in the image size instead of growing with it.
-#
-# The 240x180 gate path below is deliberately left alone. It is 43k pixels, it costs
-# nothing, and it has to match gate.js exactly.
-BAND_ROWS = 256
-
-
-def _band_luma(rgb: np.ndarray) -> np.ndarray:
-    """Rec.601 luma for one band of uint8 RGB rows. Same arithmetic as to_gray()."""
-    a = rgb.astype(np.float64)
-    return (a[..., 0] * 299 + a[..., 1] * 587 + a[..., 2] * 114) / 1000
-
-
-def full_res(img: Image.Image) -> tuple[float, dict]:
-    """Blur score and exposure at full resolution, in bounded memory.
-
-    Returns exactly what `blur_score(to_gray(img))` and `exposure(to_gray(img))` return —
-    the band split is an implementation detail, not a different measurement. The Laplacian
-    bands carry the previous band's last two rows so the kernel is never split across a
-    seam, and the interiors tile rows 1..h-2 once each with no gap and no overlap.
-    """
-    rgb = np.asarray(img.convert("RGB"))
-    h, w = rgb.shape[0], rgb.shape[1]
-
-    q_n = q_sum = blown = crushed = 0          # exposure, over every pixel
-    n = 0                                       # Laplacian, over the interior only
-    s_lap = ss_lap = 0.0
-    tail: np.ndarray | None = None
-
-    for top in range(0, h, BAND_ROWS):
-        g = _band_luma(rgb[top:min(top + BAND_ROWS, h)])
-
-        q = np.clip(g, 0, 255).astype(np.uint8)
-        q_n += q.size
-        q_sum += int(q.sum(dtype=np.int64))
-        blown += int(np.count_nonzero(q >= 250))
-        crushed += int(np.count_nonzero(q <= 5))
-        del q
-
-        block = g if tail is None else np.vstack((tail, g))
-        if block.shape[0] >= 3 and w >= 3:
-            c = block[1:-1, 1:-1]
-            lap = block[:-2, 1:-1] + block[2:, 1:-1] + block[1:-1, :-2] + block[1:-1, 2:] - 4 * c
-            n += lap.size
-            s_lap += float(lap.sum(dtype=np.float64))
-            ss_lap += float(np.square(lap).sum(dtype=np.float64))
-            del c, lap
-        tail = g[-2:].copy()
-        del g, block
-
-    mean_lap = s_lap / n if n else 0.0
-    blur = (ss_lap / n - mean_lap * mean_lap) if n else 0.0
-    return max(blur, 0.0), {
-        "mean": q_sum / q_n if q_n else 0.0,
-        "blown": blown / q_n if q_n else 0.0,
-        "crushed": crushed / q_n if q_n else 0.0,
-    }
-
-
 def sha_of(path: Path) -> str:
-    """Streamed, so a 7MB fixture is not held twice for the sake of twelve hex digits."""
+    """Streamed, so a 7MB fixture is not held twice for the sake of twelve hex digits.
+
+    Duplicate detection only — a fixture set with the same photograph twice reports coverage
+    it does not have. Nothing the gate does depends on this.
+    """
     h = hashlib.sha256()
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()[:12]
-
-
-def to_gray(img: Image.Image) -> np.ndarray:
-    """Rec.601 luma, matching useCameraGate.js:21. Not PIL's 'L', which rounds differently."""
-    a = np.asarray(img.convert("RGB"), dtype=np.float64)
-    return (a[..., 0] * 299 + a[..., 1] * 587 + a[..., 2] * 114) / 1000
-
-
-def blur_score(gray: np.ndarray) -> float:
-    """Variance of the Laplacian response. High = sharp. gate.js:21."""
-    if gray.shape[0] < 3 or gray.shape[1] < 3:
-        return 0.0
-    c = gray[1:-1, 1:-1]
-    lap = gray[:-2, 1:-1] + gray[2:, 1:-1] + gray[1:-1, :-2] + gray[1:-1, 2:] - 4 * c
-    return float(lap.var())
-
-
-def exposure(gray: np.ndarray) -> dict:
-    """gate.js:44. Blown and crushed matter more than the mean — a clipped highlight holds
-    no information at all and nothing downstream recovers it."""
-    q = np.clip(gray, 0, 255).astype(np.uint8)
-    n = q.size
-    return {
-        "mean": float(q.mean()),
-        "blown": float(np.count_nonzero(q >= 250) / n),
-        "crushed": float(np.count_nonzero(q <= 5) / n),
-    }
 
 
 def framing(gray: np.ndarray, busy_ratio: float) -> dict:

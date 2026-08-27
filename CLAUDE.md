@@ -68,10 +68,16 @@ If a task conflicts with these, stop and flag it. Do not silently resolve.
 node app/src/camera/gate.js      # camera gate, 19 assertions, no device or framework
 cd web/api && python3 test_uploads.py   # chunk assembly, no database or server
 cd ai && .venv/bin/pytest        # pricing — needs a venv; ai/.venv does not exist yet
+cd ai && python3 test_gate.py    # server quality gate, 10 assertions, no venv or fixtures
+python3 images/check.py --resume && python3 images/calibrate.py   # thresholds vs the fixture set
 ```
 
 # Current state
 
-Everything in `ai/` is `NotImplementedError` — that is the work in progress, and the app's
-`enhance.failed` degrade path is the **common path in development**, not a bug you caused.
+Almost everything in `ai/` is `NotImplementedError` — that is the work in progress, and the
+app's `enhance.failed` degrade path is the **common path in development**, not a bug you
+caused. The exceptions so far: `ai/enhance/pipeline.py` `gate()` is built and calibrated, and
+`ai/enhance/metrics.py` holds the pixel measurements it shares with `images/check.py`.
+`/enhance` itself is still a stub, so nothing calls the gate in production yet.
+
 See `docs/Abhay/CHANGELOG.md` for what moved most recently and what is still blocked.

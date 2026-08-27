@@ -6,6 +6,80 @@ repeats in `PIPELINE-RECONCILIATION.md` §9.
 
 ---
 
+## 2026-08-27 (8) — the server gate is built; step 3 of the list is done
+
+First working stage in `ai/enhance/`. `gate()` decides whether a photograph is worth
+spending a GPU on, and it decides it on the numbers calibrated in entry (7) rather than on
+guesses.
+
+**`ai/enhance/pipeline.py` `gate()`** — returns `None` when the photo is worth processing,
+or the rejection body from `contracts.md`, `{"reason", "message_key"}`, which `service.py`
+returns under `{"status": "rejected"}`. Six refusals: resolution, mean too low, mean too
+high, blown highlights, crushed shadows, blur. Pure numpy and Pillow — no model, no GPU,
+211ms and 391MB on a 22MP photograph.
+
+**It does not check framing, on purpose.** Too far, too close and off-centre are all
+repairable, and `crop()` is the thing that repairs them — refusing them here would throw
+away a listing the pipeline was built to rescue. Framing is coached on the phone where the
+artisan can still act on it, and fixed on the server. Only what cannot be repaired is
+refused: pixels that were never captured, detail that is not there, and clipped values that
+hold no information at all.
+
+**The check order deliberately differs from `gate.js`.** The mean settles dark-or-bright
+first and the clipping tests follow, so a 50%-blown photograph is never announced as "too
+dark" — which is bug 1 in entry (7), still open on the app side. There is a test named after
+it. I did not want to build the same mistake into the server while the request to fix it on
+the phone is outstanding.
+
+**Blur reads `blur_laplacian_variance_reject_min`, not the capture advisory.** That key is
+now in a third `_enhance_only` section of `thresholds.json`, as reconciliation §6 proposed,
+though at 20 rather than the 30 that section guessed — 30 costs six more good photographs
+for four more blurred ones, and rule 3 prices that trade the other way.
+
+**`ai/enhance/metrics.py` — new, and the reason it exists matters.** The luma, Laplacian and
+exposure measurements now live in one module that both the server gate and `images/check.py`
+import. They were briefly duplicated, which would have quietly turned entry (7)'s
+calibration into evidence for nothing: every threshold in `thresholds.json` was set using
+these exact functions, so a second copy that drifted by a rounding rule would mean the gate
+no longer does what the fixtures say it does. Same argument as the one thresholds file.
+`check.py` keeps the half that describes the phone — the 12×9 framing grid and the `gate.js`
+verdict ladder — because that half is a mirror of someone else's code, not shared logic.
+
+The module carries the banded, bounded-memory implementations from entry (7). That matters
+more here than it did there: this runs on a worker box sized for model inference, where a
+gigabyte spent looking at a photograph is a gigabyte not available to BiRefNet.
+
+**`ai/test_gate.py` — new, 10 assertions, runs on plain `python3` with no venv and no
+fixtures.** Same spirit as `node app/src/camera/gate.js` and `web/api/test_uploads.py`.
+Synthetic images with a known defect, asserting the gate refuses each one *for the right
+reason* — a correct refusal with the wrong spoken message is still a failure, because the
+message is what the artisan acts on. It also asserts that framing is never a reason to
+refuse, and that the two blur numbers have not been collapsed into one.
+
+The last test replays the whole calibration set and asserts the counts recorded in
+`research/RESULTS.md`: **25 of 93 good photographs refused, 291 of 498 degraded fixtures
+caught.** If either moves, the gate has stopped agreeing with the evidence its thresholds
+were set on, or a threshold moved without the RESULTS row that is supposed to accompany it.
+It skips itself when the fixture pixels are not on the machine, since they are gitignored.
+
+Verified separately against 50 real fixtures through `gate()` itself rather than through the
+recorded measurements — all 50 agree.
+
+**Where the numbers differ from what entry (7) implied.** I quoted 450 of 498 for the server
+gate there. That figure included framing, which this stage does not check; the correct number
+for the gate as specified is 291, and the difference is 159 off-centre and too-far fixtures
+that now pass through to `crop()` as they should. The count of good photographs refused is
+unchanged at 25.
+
+**Also updated:** `CLAUDE.md`'s "Current state" no longer says everything in `ai/` is
+`NotImplementedError`, and its testing block lists the two new commands. Reconciliation §8
+marks step 3 done.
+
+**Not touched.** No file in `app/` or `web/`. Nothing calls `gate()` in production yet —
+`/enhance` is still a stub, and it is step 9.
+
+---
+
 ## 2026-08-27 (7) — the thresholds are calibrated; four numbers moved, one was badly wrong
 
 The last session died part-way through generating the fixture set, and the machine ran out

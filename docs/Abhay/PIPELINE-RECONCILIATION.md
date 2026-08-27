@@ -277,7 +277,7 @@ code change:
 
 ```jsonc
 "_enhance_only": "Server enhancement pipeline. The app never reads these.",
-"blur_laplacian_variance_reject": 30,   // hard reject, full-res; see reconciliation §5.3
+"blur_laplacian_variance_reject_min": 20,  // BUILT, and calibrated to 20 not 30 — see research/RESULTS.md
 "mask_uncertain_fraction_max": 0.08,    // alpha in (0.1, 0.9) — hairy, undecided edges
 "mask_blob_count_max": 3,               // product fragmented into pieces
 "mask_area_min": 0.15,                  // subject too small to be the subject
@@ -290,8 +290,11 @@ code change:
 "crop_padding_pct": 8
 ```
 
-Every one of those is a guess today, exactly like the ten above it. None of them should be trusted
-until §7 has run.
+`blur_laplacian_variance_reject_min` is no longer a guess: §7 has run, and it is 20 rather than the
+30 proposed here, because 30 costs six more good photographs for four more blurred ones. It lives in
+`thresholds.json` under `_enhance_only` and the server gate reads it. **Every other key above is
+still a guess** and none should be trusted until the stage that uses it has been through the same
+exercise.
 
 ---
 
@@ -347,7 +350,7 @@ gate everything else.
 | 0 | Shoot and manifest the fixture set in `images/` | me |
 | 1 | ~~**Persist upload chunks**~~ done — `web/api/storage.py`, `file://` urls under `STORAGE_DIR` | done |
 | 2 | ~~**Link an upload to a product**~~ done — `POST /products/{id}/images` | done |
-| 3 | `pipeline.py` `gate()` — pure numpy, cheap, reads `thresholds.json`, saves GPU on everything else | me |
+| 3 | ~~`pipeline.py` `gate()`~~ done — pure numpy, reads `thresholds.json`, refuses 291 of 498 degraded fixtures and 25 of 93 good ones. Framing deliberately excluded, `crop()` repairs it | done |
 | 4 | `pipeline.py` `crop()` + `composite()` — pure math, no models; between them they defeat the two most common marketplace rejections | me |
 | 5 | Recipe module + `render(original, mask, recipe)`; `recipe` and `mask_version` columns on `Product` | me + web (migration) |
 | 6 | Benchmark segmentation on `seg-v1`, close `decisions.md` #1 | me |

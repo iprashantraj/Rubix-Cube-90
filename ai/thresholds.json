@@ -1,16 +1,15 @@
 {
-  "_comment": "Calibrated 2026-08-27 against the 221-fixture set in images/ — see research/RESULTS.md, camera-thresholds. Read by BOTH the app camera gate and the server quality gate. Every number here is answerable: images/check.py measures the set, images/calibrate.py scores these numbers against it. Do not move one without a named fixture and a RESULTS.md row.",
+  "_comment": "Calibrated 2026-08-27 against the 591-image fixture set in images/ — see research/RESULTS.md, camera-thresholds. Read by BOTH the app camera gate and the server quality gate, at runtime, never bundled. Every number here is answerable: images/check.py measures the set, images/calibrate.py scores these numbers against it. Do not move one without a named fixture and a RESULTS.md row.",
 
-  "_blur": "Two numbers, because there are two gates and they see different pixels. The capture gate measures a 240x180 downscale, which destroys the very defect it is looking for: it misses 14 of 43 known-blurred fixtures. It is an advisory only. The hard reject happens server-side at full resolution, where the same 43 are all caught.",
+  "_blur": "The capture gate measures a 240x180 downscale, which destroys the very defect it is looking for — it flags 23 of 166 known-blurred fixtures, against 152 at full resolution. So this number is an advisory on the phone; the hard reject lives in _enhance_only below.",
   "blur_laplacian_variance_min": 100,
-  "blur_laplacian_variance_reject_min": 20,
 
   "brightness_mean_min": 60,
   "brightness_mean_max": 200,
   "blown_pixel_fraction_max": 0.05,
   "crushed_pixel_fraction_max": 0.08,
 
-  "_fill": "fill_fraction_max is deliberately 1.0, i.e. off. The busy box spanning the frame is what a product photograph looks like — at 0.90 this refused 44 of 93 good fixtures as 'too close', including every patterned-background one. Nothing needs it: all 21 too-far fixtures sit at fill 0.11, far below fill_fraction_min.",
+  "_fill": "fill_fraction_max is deliberately 1.0, i.e. off. The busy box spanning the frame is what a product photograph looks like — at 0.90 this refused 44 of 93 good fixtures as 'too close', including every patterned-background one. Nothing needs it: all 83 too-far fixtures sit at fill 0.11, far below fill_fraction_min.",
   "fill_fraction_min": 0.25,
   "fill_fraction_max": 1.00,
 
@@ -21,5 +20,8 @@
   "_camera_only": "Below here is the live capture gate only — the server has no preview frames to run these against.",
   "cell_busy_ratio": 0.2,
   "center_offset_max": 0.15,
-  "hysteresis_slack": 1.25
+  "hysteresis_slack": 1.25,
+
+  "_enhance_only": "Server enhancement pipeline only — the app never reads these. Reconciliation §6.",
+  "blur_laplacian_variance_reject_min": 20
 }
