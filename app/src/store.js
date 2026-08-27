@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { cache } from './api/cache.js';
 
 /**
  * Session + draft state.
@@ -54,7 +55,23 @@ export const useSession = create(
       setTheme: (theme) => set({ theme }),
       setConsent: (consent) => set({ consent }),
       signIn: (token, artisan) => set({ token, artisan }),
-      signOut: () => set({ token: null, artisan: null }),
+      /*
+       * 🔒 Dropping the token is not enough — the cached responses have to go with it.
+       *
+       * Signing out used to leave the previous artisan's catalogue, orders and profile
+       * sitting in localStorage under `kaarigar.cache.*`, where the next person to sign in
+       * on that phone would be served them from the first frame of /home. These phones get
+       * handed around a family. Only the 401 path in client.js was clearing the cache, so
+       * the deliberate sign-out — the one case where someone is explicitly saying "I am
+       * done with this device" — was the one that did not.
+       *
+       * It lives here rather than at the Settings call site so no future caller of
+       * signOut() has to remember, which is exactly how it went missing the first time.
+       */
+      signOut: () => {
+        cache.clear();
+        set({ token: null, artisan: null });
+      },
       patchArtisan: (patch) =>
         set((s) => ({ artisan: { ...s.artisan, ...patch } })),
     }),

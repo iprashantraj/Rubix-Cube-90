@@ -72,8 +72,10 @@ async function request(path, { method = 'GET', body, signal, form, etag } = {}) 
   }
 
   if (res.status === 401) {
+    // signOut() drops the response cache itself — see store.js. It used to be cleared here
+    // as well, and only here, which is how the deliberate sign-out in Settings ended up
+    // being the one path that left the previous artisan's data behind.
     useSession.getState().signOut();
-    cache.clear();
     throw new ApiError(401, { message_key: 'auth.expired' });
   }
   // 304 carries no body by definition. The caller holds the copy this validated.
