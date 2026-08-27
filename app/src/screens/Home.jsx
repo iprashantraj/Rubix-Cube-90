@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import {useEffect} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { cachedGet } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { useSession } from '../store.js';
 import { t } from '../i18n/index.js';
 import { useVoice } from '../voice/useVoice.js';
-import { Screen, BigButton, Spinner } from '../ui/kit.jsx';
+import { Screen, BigButton } from '../ui/kit.jsx';
+import { HomeSkeleton } from '../ui/LoadState.tsx';
 import { IconCreate, IconForward, IconPhoto } from '../ui/icons.jsx';
 
 /**
@@ -33,40 +34,31 @@ export default function Home() {
   const artisan = useSession((s) => s.artisan);
   const patchArtisan = useSession((s) => s.patchArtisan);
 
-  const [products, setProducts] = useState(null);
-  const [orders, setOrders] = useState(null);
+  /*
+   * Both endpoints already exist and are already paid for by the tabs. A /home/summary
+   * route would be a third thing to keep in step with them for no benefit at this size.
+   *
+   * The counts render from the last visit's copy on the frame this screen appears and
+   * correct themselves a moment later if the server disagrees. /home used to be a spinner
+   * every single time it was opened, for numbers that rarely change.
+   */
+  const { data: rawProducts, isPending: pp } = useApiQuery('/products');
+  const { data: rawOrders, isPending: po } = useApiQuery('/orders');
+  const products = rawProducts ? list(rawProducts) : null;
+  const orders = rawOrders ? list(rawOrders) : null;
+  const isPending = pp || po;
 
+  /*
+   * The greeting says the artisan's name, and the store's copy of it is only as fresh as
+   * the last screen that wrote one. Sign in on a second phone, reinstall, or let a /me
+   * PATCH land while the app is closed, and this screen greets someone it has known by
+   * name for weeks as a stranger. The server knows; ask it — on a 30-minute TTL, so the
+   * greeting is never what /home waits for.
+   */
+  const { data: me } = useApiQuery('/me');
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      // Both endpoints already exist and are already paid for by the tabs. A /home/summary
-      // route would be a third thing to keep in step with them for no benefit at this size.
-      // cachedGet: the counts render from the last visit's copy on the frame the screen
-      // appears, and correct themselves a moment later if the server disagrees. /home was
-      // a spinner every single time it was opened, for numbers that rarely change.
-      const [p, o, me] = await Promise.all([
-        cachedGet('/products', { onUpdate: (d) => alive && setProducts(list(d)) }).catch(() => []),
-        cachedGet('/orders', { onUpdate: (d) => alive && setOrders(list(d)) }).catch(() => []),
-        // The greeting says the artisan's name, and the store's copy of it is only as
-        // fresh as the last screen that wrote one. Sign in on a second phone, reinstall,
-        // or let a /me PATCH land while the app is closed, and this screen greets someone
-        // it has known by name for weeks as a stranger. The server knows; ask it —
-        // through the cache, on a 30-minute TTL, so the greeting is not what /home waits
-        // for. `onUpdate` still corrects the name the moment the server disagrees.
-        cachedGet('/me', {
-          onUpdate: (d) =>
-            alive && d?.display_name && patchArtisan({ display_name: d.display_name, craft: d.craft }),
-        }).catch(() => null),
-      ]);
-      if (!alive) return;
-      setProducts(list(p));
-      setOrders(list(o));
-      if (me?.display_name) patchArtisan({ display_name: me.display_name, craft: me.craft });
-    })();
-    return () => {
-      alive = false;
-    };
-  }, []);
+    if (me?.display_name) patchArtisan({ display_name: me.display_name, craft: me.craft });
+  }, [me, patchArtisan]);
 
   const named = Boolean(artisan?.display_name);
   const promptKey = named ? 'home.greeting_named' : 'home.greeting';
@@ -106,10 +98,17 @@ export default function Home() {
         learn, and on first run there is nothing else on this screen to press.
       */
       footer={<BigButton icon={IconCreate} labelKey="home.add" onClick={() => nav('/camera')} />}
+      state={isPending ? 'loading' : products?.length === 0 ? 'empty' : 'ready'}
+      loadingLabel="common.loading"
+      // The dashboard skeleton is the dashboard with its numbers removed, so the page does
+      // not jump when they land — /home was a bare spinner every single time it opened.
+      skeleton={<HomeSkeleton />}
+      empty={{
+        art: 'products',
+        title: t(lang, 'products.empty'),
+        body: t(lang, 'products.empty_help'),
+      }}
     >
-      {!products && <Spinner label={t(lang, 'common.loading')} />}
-
-      {products && products.length === 0 && <p className="said">{t(lang, 'products.empty_help')}</p>}
 
       {products && products.length > 0 && (
         <>

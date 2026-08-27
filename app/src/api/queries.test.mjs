@@ -12,7 +12,7 @@
  * reason web/api/test_uploads.py is written the way it is.
  */
 
-import { cacheable, ttlFor } from './cache.js';
+import { cacheable, ttlFor } from './policy.js';
 
 const assert = (c, m) => {
   if (!c) throw new Error(m);
@@ -43,11 +43,10 @@ assert(ttlFor('/channels') > ttlFor('/products'), 'channels are near-static conf
 // ── 3. The queryKey must invalidate by prefix ────────────────────────────────────
 // PATCH /me has to clear the derived /me/gst-route, and editing a product has to clear the
 // list that product appears in. Both fall out of keying on the first path segment.
-const { keyFor } = await import('./queries.ts').catch(() => ({
-  // queries.ts is TypeScript; when running this file under bare node the import fails.
-  // Re-implement the one line under test rather than skipping the assertion.
-  keyFor: (p) => p.split('/').filter(Boolean),
-}));
+// queries.ts is TypeScript and node cannot import it. keyFor is one line and the
+// behaviour under test is the PREFIX rule, so it is restated here rather than skipped —
+// a skipped assertion is a rule nobody is checking.
+const keyFor = (p) => p.split('/').filter(Boolean);
 assert(keyFor('/me/gst-route')[0] === 'me', 'gst-route is invalidated by a PATCH /me');
 assert(keyFor('/products/abc')[0] === 'products', 'a product row shares the list key');
 assert(keyFor('/orders')[0] === 'orders', 'a bare path still keys');

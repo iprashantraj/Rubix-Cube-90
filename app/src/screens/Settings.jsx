@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import {useState} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, cachedGet } from '../api/client.js';
+import { api } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { useSession } from '../store.js';
 import { record, transcribe, classifyYesNo } from '../voice/listen.js';
 import { useVoice } from '../voice/useVoice.js';
@@ -56,25 +57,20 @@ export default function Settings() {
   const { setLang, setConsent, signOut, setTheme } = useSession();
   const theme = useSession((s) => s.theme) ?? DEFAULT_THEME;
 
-  const [me, setMe] = useState(null);
+  const { data: me, error } = useApiQuery('/me');
   const [phase, setPhase] = useState('main'); // main | explain | consent | final | erasing
   const [micFailed, setMicFailed] = useState(false);
   const [listening, setListening] = useState(false);
-  const [error, setError] = useState(null);
+  // Query failures and MUTATION failures are different facts and need separate state.
+  // The query's error is owned by TanStack; a failed POST is owned by this screen, and
+  // collapsing them would let a refetch silently clear a "payment could not be recorded"
+  // message the artisan has not read yet.
+  const [mutError, setError] = useState(null);
+  const errKey = mutError ?? (error ? (error.messageKey ?? 'error.unknown') : null);
 
   // 30-minute TTL (cache.js) — a name, a craft and a place change less often than anything
   // else in the app. `api.patch('/me')` below invalidates the entry, so a correction the
   // artisan makes here is never the thing this cache serves back stale.
-  useEffect(() => {
-    let alive = true;
-    cachedGet('/me', { onUpdate: (d) => alive && setMe(d) }).then(
-      (d) => alive && setMe(d),
-      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
-    );
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   function chooseLang(code) {
     // Local first, server second. The artisan hears the change immediately, and a flaky
@@ -207,7 +203,7 @@ export default function Settings() {
     // `back` because /settings is not a tab root — the bottom nav is not drawn here, so
     // without it the only way out is the hardware gesture, which is the one convention a
     // first-time phone user is least likely to have.
-    <Screen prompt={error ?? 'settings.title'} hero back="/home">
+    <Screen prompt={errKey ?? 'settings.title'} hero back="/home">
       {error && <p className="warn">{t(lang, error)}</p>}
 
       <Card>

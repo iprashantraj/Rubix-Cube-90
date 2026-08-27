@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import {useState} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { cachedGet } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { record, transcribe } from '../voice/listen.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
@@ -74,10 +74,18 @@ export default function ChannelSetup() {
   const nav = useNavigate();
   const { lang, say } = useVoice();
 
-  const [channel, setChannel] = useState(null);
-  const [me, setMe] = useState(null);
-  const [pack, setPack] = useState(null);
-  const [error, setError] = useState(null);
+  // Three reads, all cached. This screen is entered from /channels — which just filled
+  // the first of them — and is walked in and out of repeatedly while the artisan follows
+  // the guided steps on their other hand. The selector pack in particular is static config
+  // that was being re-fetched on every one of those returns.
+  const { data: chans, isPending: pc, error: ec } = useApiQuery('/channels');
+  const { data: me, isPending: pm, error: em } = useApiQuery('/me');
+  const { data: pack, isPending: pp, error: ep } = useApiQuery(`/channels/${id}/selectorpack`);
+  const channel = chans ? (chans.find((c) => c.id === id) ?? false) : null;
+  const isPending = pc || pm || pp;
+  const [mutError, setError] = useState(null);
+  const queryErr = ec ?? em ?? ep;
+  const errKey = mutError ?? (queryErr ? (queryErr.messageKey ?? 'error.unknown') : null);
 
   // GeM only. `verdict` is deliberately three-valued: "we could not check" is not the same
   // as "they match", and collapsing the two would hand someone a false all-clear on the
@@ -91,26 +99,6 @@ export default function ChannelSetup() {
   // first of them — and the artisan walks in and out of it repeatedly while following the
   // guided steps on their other hand. The selector pack in particular is static config that
   // was being re-fetched on every one of those returns.
-  useEffect(() => {
-    let alive = true;
-    const pick = (chans) => chans.find((c) => c.id === id) ?? false;
-    Promise.all([
-      cachedGet('/channels', { onUpdate: (d) => alive && setChannel(pick(d)) }),
-      cachedGet('/me', { onUpdate: (d) => alive && setMe(d) }),
-      cachedGet(`/channels/${id}/selectorpack`, { onUpdate: (d) => alive && setPack(d) }),
-    ]).then(
-      ([chans, profile, p]) => {
-        if (!alive) return;
-        setChannel(pick(chans));
-        setMe(profile);
-        setPack(p);
-      },
-      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [id]);
 
   /**
    * 🎯 The GeM name pre-check (architecture §6.1) — say your name three times, as printed
@@ -188,7 +176,7 @@ export default function ChannelSetup() {
     nav('/channels');
   }
 
-  const prompt = error ?? (channel == null
+  const prompt = errKey ?? (channel == null
     ? 'common.loading'
     : channel === false
       ? 'setup.not_found'
@@ -203,7 +191,7 @@ export default function ChannelSetup() {
   return (
     <Screen prompt={prompt} promptVars={{ name: channel?.name ?? '' }} footer={<HelpButton />}>
       {channel == null && !error && <Spinner label={t(lang, 'common.loading')} />}
-      {error && <p className="warn">{t(lang, error)}</p>}
+      {errKey && <p className="warn">{t(lang, errKey)}</p>}
 
       {channel && (
         <Card raised>
