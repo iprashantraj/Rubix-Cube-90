@@ -61,13 +61,10 @@
   --spacing-4: var(--s-4);
   --spacing-5: var(--s-5);
 
-  /* Icons and tap targets. Both off the type ladder on purpose — see :root. */
-  --size-icon-sm: var(--i-sm);
-  --size-icon-md: var(--i-md);
-  --size-icon-lg: var(--i-lg);
-  --size-icon-art: var(--i-art);
-  --size-tap: var(--tap);
-  --size-tap-big: var(--tap-big);
+  /* Icons and tap targets are deliberately NOT re-exported as utilities.
+     `--size-*` is not a Tailwind 4 theme namespace, so these generated nothing; and an
+     icon size belongs on the SVG's width/height attribute (renderIcon takes a number), not
+     on a class. Reach them as var(--i-md) / var(--tap) where a class is genuinely needed. */
 
   --radius-sm: var(--r-sm);
   --radius-md: var(--r-md);
@@ -225,6 +222,14 @@
   --tap: 56px;
   --tap-big: 72px;
   --pad: var(--s-3);
+
+  /* --- safe areas ----------------------------------------------------------
+     Named once so a component can reach them from a JSX style attribute, which
+     cannot call env() through a Tailwind class. The sticky header offsets by
+     --sa-top rather than sitting at 0 — the strip above it is the system tray,
+     and covering the artisan's clock and signal is not ours to do. */
+  --sa-top: env(safe-area-inset-top, 0px);
+  --sa-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /*
@@ -1906,5 +1911,46 @@ input {
   .mic--thinking .mic__halo {
     animation-duration: 2.4s !important;
     animation-iteration-count: infinite !important;
+  }
+}
+
+/*
+ * --- skeleton loaders --------------------------------------------------------
+ *
+ * The shimmer for ui/LoadState.tsx. A moving highlight rather than a static grey block,
+ * because a static block on a slow connection is indistinguishable from a rendering bug —
+ * the motion is the part that says "still coming", which is the whole job.
+ *
+ * Built on --accent-soft rather than a neutral grey so it belongs to whichever of the four
+ * palettes is in force, and so it reads as the app rather than as a missing image.
+ *
+ * `background-position` is animated rather than `transform`, which breaks the usual
+ * rule in this file. It is deliberate: the alternative is a pseudo-element sliding across
+ * an `overflow:hidden` parent, which forces a containing block and a second layer on every
+ * one of the ~20 skeleton blocks a list renders. One repainted gradient on a 21px-tall
+ * element is the cheaper of the two on a 2GB phone.
+ *
+ * The blanket prefers-reduced-motion block at the bottom of this file freezes it to a flat
+ * tint, which is still a legible placeholder — nothing is lost but the movement.
+ */
+.skel {
+  display: block;
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    90deg,
+    var(--accent-soft) 25%,
+    var(--surface-0) 50%,
+    var(--accent-soft) 75%
+  );
+  background-size: 200% 100%;
+  animation: skel-shimmer 1.4s linear infinite;
+}
+
+@keyframes skel-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
   }
 }

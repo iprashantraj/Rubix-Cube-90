@@ -4,6 +4,8 @@ import { stepOf, backOf } from './onboarding.js';
 import { useVoice, useSpeakOnEnter } from '../voice/useVoice.js';
 import { t, resolve, bcp47 } from '../i18n/index.js';
 import { useSession } from '../store.js';
+import { LoadState } from './LoadState.tsx';
+import { EmptyState } from './EmptyState.tsx';
 import {
   IconReplay,
   IconYes,
@@ -97,6 +99,31 @@ export function Screen({
   // destination stays quiet and offers the replay button.
   speakOnEnter = false,
   dim = false,
+  /*
+   * What the body is doing: 'ready' | 'loading' | 'empty'.
+   *
+   * Twelve screens had each grown their own version of this — a `Spinner` here, an
+   * `items == null` ternary there, a bare line of grey text somewhere else — which is
+   * exactly how the loaders drifted far enough apart to be worth a redesign. The states
+   * are the same on every screen, so they belong to the container rather than to each
+   * screen's judgement.
+   *
+   * `children` is therefore only ever the READY body. A screen no longer decides how it
+   * waits, and cannot invent a fourth way of doing it.
+   */
+  state = 'ready',
+  /** i18n key naming what is being waited FOR — "loading your products", not "loading". */
+  loadingLabel,
+  /** Page-shaped skeleton. Defaults to a list, which is what most of these screens are. */
+  skeleton,
+  /**
+   * `{ art, title, body }` — see ui/EmptyState.tsx.
+   *
+   * ⚠️ `title` has to be the same sentence `prompt` resolves to. The prompt is what gets
+   * SPOKEN and this is what gets SHOWN, and an artisan who hears one thing and sees
+   * another has no way to tell which one the app meant.
+   */
+  empty,
 }) {
   const { lang } = useVoice();
   const { pathname } = useLocation();
@@ -158,7 +185,19 @@ export function Screen({
             {head.text}
           </p>
         )}
-        {children}
+        {/*
+          One place decides what a waiting or empty screen looks like.
+
+          `empty` falls back to the resolved prompt for its title, so the common case needs
+          no second string and the shown sentence cannot drift from the spoken one.
+        */}
+        {state === 'loading' ? (
+          <LoadState label={loadingLabel}>{skeleton}</LoadState>
+        ) : state === 'empty' && empty ? (
+          <EmptyState {...empty} title={empty.title ?? head?.text ?? ''} />
+        ) : (
+          children
+        )}
       </main>
       {footer && <footer className="screen__foot">{footer}</footer>}
     </div>
