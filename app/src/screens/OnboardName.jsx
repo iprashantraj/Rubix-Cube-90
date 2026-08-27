@@ -4,8 +4,9 @@ import { api, ApiError } from '../api/client.js';
 import { useSession } from '../store.js';
 import { useVoice } from '../voice/useVoice.js';
 import { record, transcribe } from '../voice/listen.js';
+import { interpretAnswer } from '../voice/interpret.js';
 import { t } from '../i18n/index.js';
-import { Screen, BigButton, YesNo, MicButton } from '../ui/kit.jsx';
+import { Screen, BigButton, YesNo, MicButton, Heard } from '../ui/kit.jsx';
 import { IconRetry, IconNext } from '../ui/icons.jsx';
 
 /**
@@ -30,6 +31,9 @@ export default function OnboardName() {
   //                         └-> fail (retry | skip)
   const [phase, setPhase] = useState('ask');
   const [heard, setHeard] = useState('');
+  // Their whole sentence, kept beside the extracted name so the confirmation shows
+  // both — what we heard, and what we made of it.
+  const [rawHeard, setRawHeard] = useState('');
   const [error, setError] = useState(null);
   const recRef = useRef(null);
 
@@ -63,12 +67,29 @@ export default function OnboardName() {
     setPhase('busy');
     try {
       const { transcript } = await transcribe(await handle.stop(), lang);
-      const name = (transcript ?? '').trim();
-      if (!name) {
+
+      /*
+       * The sentence is not the name.
+       *
+       * This stored `transcript.trim()` straight into `display_name`, and the dev database
+       * still has the receipts: one artisan row reads "Mera naam Yash hai. My name is
+       * Yash." Nobody answers "what is your name" with a bare noun — they answer like a
+       * person. See voice/interpret.js.
+       */
+      const { value, raw } = await interpretAnswer({
+        transcript,
+        question: 'onboard.name',
+        lang,
+      });
+      if (!raw) {
         setPhase('fail');
         return fail(new Error('empty'), 'voice.not_heard');
       }
-      setHeard(name);
+      // Falling back to the whole sentence is deliberate: a name we could not reduce is
+      // still better than losing what they said, and the confirm step below shows them
+      // exactly what will be saved before it is.
+      setHeard(value ?? raw);
+      setRawHeard(raw);
       setPhase('confirm');
     } catch (e) {
       // /api/asr answers 503 until a Bhashini key is configured, so this is the LIVE path
@@ -124,7 +145,12 @@ export default function OnboardName() {
           {/* Shown large as well as spoken. The prompt string already contains the name,
               so Screen's replay button re-plays the name too — no extra control needed,
               and we stay at two taps. */}
-          <p style={{ fontSize: 30, fontWeight: 700, margin: '8px 0 20px' }}>{heard}</p>
+          <p style={{ fontSize: 30, fontWeight: 700, margin: 0 }}>{heard}</p>
+          {/* Their whole sentence, faint, under the name we pulled out of it. Confirming a
+              name you cannot see the source of is not really confirming anything — and this
+              screen now extracts, so there is a source to show. Hidden when the two are the
+              same, because repeating it adds nothing. */}
+          {rawHeard !== heard && <Heard text={rawHeard} lang={lang} />}
           <YesNo onYes={save} onNo={startRec} />
         </>
       )}
