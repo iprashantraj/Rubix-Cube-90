@@ -8,6 +8,79 @@
 @source "../../src";
 
 /*
+ * The design tokens, as Tailwind utilities.
+ *
+ * `inline` matters here and is not decoration: it emits `var(--accent)` into the utility
+ * rather than resolving the value at build time. Everything in this app is re-themed at
+ * runtime by flipping `[data-theme]` on <html> (ui/theme.ts), and a non-inline @theme would
+ * bake terracotta into `bg-accent` and leave the other three palettes dead.
+ *
+ * Raw values live in `:root` below, exactly where they were. This block only gives them
+ * utility names — one source of truth, two ways to reach it. Do not copy a hex up here.
+ */
+@theme inline {
+  /* Palette. Re-pointed by [data-theme] at runtime. */
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-green: var(--green);
+  --color-green-ink: var(--green-ink);
+  --color-amber: var(--amber);
+  --color-amber-ink: var(--amber-ink);
+  --color-red: var(--red);
+  --color-red-ink: var(--red-ink);
+
+  /* Type — Fibonacci. `text-body` carries its own line-height and weight, so a caller
+     never has to remember the pairing and the four sizes cannot drift apart. */
+  --text-display: var(--t-display);
+  --text-display--line-height: var(--t-display-lh);
+  --text-display--font-weight: var(--t-display-w);
+  --text-title: var(--t-title);
+  --text-title--line-height: var(--t-title-lh);
+  --text-title--font-weight: var(--t-title-w);
+  --text-body: var(--t-body);
+  --text-body--line-height: var(--t-body-lh);
+  --text-body--font-weight: var(--t-body-w);
+  --text-cap: var(--t-cap);
+  --text-cap--line-height: var(--t-cap-lh);
+  --text-cap--font-weight: var(--t-cap-w);
+
+  /* Spacing — same ladder. `p-3` is 21px here, not Tailwind's 12px: the numbers are rungs
+     on the Fibonacci ladder, not quarter-rems. This is the one place the utility names
+     mean something different from stock Tailwind, and it is deliberate — a screen written
+     against this file should not be able to reach a spacing value that is off the ladder. */
+  --spacing-1: var(--s-1);
+  --spacing-2: var(--s-2);
+  --spacing-3: var(--s-3);
+  --spacing-4: var(--s-4);
+  --spacing-5: var(--s-5);
+
+  /* Icons and tap targets. Both off the type ladder on purpose — see :root. */
+  --size-icon-sm: var(--i-sm);
+  --size-icon-md: var(--i-md);
+  --size-icon-lg: var(--i-lg);
+  --size-icon-art: var(--i-art);
+  --size-tap: var(--tap);
+  --size-tap-big: var(--tap-big);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-full: var(--r-full);
+
+  --shadow-e1: var(--e1);
+  --shadow-e2: var(--e2);
+
+  --ease-brand: var(--ease);
+}
+
+/*
  * Kaarigar visual system — "soft surfaces + depth".
  *
  * One accent colour, layered light-grey surfaces, very large targets. The users we are
@@ -83,22 +156,59 @@
   --r-lg: 20px;
   --r-full: 999px;
 
-  /* --- type scale ---------------------------------------------------------
-     Four sizes. Nothing in the app should invent a fifth. Body is 17px, not
-     16px: this is read at arm's length, in glare, by people who mostly do not
-     own reading glasses. */
-  --t-display: 34px;
-  --t-display-lh: 1.2;
+  /* --- type scale — Fibonacci ---------------------------------------------
+     13 · 21 · 34 · 55. Four sizes; nothing in the app invents a fifth.
+
+     The previous scale was 34/24/17/13 — already Fibonacci at both ends and
+     arbitrary in the middle. Two numbers moved:
+
+     BODY 17 -> 21. This is read at arm's length, in courtyard glare, on a
+     cracked 720p panel, by people who mostly do not own reading glasses. The
+     app affords it: there are never more than a question and an answer on a
+     screen, so the room exists. It costs more wrapping in Devanagari and Odia,
+     which the screens are short enough to absorb.
+
+     TITLE 24 -> 34, and DISPLAY becomes 55. Display is RATIONED: at most one
+     number per screen may use it, and only when that number IS the screen —
+     the earnings total, the confirmed price, the PIN read back. Two things at
+     55px means neither of them is the answer.
+
+     Line heights are deliberately off the ladder. They are ratios, not sizes,
+     and Fibonacci has nothing to say about them. */
+  --t-display: 55px;
+  --t-display-lh: 1.1;
   --t-display-w: 700;
-  --t-title: 24px;
-  --t-title-lh: 1.3;
+  --t-title: 34px;
+  --t-title-lh: 1.2;
   --t-title-w: 650;
-  --t-body: 17px;
+  --t-body: 21px;
   --t-body-lh: 1.5;
   --t-body-w: 500;
   --t-cap: 13px;
   --t-cap-lh: 1.4;
   --t-cap-w: 600;
+
+  /* --- spacing — same ladder -----------------------------------------------
+     8 · 13 · 21 · 34 · 55. --s-3 replaces the old --pad: 20px, which is the
+     only reason that value ever existed. */
+  --s-1: 8px;   /* icon-to-label, chip padding */
+  --s-2: 13px;  /* inside a card, between stacked rows */
+  --s-3: 21px;  /* page gutter */
+  --s-4: 34px;  /* between sections */
+  --s-5: 55px;  /* hero breathing, empty-state margins */
+
+  /* --- icon ladder ---------------------------------------------------------
+     Three rungs, and no icon in the app is any other size. The tab bar ran at
+     30px, which is why the chrome read as louder than the content.
+
+     Deliberately NOT on the Fibonacci ladder: 13px is illegible as a glyph and
+     34px is a picture rather than an icon. Icons are ergonomic objects like tap
+     targets, not typographic ones. --i-art is the exception and IS Fibonacci,
+     because empty-state illustration is art and is sized against the text. */
+  --i-sm: 18px;   /* inline with body: .help links, chip leading */
+  --i-md: 24px;   /* the default: back, list rows, buttons, tab bar */
+  --i-lg: 32px;   /* the camera shutter and the tab-bar create button ONLY */
+  --i-art: 89px;  /* empty-state illustration */
 
   /* --- motion -------------------------------------------------------------- */
   --dur-fast: 140ms;
@@ -107,10 +217,14 @@
 
   /* --- metrics ------------------------------------------------------------
      56px is the floor for anything tappable and it is a hard accessibility
-     requirement from the PS, not a suggestion. Primary actions get 72px. */
+     requirement from the PS, not a suggestion. Primary actions get 72px.
+
+     Also deliberately off the Fibonacci ladder: a tap target is sized by the
+     pad of a thumb, which does not care what the type scale is doing. Both
+     already clear the 44px WCAG floor with room. */
   --tap: 56px;
   --tap-big: 72px;
-  --pad: 20px;
+  --pad: var(--s-3);
 }
 
 /*
