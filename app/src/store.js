@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { cache } from './api/cache.js';
 import { clearSession } from './api/queries';
 
 /**
@@ -69,18 +68,16 @@ export const useSession = create(
        * It lives here rather than at the Settings call site so no future caller of
        * signOut() has to remember, which is exactly how it went missing the first time.
        *
-       * ⚠️ There are now THREE things holding the last artisan's data, and missing any
-       * one of them silently reopens the exact hole this comment was written about:
-       *   kaarigar.cache.*  the old hand-rolled read cache
-       *   kaarigar.query    what TanStack Query's persister wrote — survives a restart
-       *   the QueryClient   the in-memory copy — survives a SIGN-OUT, which is worse:
-       *                     sign out and straight back in as somebody else without
-       *                     restarting, and /home renders the previous person's catalogue
-       *                     on its first frame.
-       * clearSession() in api/queries does the last two together for that reason.
+       * ⚠️ TWO things hold the last artisan's data, and missing either one silently
+       * reopens the exact hole this comment was written about:
+       *   kaarigar.query   what TanStack Query's persister wrote — survives a RESTART
+       *   the QueryClient  the in-memory copy — survives a SIGN-OUT, which is worse: sign
+       *                    out and straight back in as somebody else without restarting,
+       *                    and /home renders the previous person's catalogue on its first
+       *                    frame.
+       * clearSession() in api/queries does both, which is why it is one call and not two.
        */
       signOut: () => {
-        cache.clear();
         clearSession();
         set({ token: null, artisan: null });
       },

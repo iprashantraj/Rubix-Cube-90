@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import {useState} from 'react';
 import { useParams } from 'react-router-dom';
-import { api, cachedGet } from '../api/client.js';
+import { api } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
-import { Screen, BigButton, Card, Chip, Spinner, StatusDot } from '../ui/kit.jsx';
+import { Screen, BigButton, Card, Chip, StatusDot } from '../ui/kit.jsx';
 import { IconPublish, IconPhoto } from '../ui/icons.jsx';
 import { TIER } from './Channels.jsx';
 
@@ -35,33 +36,21 @@ export default function ProductDetail() {
   const { id } = useParams();
   const { lang, say } = useVoice();
 
-  const [product, setProduct] = useState(null);
-  const [channels, setChannels] = useState(null);
+  // Both are the same cache entries the /products tab and /channels screen fill, so
+  // tapping a product from the list it was just rendered in costs no request at all.
+  const { data: list, isPending: pendingP, error: errP } = useApiQuery('/products');
+  const { data: channels, isPending: pendingC, error: errC } = useApiQuery('/channels');
+  const product = list ? (list.find((p) => p.id === id) ?? false) : null;
+  const isPending = pendingP || pendingC;
   const [results, setResults] = useState(null); // channel id -> publish result, after a tap
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  const [mutError, setError] = useState(null);
+  const queryErr = errP ?? errC;
+  const errKey = mutError ?? (queryErr ? (queryErr.messageKey ?? 'error.unknown') : null);
 
   // Both lists are the same cache entries the /products tab and /channels screen fill, so
   // tapping a product from the list it was just rendered in costs no request at all. The
   // product is found by filtering the cached list, so `onUpdate` has to re-filter too.
-  useEffect(() => {
-    let alive = true;
-    const pick = (list) => list.find((p) => p.id === id) ?? false;
-    Promise.all([
-      cachedGet('/products', { onUpdate: (d) => alive && setProduct(pick(d)) }),
-      cachedGet('/channels', { onUpdate: (d) => alive && setChannels(d) }),
-    ]).then(
-      ([list, chans]) => {
-        if (!alive) return;
-        setProduct(pick(list));
-        setChannels(chans);
-      },
-      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [id]);
 
   /*
    * Re-publish fires the same set /publish fires: every tier A channel plus every already
@@ -90,7 +79,7 @@ export default function ProductDetail() {
     }
   }
 
-  const prompt = error ?? (product == null
+  const prompt = errKey ?? (isPending
     ? 'common.loading'
     : product === false
       ? 'product.not_found'
@@ -98,8 +87,7 @@ export default function ProductDetail() {
 
   return (
     <Screen prompt={prompt} promptVars={{ title: product?.title ?? '' }}>
-      {product == null && !error && <Spinner label={t(lang, 'common.loading')} />}
-      {error && <p className="warn">{t(lang, error)}</p>}
+            {errKey && <p className="warn">{t(lang, errKey)}</p>}
 
       {product && (
         <>

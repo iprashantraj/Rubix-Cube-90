@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { useSession } from '../store.js';
-import { cache, cacheable } from './cache.js';
+import { queryClient, keyFor } from './queries';
 
 /*
  * Where the API lives.
@@ -86,48 +86,12 @@ async function request(path, { method = 'GET', body, signal, form, etag } = {}) 
   return method === 'GET' ? { data, etag: res.headers.get('ETag') } : data;
 }
 
-/**
- * GET, answered from the cache when we have one, corrected from the server after.
- *
- * Three outcomes, and the middle one is the reason this exists:
- *   fresh cache      resolve immediately, no request at all
- *   stale cache      resolve immediately with what we have, revalidate in the background,
- *                    and call `onUpdate` only if the server actually returned something new
- *   nothing cached   ordinary fetch
- *
- * `onUpdate` rather than a second promise because the screen has already rendered by then.
- * It is called with fresh data or not at all — never with an unchanged copy, so a component
- * that setStates in it does not re-render every screen visit for nothing.
+/*
+ * `cachedGet` lived here and is gone: TanStack Query does the same job in api/queries.ts,
+ * and every screen now reads through api/useApi.ts. `api.get` stays as the plain,
+ * uncached fetch that the job polls and the upload resume probe need — those three call
+ * sites are the reason the NEVER list in api/policy.js exists.
  */
-export async function cachedGet(path, { onUpdate, signal } = {}) {
-  if (!cacheable(path)) return (await request(path, { signal })).data;
-
-  const entry = cache.read(path);
-  const revalidate = async () => {
-    try {
-      const res = await request(path, { signal, etag: entry?.etag });
-      if (res?.notModified) return null;
-      cache.write(path, res.data, res.etag);
-      return res.data;
-    } catch (e) {
-      // A failed revalidation must never take the screen down: the artisan is looking at
-      // data that was correct minutes ago, which is the entire premise of this file.
-      if (e.name !== 'AbortError') console.warn('[api] revalidate failed', path, e);
-      return null;
-    }
-  };
-
-  if (entry && cache.fresh(path, entry)) return entry.data;
-  if (entry) {
-    revalidate().then((fresh) => {
-      // Compared, not just presence-checked. A 200 that happens to be identical (a server
-      // without ETags, say) must not flash the list for no reason.
-      if (fresh && JSON.stringify(fresh) !== JSON.stringify(entry.data)) onUpdate?.(fresh);
-    });
-    return entry.data;
-  }
-  return (await revalidate()) ?? [];
-}
 
 /*
  * Mutations drop what they invalidated, here rather than at each call site.
@@ -135,27 +99,33 @@ export async function cachedGet(path, { onUpdate, signal } = {}) {
  * A PATCH /me that leaves a cached /me behind is worse than having no cache: the artisan
  * fixes their name, is told it worked, and finds the old one waiting on the next screen.
  * One place, so no future caller has to remember.
+ *
+ * Keyed on the FIRST path segment only, which is what makes `PATCH /me` also clear the
+ * derived `/me/gst-route` and `POST /products/{id}/images` clear the list that row appears
+ * in. The queryClient singleton is reached directly rather than through a hook because
+ * these are plain functions, not components.
  */
+const invalidate = (p) => queryClient.invalidateQueries({ queryKey: [keyFor(p)[0]] });
 const mutate = (method) => (p, body, o) => {
   const done = request(p, { ...o, method, body });
-  cache.invalidate(p);
+  invalidate(p);
   return done;
 };
 
 export const api = {
   // `.get` stays a plain fetch: some callers need the authoritative answer right now
-  // (a poll, a status check). Screens that render a list should use cachedGet.
+  // (a poll, a status check). Screens that render a list use api/useApi.ts instead.
   get: async (p, o) => (await request(p, o)).data,
   post: mutate('POST'),
   patch: mutate('PATCH'),
   del: (p, o) => {
     const done = request(p, { ...o, method: 'DELETE' });
-    cache.invalidate(p);
+    invalidate(p);
     return done;
   },
   form: (p, form, o) => {
     const done = request(p, { ...o, method: 'POST', form });
-    cache.invalidate(p);
+    invalidate(p);
     return done;
   },
 };

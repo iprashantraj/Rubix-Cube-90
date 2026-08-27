@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import {useState} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, cachedGet } from '../api/client.js';
+import { api } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { useDraft } from '../store.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
-import { Screen, Card, Chip, BigButton, StatusDot, Spinner } from '../ui/kit.jsx';
+import { Screen, Card, Chip, BigButton, StatusDot } from '../ui/kit.jsx';
 import { IconPublish, IconNext, IconForward, IconYes } from '../ui/icons.jsx';
 
 
@@ -79,11 +80,11 @@ export default function Publish() {
   const nav = useNavigate();
   const { lang, say } = useVoice();
   const draft = useDraft();
-  const [channels, setChannels] = useState(null);
+  const { data: channels, isPending, error } = useApiQuery('/channels');
   const [results, setResults] = useState({});
   const [stage, setStage] = useState(0); // index into TIERS
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  const errKey = error ? (error.messageKey ?? 'error.unknown') : null;
 
   // This is the last screen of the create flow and the artisan has already waited through a
   // capture, an upload and a voice interview to reach it. The channel list has not changed
@@ -91,16 +92,6 @@ export default function Publish() {
   //
   // The `/publish/{jobId}` poll further down stays a plain `api.get`: a job status is the
   // one thing in this app that must never be answered from a copy.
-  useEffect(() => {
-    let alive = true;
-    cachedGet('/channels', { onUpdate: (d) => alive && setChannels(d) }).then(
-      (d) => alive && setChannels(d),
-      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
-    );
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   const inTier = (tier) => channels?.filter((c) => c.tier === tier) ?? [];
 
@@ -154,7 +145,7 @@ export default function Publish() {
     }
   }
 
-  if (!channels && !error) return <Spinner label={t(lang, 'common.loading')} />;
+  if (isPending) return <Screen prompt="common.loading" state="loading" loadingLabel="common.loading" />;
 
   const current = TIERS[stage];
   const last = stage === TIERS.length - 1;
@@ -162,7 +153,7 @@ export default function Publish() {
 
   // The prompt is per-section, so advancing re-speaks — every screen speaks on entry, and a
   // section the artisan cannot read is a section they were never told about.
-  const prompt = error ?? `publish.${current.toLowerCase()}_prompt`;
+  const prompt = errKey ?? `publish.${current.toLowerCase()}_prompt`;
 
   /** A channel row. Tappable only when there is genuinely somewhere for it to go. */
   function row(c) {

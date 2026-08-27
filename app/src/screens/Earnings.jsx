@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { api, cachedGet } from '../api/client.js';
+import {useState} from 'react';
+import { api } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { useVoice } from '../voice/useVoice.js';
 import { t, bcp47 } from '../i18n/index.js';
-import { Screen, Card, Chip, Spinner, YesNo, HelpButton } from '../ui/kit.jsx';
+import { Screen, Card, Chip, YesNo, HelpButton } from '../ui/kit.jsx';
 
 /**
  * /earnings — money. Spec §5 row 23, §11.3.
@@ -26,9 +27,15 @@ import { Screen, Card, Chip, Spinner, YesNo, HelpButton } from '../ui/kit.jsx';
  */
 export default function Earnings() {
   const { lang, say } = useVoice();
-  const [orders, setOrders] = useState(null);
+  // `frozen`: confirmPayment() below writes optimistically so the artisan can clear
+  // several rows in a row, and a revalidation landing a second later would put a confirmed
+  // payment back to unconfirmed — on the money screen, the worst place in the app to
+  // appear to undo something. The mutation invalidates the key, so the next visit is
+  // authoritative. Local edits go through setOrders on top of the query's copy.
+  const { data: fetched, isPending, error } = useApiQuery('/orders', { frozen: true });
+  const [override, setOrders] = useState(null);
+  const orders = override ?? fetched;
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
 
   // Same `/orders` entry the Orders tab fills, so arriving here from that tab is free.
   //
@@ -37,17 +44,13 @@ export default function Earnings() {
   // revalidation that resolves just after one of those taps would put the row back to
   // unconfirmed — on the money screen, which is the worst place in the app to appear to
   // undo something. The mutation invalidates the entry, so the next visit is authoritative.
-  useEffect(() => {
-    let alive = true;
-    cachedGet('/orders').then(
-      (d) => alive && setOrders(d),
-      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
-    );
-    return () => {
-      alive = false;
-    };
-  }, []);
 
+  // Query failures and MUTATION failures are different facts and need separate state.
+  // The query's error is owned by TanStack; a failed POST is owned by this screen, and
+  // collapsing them would let a refetch silently clear a "payment could not be recorded"
+  // message the artisan has not read yet.
+  const [mutError, setError] = useState(null);
+  const errKey = mutError ?? (error ? (error.messageKey ?? 'error.unknown') : null);
   const rows = orders ?? [];
   // "Sent" means the channel has settled or the goods are delivered and settlement is due.
   // Anything earlier than that is work in progress, not money, and is not counted — an
@@ -82,7 +85,7 @@ export default function Earnings() {
     }
   }
 
-  const prompt = error ?? (orders == null
+  const prompt = errKey ?? (isPending
     ? 'common.loading'
     : sent.length === 0
       ? 'earnings.empty'
@@ -103,8 +106,7 @@ export default function Earnings() {
 
   return (
     <Screen prompt={prompt} hero footer={<HelpButton />}>
-      {orders == null && !error && <Spinner label={t(lang, 'common.loading')} />}
-      {error && <p className="warn">{t(lang, error)}</p>}
+            {errKey && <p className="warn">{t(lang, errKey)}</p>}
 
       {orders != null && (
         <Card raised>

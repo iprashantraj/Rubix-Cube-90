@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import {useState} from 'react';
 import { useParams } from 'react-router-dom';
-import { api, cachedGet } from '../api/client.js';
+import { api } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
-import { Screen, BigButton, Card, Chip, Spinner, YesNo, HelpButton } from '../ui/kit.jsx';
+import { Screen, BigButton, Card, Chip, YesNo, HelpButton } from '../ui/kit.jsx';
 import { IconNext } from '../ui/icons.jsx';
 
 /**
@@ -37,9 +38,19 @@ export default function OrderDetail() {
   const { id } = useParams();
   const { lang, say } = useVoice();
 
-  const [order, setOrder] = useState(null);
+  // `frozen`, for the same reason as Earnings: advance() and confirmPayment() write
+  // optimistically, and a background refetch would stamp the server's pre-mutation copy
+  // back over a change the artisan was just told had worked.
+  const { data: list, isPending, error } = useApiQuery('/orders', { frozen: true });
+  const [override, setOrder] = useState(null);
+  const order = override ?? (list ? (list.find((o) => o.id === id) ?? false) : null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  // Query failures and MUTATION failures are different facts and need separate state.
+  // The query's error is owned by TanStack; a failed POST is owned by this screen, and
+  // collapsing them would let a refetch silently clear a "payment could not be recorded"
+  // message the artisan has not read yet.
+  const [mutError, setError] = useState(null);
+  const errKey = mutError ?? (error ? (error.messageKey ?? 'error.unknown') : null);
 
   // No GET /orders/{id} exists — the inbox payload already carries every field this screen
   // renders, so we filter it rather than ask for a second endpoint that would repeat it.
@@ -50,16 +61,6 @@ export default function OrderDetail() {
   // later would stamp the server's pre-mutation copy back over the change the artisan was
   // just told had worked. The mutation already invalidated the entry, so the next visit is
   // authoritative — that is the right place to correct this screen, not mid-tap.
-  useEffect(() => {
-    let alive = true;
-    cachedGet('/orders').then(
-      (list) => alive && setOrder(list.find((o) => o.id === id) ?? false),
-      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [id]);
 
   function fail(e) {
     const key = e.messageKey ?? 'error.unknown';
@@ -106,7 +107,7 @@ export default function OrderDetail() {
   const askMoney =
     order && ['delivered', 'settled'].includes(order.state) && !order.artisan_confirmed_payment;
 
-  const prompt = error ?? (order == null
+  const prompt = errKey ?? (isPending
     ? 'common.loading'
     : order === false
       ? 'order.not_found'
@@ -118,8 +119,7 @@ export default function OrderDetail() {
 
   return (
     <Screen prompt={prompt} footer={<HelpButton />}>
-      {order == null && !error && <Spinner label={t(lang, 'common.loading')} />}
-      {error && <p className="warn">{t(lang, error)}</p>}
+            {errKey && <p className="warn">{t(lang, errKey)}</p>}
 
       {order && (
         <>

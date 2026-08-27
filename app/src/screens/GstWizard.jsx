@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import {useEffect} from 'react';
 import { useNavigate } from 'react-router-dom';
-import { cachedGet } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
-import { Screen, BigButton, Card, Chip, Spinner, HelpButton } from '../ui/kit.jsx';
+import { Screen, BigButton, Card, Chip, HelpButton } from '../ui/kit.jsx';
 import { IconNext, IconYes, IconAlert } from '../ui/icons.jsx';
 
 /**
@@ -57,22 +57,12 @@ const PORTAL = {
 export default function GstWizard() {
   const nav = useNavigate();
   const { lang, say } = useVoice();
-  const [route, setRoute] = useState(null);
-  const [error, setError] = useState(null);
+  const { data: route, isPending, error } = useApiQuery('/me/gst-route');
+  const errKey = error ? (error.messageKey ?? 'error.unknown') : null;
 
   // Under `/me`, so it inherits the 30-minute TTL and — more importantly — a `PATCH /me`
   // clears this too: `invalidate()` matches on the first path segment, so a readiness answer
   // that changes the artisan's GST route cannot leave the old route on screen.
-  useEffect(() => {
-    let alive = true;
-    cachedGet('/me/gst-route', { onUpdate: (d) => alive && setRoute(d) }).then(
-      (d) => alive && setRoute(d),
-      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
-    );
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   /*
    * The disclaimer is spoken after the answer, not before it. Before, it is noise the
@@ -100,12 +90,11 @@ export default function GstWizard() {
 
   // The server's own voice_key is the heading AND the audio — one string, so the sentence
   // an artisan hears is provably the sentence a reviewer can read off the screenshot.
-  const prompt = error ?? (route == null ? 'common.loading' : route.voice_key);
+  const prompt = errKey ?? (isPending ? 'common.loading' : route.voice_key);
 
   return (
     <Screen prompt={prompt} footer={<HelpButton />}>
-      {route == null && !error && <Spinner label={t(lang, 'common.loading')} />}
-      {error && <p className="warn">{t(lang, error)}</p>}
+            {errKey && <p className="warn">{t(lang, errKey)}</p>}
 
       {route && (
         <>

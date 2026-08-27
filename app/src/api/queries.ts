@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
-import { cacheable, ttlFor } from './cache.js';
+import { cacheable, ttlFor } from './policy.js';
 
 /**
  * The read cache, on TanStack Query.

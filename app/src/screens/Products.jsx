@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { cachedGet } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
-import { Screen, BigButton, Card, Chip, Spinner } from '../ui/kit.jsx';
+import { Screen, BigButton, Card, Chip } from '../ui/kit.jsx';
 import { IconCreate, IconPhoto, IconForward } from '../ui/icons.jsx';
 
 /**
@@ -42,23 +41,14 @@ function statusOf(p) {
 export default function Products() {
   const nav = useNavigate();
   const { lang } = useVoice();
-  const [items, setItems] = useState(null);
-  const [error, setError] = useState(null);
 
-  // The catalogue renders from the last visit's copy on the frame this screen appears, and
-  // corrects itself only if the server disagrees. Leaving /products tab and coming back was
-  // a full re-fetch and a spinner for the same fourteen rows — on a metered connection that
-  // is the artisan's money, and the spinner is what the app looks like to them.
-  useEffect(() => {
-    let alive = true;
-    cachedGet('/products', { onUpdate: (d) => alive && setItems(d) }).then(
-      (d) => alive && setItems(d),
-      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
-    );
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // The catalogue renders from the last visit's copy on the frame this screen appears and
+  // corrects itself only if the server disagrees. Leaving the tab and coming back used to
+  // be a full re-fetch and a spinner for the same fourteen rows — on a metered connection
+  // that is the artisan's money, and the spinner is what the app looks like to them.
+  const { data, isPending, error } = useApiQuery('/products');
+  const items = Array.isArray(data) ? data : null;
+  const errKey = error ? (error.messageKey ?? 'error.unknown') : null;
 
   /*
    * The spoken prompt IS the state machine. A brand-new artisan opens this screen to
@@ -66,26 +56,27 @@ export default function Products() {
    * "the photo I just took was lost". Every branch below says something out loud, and
    * because `prompt` is a key the heading and the audio can never disagree.
    */
-  const prompt = error ?? (items == null
+  const empty = items?.length === 0;
+  const prompt = errKey ?? (isPending
     ? 'common.loading'
-    : items.length === 0
+    : empty
       ? 'products.empty'
       : 'products.title');
 
   return (
-    <Screen prompt={prompt} promptVars={{ count: items?.length ?? 0 }} hero>
-      {items == null && !error && <Spinner label={t(lang, 'common.loading')} />}
-
-      {error && <p className="warn">{t(lang, error)}</p>}
-
-      {items?.length === 0 && (
-        // Not a dead end. An empty catalog is the most common first view in the whole app
-        // and it should point straight back at the camera, which is the only thing that
-        // fixes it.
-        <Card>
-          <p>{t(lang, 'products.empty_help')}</p>
-        </Card>
-      )}
+    <Screen
+      prompt={prompt}
+      promptVars={{ count: items?.length ?? 0 }}
+      hero
+      // Screen owns all three states now — the spinner, the "nothing here" card and the
+      // list no longer each decide for themselves what waiting looks like.
+      state={isPending ? 'loading' : empty ? 'empty' : 'ready'}
+      loadingLabel="common.loading"
+      // An empty catalogue is the most common first view in the whole app, and it must
+      // point straight back at the camera — the only thing that fixes it.
+      empty={{ art: 'products', body: t(lang, 'products.empty_help') }}
+    >
+      {errKey && <p className="warn">{t(lang, errKey)}</p>}
 
       {items?.map((p) => {
         const st = statusOf(p);

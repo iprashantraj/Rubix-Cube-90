@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { cachedGet } from '../api/client.js';
+import { useApiQuery } from '../api/useApi.ts';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
-import { Screen, Card, Chip, Spinner, StatusDot, HelpButton } from '../ui/kit.jsx';
+import { Screen, Card, Chip, StatusDot, HelpButton } from '../ui/kit.jsx';
 import { IconForward } from '../ui/icons.jsx';
 
 /**
@@ -70,28 +69,17 @@ function stateOf(c) {
 export default function Channels() {
   const nav = useNavigate();
   const { lang } = useVoice();
-  const [channels, setChannels] = useState(null);
-  const [error, setError] = useState(null);
+  const { data: channels, isPending, error } = useApiQuery('/channels');
+  const errKey = error ? (error.messageKey ?? 'error.unknown') : null;
 
   // The channel list and its connection states barely move between visits, and this screen
   // is walked through repeatedly during setup — cached, with the server correcting it after.
-  useEffect(() => {
-    let alive = true;
-    cachedGet('/channels', { onUpdate: (d) => alive && setChannels(d) }).then(
-      (d) => alive && setChannels(d),
-      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
-    );
-    return () => {
-      alive = false;
-    };
-  }, []);
 
-  const prompt = error ?? (channels == null ? 'common.loading' : 'channels.title');
+  const prompt = errKey ?? (isPending ? 'common.loading' : 'channels.title');
 
   return (
     <Screen prompt={prompt} footer={<HelpButton />}>
-      {channels == null && !error && <Spinner label={t(lang, 'common.loading')} />}
-      {error && <p className="warn">{t(lang, error)}</p>}
+            {errKey && <p className="warn">{t(lang, errKey)}</p>}
 
       {ORDER.map((tier) => {
         const group = channels?.filter((c) => c.tier === tier) ?? [];
