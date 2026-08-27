@@ -29,11 +29,13 @@
     "allowJs": true,
     "checkJs": false,
 
-    "baseUrl": ".",
+    // No `baseUrl`: TypeScript 7 removed it. Paths are resolved relative to this
+    // file, so the mapping is written out in full and vite.config.ts carries the
+    // matching alias. The two must agree or a shadcn-generated import resolves
+    // in the editor and fails in the bundler.
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src", "vite.config.ts"]
 }
