@@ -131,7 +131,13 @@ export default function CatalogVoice() {
       // sentence. record() now sounds a 140ms tone at the exact moment capture begins
       // (voice/listen.js), which is the same promise kept honestly.
       shutUp();
-      recRef.current = await record();
+      // `onSilence` is what closes the microphone when they stop talking, and leaving it off
+      // meant this screen never closed it at all — the recording ran until somebody tapped
+      // the button a second time. That is a convention learned from other apps, and the
+      // whole premise of listen.js is that our users do not have those apps. They answer the
+      // question and then wait, which here was an open mic recording the room until they
+      // gave up. Every onboarding screen passed this; the two cataloguer screens did not.
+      recRef.current = await record({ onSilence: stopRec });
       setPhase('rec');
     } catch {
       fail('voice.mic_denied');

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api } from '../api/client.js';
 import { useDraft } from '../store.js';
@@ -67,6 +67,8 @@ export default function CatalogReview() {
   const [step, setStep] = useState('read');
   const [field, setField] = useState(null);
   const [rec, setRec] = useState(null);
+  // The handle as the silence callback sees it. `rec` above is for the button label only.
+  const recRef = useRef(null);
   const [busy, setBusy] = useState(false);
 
   // The whole listing, as one utterance, every time it changes.
@@ -111,35 +113,54 @@ export default function CatalogReview() {
     }
   }
 
-  async function mic() {
-    if (rec) {
-      const clip = await rec.stop();
-      setRec(null);
-      setBusy(true);
-      try {
-        const { transcript } = await transcribe(clip, lang);
-        if (!transcript?.trim()) throw new Error('empty');
-        setLocal({ ...listing, [field]: transcript.trim() });
-        setStep('read'); // and the effect above reads the corrected listing straight back
-      } catch {
-        // ASR is 503 until Bhashini is keyed. Say so, leave both buttons alive: try again,
-        // or go back and accept the listing as it stands. Never a dead end.
-        say('voice.asr_down');
-      } finally {
-        setBusy(false);
-      }
-      return;
+  /*
+   * Split into start/stop around a ref, so that silence can end the recording too.
+   *
+   * This was one `mic()` toggle reading `rec` from state, which cannot be handed to
+   * `record({ onSilence })`: the callback closes over the render where `rec` was still null,
+   * so firing it would fall through to the start branch and open a SECOND microphone rather
+   * than close the first. The ref is what the callback reads; the state is only what the
+   * button label reads.
+   */
+  async function stopRec() {
+    const handle = recRef.current;
+    if (!handle) return;
+    recRef.current = null;
+    const clip = await handle.stop();
+    setRec(null);
+    setBusy(true);
+    try {
+      const { transcript } = await transcribe(clip, lang);
+      if (!transcript?.trim()) throw new Error('empty');
+      setLocal({ ...listing, [field]: transcript.trim() });
+      setStep('read'); // and the effect above reads the corrected listing straight back
+    } catch {
+      // ASR is 503 until Bhashini is keyed. Say so, leave both buttons alive: try again,
+      // or go back and accept the listing as it stands. Never a dead end.
+      say('voice.asr_down');
+    } finally {
+      setBusy(false);
     }
+  }
+
+  async function startRec() {
     shutUp();
     setBusy(true);
     try {
       await say('catalog.rerecord');
-      setRec(await record());
+      // Closes itself when they stop talking — see the note in CatalogVoice.startRec().
+      const handle = await record({ onSilence: stopRec });
+      recRef.current = handle;
+      setRec(handle);
     } catch {
       say('voice.mic_denied');
     } finally {
       setBusy(false);
     }
+  }
+
+  function mic() {
+    return recRef.current ? stopRec() : startRec();
   }
 
   if (step === 'pick') {
