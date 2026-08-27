@@ -1,4 +1,11 @@
 import { api } from '../api/client.js';
+import {
+  DIGIT_WORDS,
+  NUMBER_WORDS,
+  TENS_EN,
+  UNITS_EN,
+  digitOf,
+} from './numberWords.js';
 
 /**
  * Turn what someone actually said into the thing the app needs.
@@ -96,6 +103,138 @@ const CRAFT_WORDS = {
     'ବାଉଁଶ', 'ଟୋକେଇ',
   ],
 };
+
+/**
+ * Materials, as the words people actually say them in.
+ *
+ * ⚠️ Flat list, not a slug map, and the MATCHED WORD is what gets stored — "mitti" stays
+ * "mitti", "cotton" stays "cotton". That is not laziness, it is agreement with the model:
+ * rule 4 of the system prompt in `ai/interpret.py` tells it to keep the person's own words
+ * and script and never transliterate. If this tier normalised to English slugs, the same
+ * artisan would get "clay" offline and "mitti" online, and the field would quietly depend on
+ * whether the tower was up. Normalising for pricing comparables is a server-side job with
+ * the whole corpus in view, not something to half-do on a phone.
+ */
+const MATERIAL_WORDS = [
+  // fibre
+  'cotton', 'sooti', 'suti', 'कपास', 'सूती', 'कॉटन', 'ତୁଳା', 'ସୁତା',
+  'silk', 'resham', 'reshmi', 'रेशम', 'रेशमी', 'सिल्क', 'ରେଶମ', 'ପଟ୍ଟ',
+  'wool', 'woollen', 'woolen', 'oon', 'ऊन', 'ऊनी', 'ଉଲ',
+  'jute', 'patsan', 'जूट', 'पटसन', 'ଝୋଟ',
+  'linen', 'लिनन', 'polyester', 'पॉलिएस्टर', 'khadi', 'खादी', 'ଖଦୀ',
+  // earth and stone
+  'clay', 'mitti', 'terracotta', 'मिट्टी', 'मृत्तिका', 'ମାଟି',
+  'stone', 'patthar', 'पत्थर', 'ପଥର', 'marble', 'संगमरमर',
+  // metal
+  'brass', 'peetal', 'pital', 'पीतल', 'ପିତ୍ତଳ',
+  'copper', 'tamba', 'तांबा', 'ତମ୍ବା',
+  'bronze', 'kansa', 'कांसा', 'କାଁସା',
+  'silver', 'chandi', 'चांदी', 'ରୂପା',
+  'gold', 'sona', 'सोना', 'ସୁନା',
+  'iron', 'loha', 'लोहा', 'ଲୁହା',
+  // plant and hide
+  'wood', 'lakdi', 'lakri', 'kaath', 'लकड़ी', 'काठ', 'କାଠ', 'ଦାରୁ',
+  'bamboo', 'baans', 'bans', 'बांस', 'बाँस', 'ବାଉଁଶ',
+  'cane', 'bent', 'बेंत', 'ବେତ',
+  'leather', 'chamda', 'chamra', 'चमड़ा', 'ଚମଡ଼ା',
+];
+
+/**
+ * Units for the two quantity questions. Separate lists because "how long did it take" and
+ * "how big is it" must not accept each other's units — "chaar din" is not a size.
+ */
+const TIME_UNITS = [
+  'din', 'dino', 'dinon', 'दिन', 'दिनों', 'ଦିନ', 'day', 'days',
+  'hafta', 'hafte', 'haftey', 'हफ्ता', 'हफ्ते', 'सप्ताह', 'ସପ୍ତାହ', 'week', 'weeks',
+  'mahina', 'mahine', 'महीना', 'महीने', 'ମାସ', 'month', 'months',
+  'saal', 'sal', 'साल', 'वर्ष', 'ବର୍ଷ', 'year', 'years',
+  'ghanta', 'ghante', 'घंटा', 'घंटे', 'ଘଣ୍ଟା', 'hour', 'hours',
+];
+
+const SIZE_UNITS = [
+  'foot', 'feet', 'fut', 'phut', 'फुट', 'फ़ुट', 'ଫୁଟ',
+  'inch', 'inches', 'इंच', 'ଇଞ୍ଚ',
+  'meter', 'metre', 'meters', 'metres', 'मीटर', 'ମିଟର',
+  'cm', 'centimeter', 'centimetre', 'सेंटीमीटर', 'mm',
+  'gaj', 'गज', 'ଗଜ', 'yard', 'yards',
+  'haath', 'hath', 'हाथ', 'ହାତ',
+];
+
+/** Split a transcript the same way the PIN parser does, so both agree on what a token is. */
+const tokenise = (s) =>
+  String(s ?? '')
+    .toLowerCase()
+    .split(/[\s,.\-–—।]+/)
+    .filter(Boolean);
+
+/**
+ * The value of a token if it is a number, else null. Digits, digit-words and the 10-99
+ * table, all from voice/numberWords.js — the same tables the PIN code parser proved out.
+ */
+function numberAt(toks, i) {
+  const tok = toks[i];
+  if (DIGIT_WORDS[tok] !== undefined) return { text: tok, next: i + 1 };
+  if (NUMBER_WORDS[tok] !== undefined) return { text: tok, next: i + 1 };
+  // "twenty two days" — English composes, so the number is two tokens wide.
+  if (TENS_EN[tok] !== undefined) {
+    const unit = UNITS_EN[toks[i + 1]];
+    return unit !== undefined
+      ? { text: `${tok} ${toks[i + 1]}`, next: i + 2 }
+      : { text: tok, next: i + 1 };
+  }
+  let numeral = '';
+  for (const ch of tok) {
+    const d = digitOf(ch);
+    if (!d) return null;
+    numeral += d;
+  }
+  return numeral ? { text: tok, next: i + 1 } : null;
+}
+
+/**
+ * "ise banane mein gyarah din lage" -> "gyarah din". A number followed by a unit.
+ *
+ * The unit has to sit within one token of the number, so "gyarah bade din" still matches
+ * but a number at one end of the sentence and a unit at the other does not.
+ *
+ * Exactly ONE pair or nothing — the same never-guess rule as matchCraft() and
+ * extractPincode(). "chaar foot lamba aur do foot chaura" is genuinely two measurements and
+ * is a sentence the model should reduce, not something to pick a half of.
+ */
+export function matchQuantity(transcript, units) {
+  const unitSet = new Set(units);
+  const toks = tokenise(transcript);
+  const hits = [];
+  for (let i = 0; i < toks.length; i++) {
+    const num = numberAt(toks, i);
+    if (!num) continue;
+    for (let j = num.next; j < Math.min(num.next + 2, toks.length); j++) {
+      if (unitSet.has(toks[j])) {
+        hits.push(`${num.text} ${toks[j]}`);
+        break;
+      }
+    }
+    // Past the whole number, not just its first token. "twenty two days" is ONE quantity;
+    // without this the "two" is read as a second number, and a sentence with one
+    // measurement in it looks like the ambiguous two-measurement case and escalates.
+    i = num.next - 1;
+  }
+  return hits.length === 1 ? hits[0] : null;
+}
+
+/**
+ * The one material named in the sentence, in the artisan's own words. Null on none or on
+ * more than one — "cotton silk mix" is a real answer and is the model's to reduce.
+ *
+ * Whole-token matching, unlike matchCraft's substring stems: a material is a noun that gets
+ * said on its own, and substring matching would fire "sona" (gold) inside "sonar" and "bent"
+ * (cane) inside any English past tense the ASR happens to emit.
+ */
+export function matchMaterial(transcript) {
+  const toks = new Set(tokenise(transcript));
+  const hits = MATERIAL_WORDS.filter((w) => toks.has(w));
+  return hits.length === 1 ? hits[0] : null;
+}
 
 /**
  * Carrier phrases people wrap an answer in, per language.
@@ -274,6 +413,36 @@ export async function interpretAnswer({ transcript, question, lang, shape = 'ope
     if (local) return { value: local, raw, by: 'local' };
   }
 
+  /*
+   * "What is special about it?" is not a question with a short answer, and asking the model
+   * to find one is asking it to throw away the only part of the listing written in the
+   * artisan's own voice. It answers null for these — measured, on the real service — after
+   * six seconds of the artisan waiting. So it is not asked: the sentence IS the value.
+   */
+  if (question === 'catalog.q_special') return { value: raw, raw, by: 'local' };
+
+  /*
+   * The cheap tier for the questions that have a shape.
+   *
+   * Measured against the live AI service, the five cataloguer questions cost 3-9 seconds
+   * each — call it half a minute of an artisan holding a phone over a saree — and two of the
+   * five came back null anyway. `size` in particular: "chaar foot lamba hai" returned null
+   * after 6.8s, which the four lines of matchQuantity() answer instantly and correctly.
+   *
+   * These run FIRST for the same reason the craft table does: an answer we already know how
+   * to read should not wait on a tower. Each returns null rather than guessing, so anything
+   * with two materials or two measurements still reaches the model.
+   */
+  const local =
+    question === 'catalog.q_material'
+      ? matchMaterial(raw)
+      : question === 'catalog.q_time'
+        ? matchQuantity(raw, TIME_UNITS)
+        : question === 'catalog.q_size'
+          ? matchQuantity(raw, SIZE_UNITS)
+          : null;
+  if (local) return { value: local, raw, by: 'local' };
+
   try {
     const res = await api.post('/catalog/interpret', {
       transcript: raw,
@@ -333,4 +502,28 @@ if (import.meta.env.DEV) {
   ok(stripCarrier('yeh cotton ki saree hai'), 'yeh cotton ki saree', 'copula stripped, sentence remains — not an answer');
   ok(stripCarrier('mitti ka matka hai'), 'mitti ka matka', 'same shape, same non-answer');
   ok(stripCarrier('chaar foot lamba hai'), 'chaar foot lamba', 'a size answer is not reduced either');
+
+  /*
+   * The cataloguer's local tier. Every transcript below is one the model was actually asked
+   * on the live service; the two marked MODEL RETURNED NULL are why this tier exists at all
+   * and not only as a speed-up.
+   */
+  ok(matchMaterial('yeh cotton ki saree hai'), 'cotton', 'material out of a hindi sentence');
+  ok(matchMaterial('mitti ka matka hai'), 'mitti', "the artisan's own word, not a slug");
+  ok(matchMaterial('पीतल का बर्तन'), 'पीतल', 'devanagari stays devanagari');
+  ok(matchMaterial('cotton silk mix hai'), null, 'two materials named -> the model decides');
+  ok(matchMaterial('bahut sundar hai'), null, 'no material named');
+  // Whole tokens, not substrings: "sona" must not fire inside "sonar".
+  ok(matchMaterial('sonar ne banaya'), null, 'a material word inside another word is not a match');
+
+  ok(matchQuantity('ise banane mein gyarah din lage', TIME_UNITS), 'gyarah din', 'hindi number word plus unit');
+  ok(matchQuantity('11 din lage', TIME_UNITS), '11 din', 'bare numeral plus unit');
+  ok(matchQuantity('do hafte', TIME_UNITS), 'do hafte', 'weeks');
+  ok(matchQuantity('twenty two days', TIME_UNITS), 'twenty two days', 'english pairs compose here too');
+  // MODEL RETURNED NULL after 6.8s on this exact sentence.
+  ok(matchQuantity('chaar foot lamba hai', SIZE_UNITS), 'chaar foot', 'size the model could not read');
+  ok(matchQuantity('chaar foot lamba hai', TIME_UNITS), null, 'a size is not an answer about time');
+  ok(matchQuantity('gyarah din lage', SIZE_UNITS), null, 'and time is not a size');
+  ok(matchQuantity('chaar foot lamba aur do foot chaura', SIZE_UNITS), null, 'two measurements -> ambiguous, escalate');
+  ok(matchQuantity('bahut bada hai', SIZE_UNITS), null, 'no number at all');
 }
