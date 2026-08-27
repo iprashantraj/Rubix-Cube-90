@@ -36,6 +36,20 @@ The enhancement worker needs more:
 tools keep working without it. `python3 test_gate.py` runs with no virtualenv at all, and
 `python3 test_segment.py` runs its geometry half the same way and skips the model half.
 
+## The image path, end to end
+
+    POST /enhance          gate (synchronous, no GPU) -> 202 + job_id, or an immediate rejection
+    GET  /enhance/{job_id} queued -> running -> done | failed
+    job                    master 2000px -> BiRefNet -> tier A/B/C -> crop -> per-target JPEG
+
+`uvicorn service:app` is the whole service. `worker.py` is not needed yet — jobs run on one
+worker thread inside the process, because there is one GPU and BiRefNet holds ~1.6GB of it.
+That makes the job table process-local: a restart loses in-flight ids. Decision #2's Redis+RQ
+is the fix, and `jobs.submit()` / `jobs.get()` is the entire swap surface.
+
+`white_balance()`, `tone()` and `denoise_sharpen()` are unwritten and skipped explicitly;
+every response lists them under `skipped`.
+
 ## Segmentation
 
 `enhance/segmenter.py` is BiRefNet, pinned to the revision the benchmark measured. Two

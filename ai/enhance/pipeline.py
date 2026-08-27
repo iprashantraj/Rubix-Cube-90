@@ -7,7 +7,7 @@ Line we do not cross: never change colour or shape. Enhance, don't misrepresent.
 Return rate destroys artisan income, and misrepresentation is a listing violation.
 """
 
-from . import metrics
+from . import metrics, storage
 
 # Rejection reasons this pipeline exists to defeat:
 #   background not pure white  ->  composite()
@@ -513,10 +513,104 @@ def crop(image, alpha):
     return square.resize((canvas, canvas), _Image.LANCZOS)
 
 
-def export(image, targets):
-    """Per-channel variants + EXIF strip. Amazon 2000sq q90 sRGB, IndiaMART 500sq, social 1080sq."""
-    raise NotImplementedError
+# Per-channel output. Sizes and quality from spec §9.1; `amazon` and `gem` are both the
+# 2000px marketplace square. Unknown targets fall back to marketplace rather than being
+# dropped, because a channel adapter asking for something we do not know about should still
+# get a usable image.
+TARGETS = {
+    "amazon":   dict(px=2000, quality=90),
+    "gem":      dict(px=2000, quality=90),
+    "flipkart": dict(px=2000, quality=90),
+    "whatsapp": dict(px=1000, quality=75),   # spec: under 200KB
+    "social":   dict(px=1080, quality=88),
+}
+PRIMARY = "amazon"
 
 
-def run(image, targets):
-    raise NotImplementedError
+def export(image, targets, product_id):
+    """Write one JPEG per target. Returns the `images` list `contracts.md` specifies.
+
+    `image` is the finished square from `crop()`. Downscaling only — every target is at or
+    below the 2000px canvas, so nothing here enlarges.
+
+    Not yet done, and it is per-channel polish rather than pipeline structure: an explicit
+    sRGB profile, and the 200KB ceiling spec §9.1 puts on the WhatsApp variant (quality 75
+    usually clears it at 1000px, but "usually" is not a check).
+    """
+    from PIL import Image as _Image
+
+    out = []
+    for name in targets or [PRIMARY]:
+        spec = TARGETS.get(name, TARGETS[PRIMARY])
+        im = image if image.width == spec["px"] else image.resize(
+            (spec["px"], spec["px"]), _Image.LANCZOS)
+        url, w, h = storage.write_image(im, product_id, name, spec["quality"])
+        out.append({"target": name, "url": url, "width": w, "height": h,
+                    "is_primary": name == PRIMARY})
+    if out and not any(i["is_primary"] for i in out):
+        out[0]["is_primary"] = True          # the app needs exactly one primary
+    return out
+
+
+def run(image, targets, product_id="unknown"):
+    """The whole sequence, gate to files. Returns the `GET /enhance/{job_id}` body.
+
+    Order, and why it is this order:
+
+        gate      refuse before spending GPU on a photograph nothing can rescue
+        master    2000px — the model's mask is stretched to fit, so this sets edge quality
+        segment   BiRefNet
+        matte     currently a no-op, see its docstring
+        apply_tier  confidence decides how much of the mask we are willing to use
+        crop      square the frame; must follow the composite that apply_tier does
+        export    per-channel JPEGs
+
+    **`white_balance()`, `tone()` and `denoise_sharpen()` are not called, because they are
+    not written.** They are skipped explicitly rather than left out quietly, and every
+    response says which stages actually ran. Colour is the significant absence: a maroon
+    saree under a tungsten bulb still leaves here photographing orange, and rule 4 means
+    nothing publishes without the artisan confirming colour anyway.
+
+    `stages` is also the beginning of step 5's recipe. Rule 2 says store what was done and
+    render on demand rather than overwriting the original; this records what was done.
+    """
+    from . import segmenter
+
+    warnings = []
+    rejection = gate(image)
+    if rejection:
+        return {"status": "rejected", **rejection}
+
+    master = segmenter.to_master(image)
+    alpha = matte(master, segment(master))
+    plan = crop_plan(alpha)
+    composited, tier_name, score, signals = apply_tier(master, alpha)
+    squared = crop(composited, alpha)
+    images = export(squared, targets, product_id)
+
+    if tier_name != "A":
+        # The app speaks warnings to the artisan, so this says what they would see rather
+        # than what we measured.
+        warnings.append(
+            "the background could not be removed cleanly, so less of it was changed"
+            if tier_name == "B" else
+            "the background was left as it is — the photo could not be separated from it"
+        )
+    if plan["upscale"] > 2.0:
+        warnings.append(
+            "the product is small in the frame, so the listing image is soft — "
+            "retake it closer for a sharper result"
+        )
+    if plan["degraded"]:
+        warnings.append("no product could be found in the photo — it was cropped to the centre")
+
+    return {
+        "status": "done",
+        "images": images,
+        "warnings": warnings,
+        "tier": tier_name,
+        "confidence": round(score, 2),
+        "mask": signals,
+        "stages": ["gate", "master", "segment", "matte", f"tier_{tier_name}", "crop", "export"],
+        "skipped": ["white_balance", "tone", "denoise_sharpen"],
+    }
