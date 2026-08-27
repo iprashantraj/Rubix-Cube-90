@@ -14,24 +14,64 @@ const MAX_ATTEMPTS = 5;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/*
+ * Upload size budget.
+ *
+ * 1600px on the long edge at quality 0.82 takes a ~2.5MB camera frame to roughly 350KB.
+ *
+ * The number that justifies this is not our storage bill — it is the artisan's mobile data.
+ * They are on a metered prepaid pack on a weak rural connection, and a 2.5MB upload per
+ * photo is a cost they pay, per product, to use us. It is also the difference between an
+ * upload that finishes and one that times out twice and gets abandoned.
+ *
+ * Why 1600 and not less: the server derives its display variant at 1200px (see
+ * web/api/routers/uploads.py) and marketplace listings want a little headroom above that
+ * for a zoom crop. Below ~1400 the largest variant starts being an upscale, which no
+ * amount of server-side sharpening recovers.
+ *
+ * Why 0.82 and not 0.92: on photographs of textiles and pottery the two are visually
+ * indistinguishable at any size a phone displays, and 0.82 is about 40% of the bytes.
+ * ⚠️ Do NOT lower it further to save more. Below ~0.75, JPEG ringing shows up along the
+ * high-contrast thread boundaries in ikat and Sambalpuri weave — which is precisely the
+ * detail the product is being sold on, and precisely what the camera gate spent all that
+ * effort capturing sharply.
+ */
+const MAX_EDGE_PX = 1600;
+const JPEG_QUALITY = 0.82;
+
 /**
- * 🔒 Strip EXIF before anything leaves the device.
+ * 🔒 Strip EXIF and downscale before anything leaves the device.
  *
  * An artisan's home GPS coordinates must never reach a public listing. Decoding to a
  * canvas and re-encoding discards every metadata block — no EXIF parser to keep correct,
- * no tag we forgot to clear.
+ * no tag we forgot to clear. The downscale rides along on the same decode, so it is free:
+ * we were already re-encoding for the privacy reason.
  *
- * Photos from useCameraGate are already canvas-encoded and therefore already clean; this
- * matters for anything picked from the gallery.
+ * Photos from useCameraGate are already canvas-encoded and therefore already clean of
+ * metadata; the EXIF half matters for anything picked from the gallery, and the resize
+ * half matters for both.
  */
 export async function stripExif(blob) {
   const bitmap = await createImageBitmap(blob);
+
+  // Scale the LONG edge, so portrait and landscape both land on the same budget and a
+  // photo that is already small is never upscaled.
+  const longest = Math.max(bitmap.width, bitmap.height);
+  const scale = longest > MAX_EDGE_PX ? MAX_EDGE_PX / longest : 1;
+
   const canvas = document.createElement('canvas');
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  canvas.getContext('2d').drawImage(bitmap, 0, 0);
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+
+  const ctx = canvas.getContext('2d');
+  // Without these, the WebView's default box filter aliases a 4:1 downscale badly — woven
+  // texture turns into moiré, which on this app's subject matter is the whole product.
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
   bitmap.close?.();
-  return new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+  return new Promise((res) => canvas.toBlob(res, 'image/jpeg', JPEG_QUALITY));
 }
 
 /**
