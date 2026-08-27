@@ -82,6 +82,9 @@ export default function OnboardName() {
         transcript,
         question: 'onboard.name',
         lang,
+        // The one place the local carrier table applies — it is built out of "mera naam X
+        // hai" and nothing else. Everywhere else defaults to the model; see interpret.js.
+        shape: 'name',
       });
       if (!raw) {
         setPhase('fail');

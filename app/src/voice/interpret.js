@@ -244,16 +244,35 @@ export async function interpretChoice({ transcript, question, options, lang }) {
  * shows both, and the artisan confirms. That confirmation step is doing real work here and
  * must not be optimised away.
  *
+ * `shape` decides whether the LOCAL tier is even eligible, and it has to be asked for:
+ *
+ *   'name'  the answer is a person's name, so stripCarrier() applies — it exists for
+ *           exactly this sentence and answers it without a round trip.
+ *   'open'  anything else. Straight to the model. THE DEFAULT, deliberately.
+ *
+ * 🐞 Why the default is 'open'. stripCarrier() is a NAME reducer: CARRIERS is a list of
+ * "my name is" phrasings and nothing else. Run it on a catalogue answer and the carrier
+ * list misses entirely, but TAILS still strips the trailing copula — so "yeh cotton ki
+ * saree hai" came back as "yeh cotton ki saree", non-empty, and was returned as a CONFIDENT
+ * local answer. The model was never asked. The field that feeds the category mapping and
+ * the pricing comparables got a whole sentence, which is the precise bug the header of this
+ * file describes and claims to have fixed for onboarding.
+ *
+ * The model gets this right — POST /catalog/interpret answers "cotton" for that sentence —
+ * and it is the one AI endpoint that is actually implemented today.
+ *
  * Resolves `{ value, raw, by }`. `value` is null when neither tier could reduce the
  * sentence, and the caller then falls back to storing `raw` after showing it — which is the
  * old behaviour, kept as a floor rather than as the default.
  */
-export async function interpretAnswer({ transcript, question, lang }) {
+export async function interpretAnswer({ transcript, question, lang, shape = 'open' }) {
   const raw = String(transcript ?? '').trim();
   if (!raw) return { value: null, raw, by: null };
 
-  const local = stripCarrier(raw);
-  if (local) return { value: local, raw, by: 'local' };
+  if (shape === 'name') {
+    const local = stripCarrier(raw);
+    if (local) return { value: local, raw, by: 'local' };
+  }
 
   try {
     const res = await api.post('/catalog/interpret', {
@@ -302,4 +321,16 @@ if (import.meta.env.DEV) {
   ok(stripCarrier('maro naam Utsav'), 'Utsav', 'dialect carrier is known now');
   ok(stripCarrier('naam mera Utsav ji'), '', 'unknown phrasing escalates, never stores');
   ok(stripCarrier('ମୋ ନାମ ଉତ୍ସବ ଅଟେ'), 'ଉତ୍ସବ', 'odia carrier and copula');
+
+  /*
+   * Why interpretAnswer defaults to shape:'open' and skips this function.
+   *
+   * These are catalogue answers, not names. CARRIERS matches none of them, but TAILS still
+   * takes the trailing copula off — so the result is non-empty, looks confident, and is a
+   * whole sentence. Locking the behaviour in an assertion so nobody "fixes" the empty-string
+   * cases by loosening the word limit and silently re-enables this tier for /catalog/voice.
+   */
+  ok(stripCarrier('yeh cotton ki saree hai'), 'yeh cotton ki saree', 'copula stripped, sentence remains — not an answer');
+  ok(stripCarrier('mitti ka matka hai'), 'mitti ka matka', 'same shape, same non-answer');
+  ok(stripCarrier('chaar foot lamba hai'), 'chaar foot lamba', 'a size answer is not reduced either');
 }
