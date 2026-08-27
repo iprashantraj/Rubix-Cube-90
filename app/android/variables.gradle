@@ -1,0 +1,21 @@
+ext {
+    // Floor is set by @capacitor/inappbrowser (26) and @capacitor/camera (24), both of
+    // which we need: the in-app browser is the guided-listing surface and the camera is
+    // the whole app. 26 is Android 8.0 (2017) — below the target user's ~7,000-rupee
+    // phone anyway, so nothing we care about is excluded.
+    minSdkVersion = 26
+    // 36 is required by androidx.core 1.17, which the Capacitor 8 plugins pull in.
+    compileSdkVersion = 36
+    targetSdkVersion = 36
+    androidxActivityVersion = '1.9.2'
+    androidxAppCompatVersion = '1.7.0'
+    androidxCoordinatorLayoutVersion = '1.2.0'
+    androidxCoreVersion = '1.15.0'
+    androidxFragmentVersion = '1.8.4'
+    coreSplashScreenVersion = '1.0.1'
+    androidxWebkitVersion = '1.12.1'
+    junitVersion = '4.13.2'
+    androidxJunitVersion = '1.2.1'
+    androidxEspressoCoreVersion = '3.6.1'
+    cordovaAndroidVersion = '10.1.1'
+}

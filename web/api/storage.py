@@ -5,12 +5,17 @@ for R2 or MinIO later is a settings change rather than a grep.
 
 ## Two buckets, and the split is a privacy boundary, not tidiness
 
-    raw/        what the artisan's camera produced. Never served publicly.
-    public/     the derived variants that a marketplace page links to.
+    kaarigar-raw   PRIVATE. What the artisan's camera produced, plus the archival full-size.
+    kaarigar       PUBLIC.  The derived variants that a marketplace page links to.
 
-Anything in `public/` can be fetched by anyone who guesses the URL, so nothing lands there
-that was not deliberately derived for it. `raw/` holds the original frame — which is a
-photograph taken inside somebody's home — and is only ever read by our own pipeline.
+It has to be two buckets. Supabase (and S3) attach public-read to the bucket, so every
+object in a public one is fetchable by anyone holding the URL — a `raw/` key prefix inside
+a public bucket is a naming convention, not a boundary, and an earlier version of this file
+claimed otherwise. `raw/` holds a photograph taken inside somebody's home; it is read only
+by our own pipeline, over a credentialed request.
+
+Keys keep the `raw/` and `public/` prefixes anyway, so a key names its own bucket and a
+misfiled object is visible at a glance rather than only in an access log.
 
 ## Keys are unguessable on purpose
 
@@ -50,6 +55,9 @@ def _client():
         endpoint_url=s.s3_endpoint,
         aws_access_key_id=s.s3_access_key,
         aws_secret_access_key=s.s3_secret_key,
+        # None, not "", when unset: boto3 signs an empty session token as a real one and the
+        # request comes back 403 with nothing pointing at the cause.
+        aws_session_token=s.s3_session_token or None,
         # Supabase Storage requires a region even though it ignores the value, and it only
         # speaks the v4 signature. Path-style addressing because the endpoint is a single
         # host, not a per-bucket subdomain.
@@ -63,16 +71,21 @@ def key_for(artisan_id: str, upload_id: str, variant: str, public: bool) -> str:
     return f"{prefix}/{artisan_id}/{upload_id}/{variant}.jpg"
 
 
+def bucket_for(key: str) -> str:
+    """Which bucket a key belongs in. Derived from the key so no caller can get it wrong."""
+    s = settings()
+    return s.s3_raw_bucket if key.startswith(f"{RAW_PREFIX}/") else s.s3_bucket
+
+
 def put(key: str, data: bytes, content_type: str = "image/jpeg") -> str:
     """Store bytes, return the URL to read them back.
 
     Raises StorageError rather than a boto exception so callers do not have to know which
     library is underneath — the whole point of this module.
     """
-    s = settings()
     try:
         _client().put_object(
-            Bucket=s.s3_bucket,
+            Bucket=bucket_for(key),
             Key=key,
             Body=data,
             ContentType=content_type,
@@ -89,19 +102,20 @@ def put(key: str, data: bytes, content_type: str = "image/jpeg") -> str:
 
 
 def url_for(key: str) -> str:
-    """The public URL for a key.
+    """The URL for a key. Anonymously fetchable only for keys in the public bucket.
 
-    Supabase serves `public/` objects at a documented path; anything else needs a signed
-    URL, which is why raw originals are not linkable by accident.
+    A raw key gets the credentialed object path instead — a stable identifier our own
+    pipeline can read with the service key, which returns 400 to anyone else. Deliberately
+    not a signed URL: signed URLs expire, and this string is stored in the database.
     """
-    s = settings()
-    base = s.s3_endpoint.rstrip("/")
-    # Supabase's S3 endpoint and its public-read endpoint are different paths on the same
-    # host. Derive rather than adding a second setting nobody would keep in step.
+    base = settings().s3_endpoint.rstrip("/")
+    is_public = not key.startswith(f"{RAW_PREFIX}/")
+    # Supabase's S3 endpoint and its REST object endpoints are different paths on the same
+    # host. Derive rather than adding settings nobody would keep in step.
     if "/storage/v1/s3" in base:
-        base = base.replace("/storage/v1/s3", "/storage/v1/object/public")
-        return f"{base}/{s.s3_bucket}/{key}"
-    return f"{base}/{s.s3_bucket}/{key}"
+        rest = "/storage/v1/object/public" if is_public else "/storage/v1/object"
+        base = base.replace("/storage/v1/s3", rest)
+    return f"{base}/{bucket_for(key)}/{key}"
 
 
 def available() -> bool:
