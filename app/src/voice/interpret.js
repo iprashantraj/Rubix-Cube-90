@@ -98,6 +98,76 @@ const CRAFT_WORDS = {
 };
 
 /**
+ * Carrier phrases people wrap an answer in, per language.
+ *
+ * "मेरा नाम उत्सव है" -> "उत्सव". This is the cheap half of the same job the model does,
+ * and it exists for the same reason the craft table does: someone who answers in the most
+ * ordinary phrasing there is should not have to wait on a network to be understood.
+ *
+ * Ordered longest-first within each language so "mera naam" is tried before "naam". Anchored
+ * to the START only — a trailing "है"/"hai" is stripped separately, because Hindi and Odia
+ * put the copula at the end and leaving it turns "Utsav" into "Utsav hai".
+ */
+const CARRIERS = [
+  // English
+  /^(my name is|my name's|i am called|i'm called|this is|i am|i'm|it is|it's|its)\s+/i,
+  // Hindi, romanised and in script
+  /^(mera naam|mera nam|meraa naam|hamara naam|mera naam hai)\s+/i,
+  /^(मेरा नाम|हमारा नाम|मै|मैं)\s+/,
+  // Odia
+  /^(mo naam|mora naam)\s+/i,
+  /^(ମୋ ନାମ|ମୋର ନାମ)\s+/,
+];
+
+/** Trailing copulas and politeness that survive the carrier strip. */
+const TAILS = [
+  /\s+(hai|hain|he|ha)\s*[।.!]?$/i,
+  /\s*(है|हूँ|हुँ|हूं)\s*[।.!]?$/,
+  /\s*(ଅଟେ|ଅଟି)\s*[।.!]?$/,
+];
+
+/**
+ * Pull a bare answer out of a sentence, locally.
+ *
+ * Returns '' when nothing was stripped AND the input still looks like a sentence, so the
+ * caller escalates to the model rather than storing a phrase. A single word or two is
+ * returned as-is: "Utsav" is already the answer and needs no interpretation at all.
+ *
+ * ⚠️ Conservative by design. It only removes phrasings we are certain about, because the
+ * failure it prevents — "Mera naam Yash hai. My name is Yash." stored as a display name,
+ * which is real data from our own dev database — is less bad than confidently trimming a
+ * name down to the wrong word.
+ */
+export function stripCarrier(transcript) {
+  let text = String(transcript ?? '')
+    .replace(/[।]/g, '.')
+    .trim();
+  if (!text) return '';
+
+  let stripped = false;
+  for (const re of CARRIERS) {
+    if (re.test(text)) {
+      text = text.replace(re, '').trim();
+      stripped = true;
+      break;
+    }
+  }
+  for (const re of TAILS) {
+    if (re.test(text)) {
+      text = text.replace(re, '').trim();
+      stripped = true;
+    }
+  }
+  text = text.replace(/[.!?,]+$/, '').trim();
+  if (!text) return '';
+
+  // Already a bare answer: nothing to interpret, nothing to escalate.
+  const words = text.split(/\s+/).length;
+  if (!stripped && words > 3) return '';
+  return words <= 6 ? text : '';
+}
+
+/**
  * Local pass. Returns a slug only when exactly ONE craft matches.
  *
  * Two matches means ambiguity — "I weave bamboo mats" is genuinely both — and on ambiguity
@@ -149,6 +219,38 @@ export async function interpretChoice({ transcript, question, options, lang }) {
     // the visual grid, which is why that grid is the primary path on this screen and not
     // an afterthought.
     return { slug: null, raw, by: null };
+  }
+}
+
+/**
+ * Interpret a free-spoken answer to an OPEN question — a name, a material, a size.
+ *
+ * Same two tiers as interpretChoice, same contract, but there is no allowlist to check the
+ * answer against, so the model's output is trusted only as far as `raw` allows: the caller
+ * shows both, and the artisan confirms. That confirmation step is doing real work here and
+ * must not be optimised away.
+ *
+ * Resolves `{ value, raw, by }`. `value` is null when neither tier could reduce the
+ * sentence, and the caller then falls back to storing `raw` after showing it — which is the
+ * old behaviour, kept as a floor rather than as the default.
+ */
+export async function interpretAnswer({ transcript, question, lang }) {
+  const raw = String(transcript ?? '').trim();
+  if (!raw) return { value: null, raw, by: null };
+
+  const local = stripCarrier(raw);
+  if (local) return { value: local, raw, by: 'local' };
+
+  try {
+    const res = await api.post('/catalog/interpret', {
+      transcript: raw,
+      question,
+      language: lang,
+    });
+    const value = typeof res?.choice === 'string' && res.choice.trim() ? res.choice.trim() : null;
+    return { value, raw, by: value ? 'model' : null };
+  } catch {
+    return { value: null, raw, by: null };
   }
 }
 
