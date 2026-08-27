@@ -570,11 +570,29 @@ input {
 .screen__body > * {
   flex: 0 0 auto;
 }
+/*
+ * The action bar. Every primary action in the app is in here, in the same place.
+ *
+ * Sticky rather than static, and that is the point of the whole component: a control at
+ * the end of the body scrolls away, so on a long screen the primary action ends up
+ * somewhere different from where it is on a short one. This app is navigated by POSITION,
+ * by people who cannot read the label on the button — so a control that moves is a control
+ * that has to be found again every single time. Pinning it is an accessibility fix, not a
+ * layout preference.
+ *
+ * Padded by the safe-area inset rather than margined, so the bar's own background still
+ * reaches the physical bottom edge and no strip of page shows through underneath it.
+ *
+ * Opaque, never blurred: this app's content is very often a photograph, and a translucent
+ * bar over a saree is unreadable in the sunlight these phones are used in.
+ */
 .screen__foot {
-  padding: var(--pad);
-  /* Lifts the footer off a scrolling body so the primary action never looks like the last
-     item in the list. */
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding: var(--s-2) var(--pad) calc(var(--sa-bottom) + var(--s-2));
   background: var(--surface-0);
+  border-top: 1px solid var(--line);
   box-shadow: 0 -8px 20px -12px rgba(16, 35, 27, 0.35);
 }
 

@@ -4,7 +4,7 @@ import { useApiQuery } from '../api/useApi.ts';
 import { useSession } from '../store.js';
 import { t } from '../i18n/index.js';
 import { useVoice } from '../voice/useVoice.js';
-import { Screen, BigButton } from '../ui/kit.jsx';
+import { Screen, BigButton, AccountButton } from '../ui/kit.jsx';
 import { HomeSkeleton } from '../ui/LoadState.tsx';
 import { IconCreate, IconForward, IconPhoto } from '../ui/icons.jsx';
 
@@ -74,6 +74,8 @@ export default function Home() {
       prompt={promptKey}
       promptVars={promptVars}
       hero
+      // The app's only way into /settings — see AccountButton in kit.jsx.
+      headLeft={<AccountButton />}
       /*
         Three facts on one line instead of three stacked rows. Stacked, they read as a
         settings list — the same shape as "Wi-Fi / Bluetooth / Display" — which is exactly
