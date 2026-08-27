@@ -13,6 +13,11 @@ Request
 { "product_id": "p_123", "image_url": "s3://raw/abc.jpg", "targets": ["amazon", "gem", "whatsapp"] }
 ```
 
+⚠️ `image_url` is whatever `POST /uploads/{id}/complete` returned. Today that is a
+`file://` URI into `web/api`'s `STORAGE_DIR`, not `s3://` — object storage is not wired up
+yet. Open it through something that handles both schemes rather than parsing the string,
+and it will keep working when storage moves.
+
 202 Accepted
 ```json
 { "job_id": "j_456", "status": "queued" }

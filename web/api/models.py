@@ -173,6 +173,12 @@ class Product(Base):
     # Publishing is blocked until the artisan confirms the colour survived white balance.
     colour_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # The AI service's job id for the most recent enhance run. Stored so that
+    # GET /api/enhance/{job_id} can prove the caller owns the job before proxying it —
+    # otherwise any authenticated artisan could poll anyone's job and read the image urls
+    # that come back. Replaced on every new enhance.
+    enhance_job_id: Mapped[str | None] = mapped_column(String(64), index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     artisan: Mapped[Artisan] = relationship(back_populates="products")
