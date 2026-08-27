@@ -1,0 +1,29 @@
+{
+  "channel": "gem",
+  "pack_version": 1,
+  "enabled": false,
+  "_comment": "Autofill selector pack — docs/Application-Architecture.md §6.4. Served from OUR server, never compiled into the app, so a DOM change is a config push in an hour rather than an app update rural users never install. Every step falls back to spoken guided-paste when its selector does not match, so a stale pack degrades instead of breaking. We never automate submit, login, OTP, payment or CAPTCHA — we fill fields, the artisan presses the button. Ships disabled; flip `enabled` once match-rate holds above 95% for a week. Selectors below are PLACEHOLDERS and must be read off the real portal before this is turned on.",
+  "steps": [
+    {
+      "id": "pan",
+      "selector": "#panNumber",
+      "field": "artisan.pan_input",
+      "voice_key": "gem.step.pan",
+      "verify": "value.length === 10"
+    },
+    {
+      "id": "business_name",
+      "selector": "input[name='businessName']",
+      "field": "artisan.display_name",
+      "voice_key": "gem.step.business_name",
+      "verify": "value.length > 2"
+    },
+    {
+      "id": "pincode",
+      "selector": "input[name='pincode']",
+      "field": "artisan.pincode",
+      "voice_key": "gem.step.pincode",
+      "verify": "value.length === 6"
+    }
+  ]
+}

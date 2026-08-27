@@ -60,6 +60,38 @@ Response — English and Hindi are always both present.
 }
 ```
 
+## POST /catalog/interpret  — free speech to one allowed answer
+
+People do not answer in the shape of the question. Asked what they make, an artisan says
+"मैं साड़ी बुनता हूँ", not "weaving". Every voice screen in onboarding needs the same thing:
+here is what was said, here is what was asked, here are the answers I can accept.
+
+Request
+```json
+{
+  "transcript": "मेरे पिताजी करघा चलाते थे, मैं भी वही काम करता हूँ",
+  "question": "onboard.craft",
+  "options": ["weaving", "pottery", "metalwork", "woodwork",
+              "painting", "jewellery", "leather", "bamboo"],
+  "language": "hi"
+}
+```
+
+Response
+```json
+{ "choice": "weaving", "confidence": 0.88 }
+```
+
+`choice` **must** be one of `options`, or `null`. Never a new value, never a paraphrase —
+the caller stores it as a stable slug that the category mapping and every channel adapter
+key off. A `null` choice is a supported answer and means "I could not place this"; the app
+falls back to its visual grid and nobody is stuck.
+
+⚠️ The client (`app/src/voice/interpret.js`) tries a local synonym table BEFORE calling
+this, and uses it when it matches unambiguously. That is not a cost optimisation — it is so
+an artisan who says a word we already know is not made to wait on a network they may not
+have. This endpoint is for the sentences the table cannot reach, which is most of them.
+
 ## POST /catalog/prefill  — vision only, before the artisan speaks
 
 Request `{ "image_url": "..." }` → same fields, all nullable. The artisan corrects by voice

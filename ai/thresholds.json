@@ -9,5 +9,10 @@
   "fill_fraction_max": 0.90,
   "tilt_degrees_max": 8,
   "resolution_min_px": 1000,
-  "state_hold_seconds": 0.5
+  "state_hold_seconds": 0.5,
+
+  "_camera_only": "Below here is the live capture gate only — the server has no preview frames to run these against.",
+  "cell_busy_ratio": 0.2,
+  "center_offset_max": 0.15,
+  "hysteresis_slack": 1.25
 }

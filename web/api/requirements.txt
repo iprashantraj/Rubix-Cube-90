@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg[binary]
+alembic
+pydantic[email]
+pydantic-settings
+python-multipart
+httpx
+redis
+rq
+boto3
+openpyxl
+argon2-cffi
+pyjwt
+cryptography

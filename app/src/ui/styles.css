@@ -1,0 +1,1707 @@
+/*
+ * Kaarigar visual system — "soft surfaces + depth".
+ *
+ * One accent colour, layered light-grey surfaces, very large targets. The users we are
+ * designing for share one low-end phone, often with a cracked screen, frequently outdoors
+ * in sunlight, sometimes with hands that have spent forty years at a loom. Small targets
+ * and thin contrast are not style choices we get to make.
+ *
+ * What changed from the first pass, and why:
+ *   - white ground -> a light-grey page with white cards on it. Flat-white-on-white gave
+ *     us nothing to group with, so every screen was a list of floating rectangles. Tiers
+ *     plus a soft shadow say "these things belong together" without drawing a single line.
+ *   - a real type scale. Four sizes, fixed pairs of size/line-height/weight. Ad-hoc font
+ *     sizes are how a screen ends up with 19px next to 18px next to 17px and reads cheap.
+ *   - motion tokens, so a press is acknowledged. Everything animated is behind
+ *     prefers-reduced-motion at the bottom of this file.
+ *
+ * Every colour pairing below is checked against WCAG AA (4.5:1 body, 3:1 large). Where a
+ * brand colour did not clear it, there is a darker `-ink` variant for text and the bright
+ * original is kept for large fills only. Do not "simplify" those pairs back together.
+ */
+:root {
+  /* --- surface tiers ------------------------------------------------------
+     0 = the page, 1 = a card sitting on it, 2 = something raised above a card
+     (the voice capture panel, a selected tile). Depth comes from the shadow,
+     not from the colour step, so all three stay bright enough for sunlight.
+
+     --surface-0 is faintly tinted towards the accent and therefore lives in the
+     palette block below, not here. 1 and 2 are white in every palette. */
+  --surface-1: #ffffff;
+  --surface-2: #ffffff;
+
+  /* --- elevation ----------------------------------------------------------
+     Two steps, both low-spread and tinted with the ink hue rather than pure
+     black. Pure-black shadows on a warm grey read as dirt on the screen. */
+  --e1: 0 1px 2px rgba(16, 35, 27, 0.06), 0 2px 8px rgba(16, 35, 27, 0.08);
+  --e2: 0 2px 4px rgba(16, 35, 27, 0.08), 0 10px 24px rgba(16, 35, 27, 0.12);
+
+  /* --- brand --------------------------------------------------------------
+     Lives in the palette block immediately after this rule, because the brand
+     is the part of the app that can be changed: --accent, --accent-ink,
+     --accent-soft, --surface-0 and --line are the five variables a palette
+     owns, and they are defined in exactly one place each.
+
+     Everything below this line is fixed across palettes. Status colours are not
+     brand colours — red means "stop" in a purple app too. */
+
+  /* Status. The bright pair (--green/--red) is for LARGE fills only — the
+     camera ring, the shutter. The -ink pair is for anything with text on or in
+     it, because #1f9d55 under white text is 3.5:1 and fails AA for body. */
+  --green: #1f9d55;
+  --green-ink: #17773f;
+  /* The glow around a live control — the camera shutter when the frame is good, the mic
+     when it is recording. Same colour, same meaning: this is on right now. */
+  --green-halo: rgba(31, 157, 85, 0.24);
+  --amber: #d68910;
+  --amber-ink: #85560b;
+  --red: #c0392b;
+  --red-ink: #a3271b;
+
+  /* Warm neutral, NOT tinted toward any accent. These were #14231b and #55655c — both
+     green-tinted, from when green was the only palette. Every icon and label in the app
+     reads one of them, so on the clay palette the whole tab bar came out faintly green
+     next to a clay accent, and no amount of changing --accent could fix it. Neutral here
+     is what lets a palette actually be a palette.
+
+     --muted is 5.4:1 on the lightest --surface-0 of the four, against a 4.5:1 floor. */
+  --ink: #1c1917;
+  --muted: #6b625d;
+
+  /* --- radius -------------------------------------------------------------- */
+  --r-sm: 12px;
+  --r-md: 16px;
+  --r-lg: 20px;
+  --r-full: 999px;
+
+  /* --- type scale ---------------------------------------------------------
+     Four sizes. Nothing in the app should invent a fifth. Body is 17px, not
+     16px: this is read at arm's length, in glare, by people who mostly do not
+     own reading glasses. */
+  --t-display: 34px;
+  --t-display-lh: 1.2;
+  --t-display-w: 700;
+  --t-title: 24px;
+  --t-title-lh: 1.3;
+  --t-title-w: 650;
+  --t-body: 17px;
+  --t-body-lh: 1.5;
+  --t-body-w: 500;
+  --t-cap: 13px;
+  --t-cap-lh: 1.4;
+  --t-cap-w: 600;
+
+  /* --- motion -------------------------------------------------------------- */
+  --dur-fast: 140ms;
+  --dur: 200ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* --- metrics ------------------------------------------------------------
+     56px is the floor for anything tappable and it is a hard accessibility
+     requirement from the PS, not a suggestion. Primary actions get 72px. */
+  --tap: 56px;
+  --tap-big: 72px;
+  --pad: 20px;
+}
+
+/*
+ * --- palettes ---------------------------------------------------------------
+ *
+ * The whole theming mechanism: `data-theme="indigo"` on an element, and nothing else.
+ * ui/theme.js puts it on <html>; /settings puts it on each swatch in the picker, which is
+ * how the picker previews four palettes at once without a single hex living in JavaScript.
+ *
+ * Each palette defines the same five variables and no more. That constraint is what keeps
+ * this from quietly becoming four stylesheets: a sixth themeable colour has to be added to
+ * every block here, in one place, or it does not exist. Everything else — status colours,
+ * type, spacing, elevation — is deliberately shared.
+ *
+ * `terracotta` is BOTH the bare `:root` default and a named palette. Same declaration, one
+ * source: the app has to be the right colour before React has mounted (the native splash,
+ * the first paint) and it also has to be selectable by name once it has.
+ *
+ * Why clay and not the green it started as: the green read as municipal. Every government
+ * portal an artisan has ever been failed by is that colour, and this app is trying to say
+ * "your work" rather than "your paperwork". Clay is the material half our users have under
+ * their fingernails. Green is still one tap away in /settings for anyone who prefers it.
+ *
+ * --accent-ink does double duty — accent-coloured text, AND the bottom of the header
+ * gradient (see .screen__hero). One flat fill across the largest coloured area on screen
+ * is most of what made the old header look cheap, and a second "deep" token per palette
+ * would have been a fifth thing to keep in step for a value we already have.
+ *
+ * ⚠️ Every accent here is checked to WCAG AA against white, against its own --surface-0,
+ * and every -ink against its own -soft. The weakest pairing across all four is 5.56:1
+ * against a 4.5:1 requirement. Do not add a palette by eye — run the numbers. Our users
+ * are outdoors, in glare, on cracked screens, and a good deal of what this app says it
+ * says in colour.
+ *
+ * Why a fixed set and not a colour wheel: an arbitrary hue lands on unreadable about half
+ * the time, and there is no way to warn someone about a contrast ratio when the whole
+ * premise is that they cannot read the warning. Four checked palettes is a real choice
+ * with no way to break the app.
+ */
+:root,
+[data-theme='terracotta'] {
+  --accent: #9c3d24;
+  --accent-ink: #7a2e1a; /* accent text on --accent-soft, and the deep end of the header */
+  --accent-soft: #f7e7e1;
+  --surface-0: #f8f3f1;
+  --line: #ecdfd9;
+}
+
+[data-theme='forest'] {
+  --accent: #1f6f43;
+  --accent-ink: #14512f;
+  --accent-soft: #e2efe8;
+  --surface-0: #f1f4f2;
+  --line: #dde4e0;
+}
+
+[data-theme='indigo'] {
+  --accent: #2f4b8f;
+  --accent-ink: #22376a;
+  --accent-soft: #e6ebf7;
+  --surface-0: #f1f3f8;
+  --line: #dde1ec;
+}
+
+[data-theme='plum'] {
+  --accent: #6b3a8f;
+  --accent-ink: #522b6e;
+  --accent-soft: #f0e7f7;
+  --surface-0: #f5f2f7;
+  --line: #e5dded;
+}
+
+/*
+ * The picker's preview dot. Carries its own `data-theme`, so it paints itself in the
+ * palette it is offering while the rest of the app stays in the current one — the whole
+ * reason the palettes are attribute-scoped rather than :root-only. No colour value reaches
+ * JavaScript, and the tile cannot go stale when a palette is retuned.
+ *
+ * The inner ring is --accent-soft from the SAME palette, which makes two dark accents
+ * (plum and indigo at a glance) distinguishable by their halo as well as their hue. Colour
+ * is never the only signal, including in the control for choosing colours.
+ */
+.swatch {
+  display: block;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: inset 0 0 0 3px var(--accent-soft);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  /* Noto Devanagari and Noto Oriya are load-bearing — without them Hindi and Odia fall
+     back to whatever the OEM shipped, and on cheap devices that is frequently nothing at
+     all for Odia. Do not trim this stack. */
+  font-family: system-ui, 'Noto Sans', 'Noto Sans Devanagari', 'Noto Sans Oriya', sans-serif;
+  font-size: var(--t-body);
+  line-height: var(--t-body-lh);
+  color: var(--ink);
+  background: var(--surface-0);
+  /* No text selection anywhere — a long-press that selects a label instead of acting
+     reads as "the app is broken" to someone who has never used a phone before. */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.app__body {
+  flex: 1;
+  min-height: 0;
+}
+
+/* --- screen shell -------------------------------------------------------- */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* Notch at the top, gesture bar at the bottom. Without this the heading hides under a
+     punch-hole camera on exactly the phones our users own. */
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+.screen--dim {
+  background: #0b0f0d;
+  color: #fff;
+}
+.screen--dim .card {
+  background: #18201c;
+  border-color: #2a352f;
+  color: #fff;
+}
+
+.screen__head {
+  padding: calc(var(--pad) + 4px) var(--pad) var(--pad);
+}
+
+/* Back, heading, replay — one row, in that order, on every screen in the app. The row is
+   its own element so the hero variant can stack a second row (the facts strip) under it. */
+.screen__headRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.screen__headRow h1 {
+  flex: 1;
+  margin: 0;
+  font-size: var(--t-title);
+  line-height: var(--t-title-lh);
+  font-weight: var(--t-title-w);
+  letter-spacing: -0.01em;
+}
+
+/*
+ * --- onboarding: progress and the question ---------------------------------
+ *
+ * Five segments, one per step, filling left to right. See Steps() in kit.jsx for why this
+ * is blocks and not "3 of 5" — a count is a numeral and a numeral is reading.
+ */
+.steps {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  /* Aligned to the optical centre of the 56px buttons either side of it. */
+  margin: 0 4px;
+}
+.steps__seg {
+  flex: 1;
+  height: 10px;
+  border-radius: var(--r-full);
+  background: var(--line);
+  transition: background var(--dur) var(--ease);
+}
+.steps__seg--on {
+  background: var(--accent);
+}
+/* The segment you just earned grows in from the left, so the change itself says "that one
+   is done". transform-origin matters: scaling from the centre reads as a pulse, which
+   means "attention", not "progress". */
+.steps__seg--now {
+  transform-origin: left center;
+  animation: step-grow 420ms var(--ease);
+}
+@keyframes step-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/*
+ * The question itself, in the page rather than in the title bar.
+ *
+ * It used to be the <h1> in the header, which made "आप क्या बनाते हैं?" look like the NAME
+ * of the screen — chrome to be skimmed past — instead of a sentence directed at the person
+ * holding the phone. Down here, above the answer and sharing its whitespace, it reads as
+ * being asked. Same string, same voice line, entirely different meaning.
+ *
+ * Bigger than a heading, deliberately: this is the largest text in the app because on
+ * these five screens it is the only thing that matters.
+ */
+.ask {
+  /* Extra room under the question only — it is a sentence directed at someone, and it
+     needs air between itself and the answer in a way stacked controls do not. */
+  margin: 0 0 12px;
+  text-align: center;
+  font-size: var(--t-display);
+  line-height: var(--t-display-lh);
+  font-weight: var(--t-display-w);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+/*
+ * The hero header — the accent band across the top of every tab root.
+ *
+ * It runs full-bleed to the very top edge, UNDER the status bar, and pays for the notch out
+ * of its own padding. Two jobs, and neither is decoration:
+ *
+ *   1. Android draws the clock, battery and signal in white. On our light-grey page that
+ *      was white-on-#f1f4f2 — present in the pixels, invisible to a person, and the artisan
+ *      lost the one part of the screen that is not ours. On the accent they read cleanly.
+ *      App.jsx tints the native bar to the same value so there is no seam.
+ *   2. It gives a screen a top. Without it a page is a heading, a void, a floating card and
+ *      another void, and nothing holds the eye anywhere.
+ *
+ * `--accent`, never a literal: this band is the largest area of brand colour in the app and
+ * the first thing that would go stale when a palette changes.
+ */
+.screen--hero {
+  /* The band handles the notch itself, so the shell must not also inset the top or the
+     accent stops short and leaves a grey strip above it. */
+  padding-top: 0;
+}
+.screen__hero {
+  /* Two tones, not one. A single flat fill across the biggest coloured area on the screen
+     is what made this look like a printed form; the same hue falling into its own -ink at
+     the bottom gives it a light source. Both ends are palette tokens, so it themes for
+     free, and --accent stays the TOP of the band because that is the edge the native
+     status bar has to match. */
+  background: linear-gradient(168deg, var(--accent) 0%, var(--accent-ink) 100%);
+  color: #fff;
+  padding: calc(env(safe-area-inset-top) + 14px) var(--pad) 18px;
+  /* Square. The rounded bottom corners left two small wedges of page colour poking up
+     beside the band, which read as a rendering fault rather than as a curve — and this is
+     structural, it is the top of the app, not a card floating on it. */
+  border-radius: 0;
+}
+
+/* On the accent, the progress bar has to invert: --line and --accent are both invisible
+   against it. White for done, a translucent white for the rest. */
+.screen__hero .steps__seg {
+  background: rgba(255, 255, 255, 0.28);
+}
+.screen__hero .steps__seg--on {
+  background: #fff;
+}
+/* The replay and back buttons are the only controls on the accent, so they invert rather
+   than wearing the accent-tinted circle they use everywhere else. */
+.screen__hero .replay,
+.screen__hero .back {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+.screen__hero .replay:active,
+.screen__hero .back:active {
+  filter: brightness(1.35);
+}
+
+/*
+ * The body centres its content vertically when there is room, and behaves like an ordinary
+ * top-aligned scroller when there is not.
+ *
+ * Why it needed fixing: content was top-aligned always, so a screen whose only job is one
+ * question and one button put that button at about 40% of the height with a third of a
+ * 6.7" display empty underneath it. The primary action sat outside the thumb arc, above a
+ * void, which reads as "the screen has not finished loading yet".
+ *
+ * Why two flex spacers and not `justify-content: center`: centred flex content that
+ * overflows its scroll container spills off BOTH ends, and the top half becomes
+ * unreachable — /products with a dozen products would lose its first row with no way to
+ * scroll back to it. `safe center` fixes that but is too new for the WebViews on the
+ * phones we target. Spacers with `flex: 1 1 0` collapse to nothing the moment the content
+ * needs the room, so tall screens are byte-for-byte unchanged.
+ *
+ * Pseudo-elements deliberately: `> *` below never matches them, and no screen has to know
+ * they exist.
+ */
+.screen__body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--pad) var(--pad);
+  display: flex;
+  flex-direction: column;
+  /*
+   * The gap that was missing.
+   *
+   * This is a flex column and it had no `gap`, while .big and .yesno carry no margin of
+   * their own — so two stacked buttons touched, edge to edge, and read as one enormous
+   * control with a line through it. Screens had started papering over it individually with
+   * `<div style={{height:16}} />` spacers, which is the tell: when three files invent the
+   * same workaround, the container is wrong, not the screens.
+   */
+  gap: 14px;
+}
+.screen__body::before,
+.screen__body::after {
+  content: '';
+  flex: 1 1 0;
+  min-height: 0;
+}
+/* Children keep their natural height — without this, flex would squash a tall card to
+   fit rather than letting the body scroll. */
+.screen__body > * {
+  flex: 0 0 auto;
+}
+.screen__foot {
+  padding: var(--pad);
+  /* Lifts the footer off a scrolling body so the primary action never looks like the last
+     item in the list. */
+  background: var(--surface-0);
+  box-shadow: 0 -8px 20px -12px rgba(16, 35, 27, 0.35);
+}
+
+/*
+ * Replay. The ONE icon-only control in the app — justified because it is on every single
+ * screen in the same place, so it is learned once and never re-read, and it carries an
+ * aria-label for screen readers.
+ */
+.replay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap);
+  height: var(--tap);
+  min-width: var(--tap);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  box-shadow: var(--e1);
+  transition: transform var(--dur-fast) var(--ease), filter var(--dur-fast) var(--ease);
+}
+/* Darkened from the token rather than a hardcoded #cfe5d9 — the press state has to follow
+   the palette, and one literal green here is how a theme ends up 95% applied. */
+.replay:active {
+  transform: scale(0.94);
+  filter: brightness(0.93);
+}
+
+/* --- surfaces ------------------------------------------------------------ */
+
+/*
+ * The workhorse container. A card is how we say "this is one thing" without a heading and
+ * without a rule line — neither of which helps a user who cannot read either.
+ */
+.card {
+  padding: var(--pad);
+  /* No margin: .screen__body owns vertical rhythm via `gap`. A margin here stacks on
+     top of it and makes cards sit further apart than buttons for no reason. */
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  box-shadow: var(--e1);
+}
+.card--raised {
+  background: var(--surface-2);
+  box-shadow: var(--e2);
+}
+
+/*
+ * A status chip. Colour AND a word, always — the word is what a colour-blind user reads,
+ * and the colour is what everyone else reads at a glance from across the room.
+ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  font-size: var(--t-cap);
+  line-height: var(--t-cap-lh);
+  font-weight: var(--t-cap-w);
+  white-space: nowrap;
+  background: var(--line);
+  color: var(--muted);
+}
+.chip--ready,
+.chip--done {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.chip--pending {
+  background: #fbeed6;
+  color: var(--amber-ink);
+}
+.chip--error {
+  background: #fdecea;
+  color: var(--red-ink);
+}
+.chip__icon {
+  flex: none;
+}
+
+/* --- primary action ------------------------------------------------------ */
+
+.big {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap-big);
+  padding: 12px 20px;
+  border: 0;
+  border-radius: var(--r-lg);
+  /*
+   * 19px, down from 22px, and --tap-big is now the FLOOR rather than the look.
+   *
+   * At 22px with 16px of vertical padding these came out around 90px tall. Two of them
+   * stacked filled a third of the screen, which is what made them read as "mixing into"
+   * each other once the container gap was missing too. 72px is still well above the 56px
+   * accessibility floor the PS requires, and a button the size of a postcard does not
+   * become easier to press — it just stops looking like a button.
+   */
+  font-size: 19px;
+  line-height: 1.25;
+  font-weight: 650;
+  color: #fff;
+  background: var(--accent);
+  box-shadow: var(--e2);
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+/* The press has to be felt visually as well as haptically — on a laggy phone a button
+   that does not visibly react gets pressed four more times. */
+.big:active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
+  box-shadow: var(--e1);
+}
+.big:disabled {
+  background: var(--line);
+  color: var(--muted);
+  box-shadow: none;
+}
+.big--yes {
+  background: var(--green-ink);
+}
+.big--no {
+  background: var(--surface-1);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--e1);
+}
+.big--danger {
+  background: var(--red);
+}
+.big__icon {
+  flex: none;
+  display: flex;
+}
+.big__label {
+  min-width: 0;
+}
+
+.yesno {
+  display: grid;
+  gap: 12px;
+}
+
+/* --- grids --------------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 118px;
+  padding: 16px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  box-shadow: var(--e1);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease),
+    border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.tile:active {
+  transform: scale(0.97);
+}
+/* Selected = raised, not just tinted. On a washed-out screen in sunlight the tint alone
+   can vanish; the shadow and the ring survive. */
+.tile--on {
+  border-color: var(--accent);
+  box-shadow: var(--e2), inset 0 0 0 1px var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.tile__icon {
+  flex: none;
+  color: var(--accent);
+}
+.tile--on .tile__icon {
+  color: var(--accent-ink);
+}
+
+/*
+ * Status glyph. Shape carries the meaning, colour reinforces it — never colour alone.
+ */
+.dot {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+}
+.dot--ready {
+  color: var(--green-ink);
+}
+.dot--done {
+  color: var(--accent);
+}
+.dot--pending {
+  color: var(--amber-ink);
+}
+.dot--error {
+  color: var(--red-ink);
+}
+
+/* --- camera -------------------------------------------------------------- */
+
+.cam {
+  position: relative;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+/*
+ * Hidden until there is a stream in it.
+ *
+ * An empty <video> is not an empty rectangle — the WebView paints its own placeholder
+ * poster, a grey rounded box with a black play triangle. On this screen that is actively
+ * harmful: it looks like a video the artisan is meant to press, and pressing it does
+ * nothing. `visibility` rather than `display` so the element keeps its box and the ref
+ * stays attached; the gate hook needs the node to exist before the stream arrives.
+ */
+.cam__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  visibility: hidden;
+  background: #000;
+}
+.cam__video--live {
+  visibility: visible;
+}
+
+/*
+ * Two overlays over the preview, and they are deliberately not the same thing.
+ *
+ * `--wait` is "this is working, hold on": the lens is opening, or the permission dialog is
+ * up. It has a moving ring and it says what it is waiting for, because a black rectangle
+ * with nothing on it is indistinguishable from a broken app — and that is precisely what
+ * this screen used to show, silently, forever, while the voice talked over it.
+ *
+ * `--fail` is "this stopped": something is wrong, here is the sentence, here is the way
+ * out. Never a spinner. A spinner that will never finish is a lie told to someone who
+ * cannot read the log.
+ */
+.cam__wait,
+.cam__fail {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: var(--pad);
+  text-align: center;
+  /* Fully opaque, not a scrim. There is nothing behind this worth showing through — an
+     unstarted camera is a black rectangle or the WebView's placeholder poster, and letting
+     either bleed through at 72% is how the grey play triangle stayed visible under the
+     loading ring. */
+  background: #000;
+  color: #fff;
+}
+.cam__wait p,
+.cam__fail p {
+  margin: 0;
+  max-width: 20ch;
+  font-size: var(--t-title);
+  line-height: var(--t-title-lh);
+  font-weight: var(--t-title-w);
+}
+/* The fail overlay owns a real button, so it needs the width to lay one out. */
+.cam__fail .big {
+  width: 100%;
+  max-width: 340px;
+}
+.cam__waitRing {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 5px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  animation: spin 900ms linear infinite;
+}
+
+/*
+ * The ring IS the feedback. Red, amber, green around the whole frame — readable at a
+ * glance, in sunlight, without reading anything.
+ *
+ * Left deliberately un-prettified: no rounding, no gradient, no inset. It is a solid
+ * 10px band of saturated colour filling the edge of the screen because that is the one
+ * thing that still reads on a cracked panel at noon. Cosmetics do not get to touch it.
+ */
+.cam__ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 10px solid var(--red);
+  transition: border-color 180ms ease;
+}
+.cam__ring--ok {
+  border-color: var(--green);
+}
+
+.cam__hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* See the stacking note on .cam__mode — these offsets are one layout. */
+  bottom: calc(148px + env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  padding: 0 16px;
+}
+.cam__hint span {
+  max-width: 84%;
+  padding: 14px 22px;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 650;
+  text-align: center;
+  box-shadow: var(--e2);
+}
+
+/*
+ * The gated shutter — the single most important control in the app.
+ *
+ * Disabled and grey while the frame is bad; green and glowing when it is good. The
+ * artisan does not need to understand any of the checks. They move until the button
+ * lights up. Zero literacy required (spec §4.7).
+ *
+ * Same rule as the ring: polish only. The size, the solid fill and the green halo are the
+ * affordance. Do not make it a subtle outline because it looks better in a screenshot.
+ */
+.cam__shutter {
+  position: absolute;
+  left: 50%;
+  bottom: calc(40px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: 88px;
+  height: 88px;
+  padding: 0;
+  border-radius: 50%;
+  border: 6px solid rgba(255, 255, 255, 0.85);
+  background: #6b7772;
+  transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.cam__shutter--ok {
+  background: var(--green);
+  box-shadow: 0 0 0 10px rgba(31, 157, 85, 0.28);
+}
+.cam__shutter:disabled {
+  opacity: 0.55;
+}
+
+/* --- tabs ---------------------------------------------------------------- */
+
+.tabs {
+  display: grid;
+  /* Five slots: home, catalog, SHOOT, orders, money. The middle column is wider because
+     the camera button overhangs it. */
+  grid-template-columns: 1fr 1fr 1.3fr 1fr 1fr;
+  align-items: end;
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
+  box-shadow: 0 -6px 18px -12px rgba(16, 35, 27, 0.4);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/*
+ * The camera, raised out of the bar.
+ *
+ * It is the only thing in this app that creates anything, and it now has to be pressed —
+ * the app used to open the lens on launch, which meant a new artisan's first experience was
+ * being told to move into the light before they had asked for anything. Making it a
+ * deliberate act needs the target to be unmissable, so it lifts above the bar the way
+ * WhatsApp's and Instagram's do. That shape is one of the few pieces of phone literacy our
+ * users reliably already have.
+ *
+ * Label still underneath: icon and text are always paired (spec §4.6), and "the big round
+ * one" is not a label.
+ */
+.tabs__shoot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 8px;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font-size: var(--t-cap);
+  line-height: var(--t-cap-lh);
+  font-weight: 700;
+}
+.tabs__shootIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-top: -22px; /* the overhang */
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--e2);
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.tabs__shoot:active .tabs__shootIcon {
+  transform: scale(0.94);
+}
+.tabs__shoot--on .tabs__shootIcon {
+  box-shadow: var(--e2), 0 0 0 6px var(--green-halo);
+}
+.tabs__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: var(--tap);
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: var(--t-cap);
+  line-height: var(--t-cap-lh);
+  font-weight: var(--t-cap-w);
+  transition: color var(--dur-fast) var(--ease);
+}
+/* The active tab gets a filled pill behind the icon — Material 3's cue, and the only one
+   in the app that survives being looked at for a quarter of a second. */
+.tabs__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 30px;
+  border-radius: var(--r-full);
+  transition: background var(--dur) var(--ease);
+}
+.tabs__item--on {
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.tabs__item--on .tabs__icon {
+  background: var(--accent-soft);
+}
+
+/* --- channel rows on /publish ------------------------------------------- */
+
+.chan {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  box-shadow: var(--e1);
+  font-size: var(--t-body);
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease);
+}
+/* Inside a card the body's `gap` does not apply — a card is a plain block — so rows there
+   space themselves. As direct children of .screen__body they need nothing, and having both
+   was why product rows sat further apart than order rows. */
+.card .chan + .chan {
+  margin-top: 8px;
+}
+.chan:active:not(:disabled) {
+  transform: scale(0.99);
+}
+/* Tier A rows are disabled because there is nothing to set up — they must still read as
+   normal, not as broken. Dimming them would say "unavailable", which is the opposite of
+   the truth. */
+.chan:disabled {
+  opacity: 1;
+}
+.chan__name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+.chan__state {
+  flex: none;
+  color: var(--muted);
+  font-size: var(--t-cap);
+  font-weight: var(--t-cap-w);
+}
+
+/*
+ * One problem at a time (design law §3 rule 4). This is always the only warning on
+ * screen, so it can afford to be loud.
+ */
+.warn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--r-md);
+  background: #fdecea;
+  color: var(--red-ink);
+  font-size: 19px;
+  line-height: 1.4;
+  font-weight: 650;
+}
+
+.spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 48px 0;
+  color: var(--muted);
+  font-size: var(--t-body);
+}
+.spinner__ring {
+  width: 44px;
+  height: 44px;
+  border: 5px solid var(--line);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * Help. Deliberately the quietest thing on any screen — it must be findable but must
+ * never compete with the primary action for the eye.
+ */
+.help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  color: var(--muted);
+  font-size: var(--t-body);
+  font-weight: 600;
+  transition: transform var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.help:active {
+  transform: scale(0.98);
+  color: var(--accent-ink);
+}
+
+/*
+ * The text of something the app just said out loud. Text is the fallback, never the
+ * default (spec §6.7) — but a fallback nobody can read is not a fallback, so this is full
+ * body size and full ink, not a caption. Used wherever a spoken value is also the thing
+ * being confirmed.
+ *
+ * (This replaced `.stub`, the placeholder rule from before the screens were built. All 25
+ * routes are real now; there is nothing left to stub.)
+ */
+.said {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: var(--t-body-lh);
+  font-weight: var(--t-body-w);
+  color: var(--ink);
+}
+
+/* --- /home ---------------------------------------------------------------- */
+
+/*
+ * /home no longer has a shell of its own. The green header it used to own is
+ * `.screen__hero` further up this file, and every tab root wears it now — see the comment
+ * on Screen() in kit.jsx for why one screen having a top and its four neighbours not having
+ * one was the actual bug.
+ *
+ * What is left here is only what is genuinely /home's: the facts strip on the accent, and
+ * the shelf of the artisan's own photographs below it.
+ */
+
+/*
+ * Three facts on ONE line. Stacked, they read as a settings list — the same shape as
+ * "Wi-Fi / Bluetooth / Display" — which is precisely what a home screen must not look like.
+ */
+.facts {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.fact {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.14);
+}
+/* A waiting order is the only thing on this screen anyone must act on, so it is the only
+   thing that gets to be brighter than its neighbours. */
+.fact--live {
+  background: #fff;
+  color: var(--accent-ink);
+}
+.fact__n {
+  display: block;
+  font-size: var(--t-title);
+  line-height: 1.15;
+  font-weight: var(--t-title-w);
+  white-space: nowrap;
+}
+.fact__l {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--t-cap);
+  line-height: var(--t-cap-lh);
+  opacity: 0.85;
+}
+
+.home__sec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: var(--t-cap);
+  font-weight: var(--t-cap-w);
+  color: var(--muted);
+  text-transform: none;
+}
+.home__all {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font-size: var(--t-cap);
+  font-weight: 700;
+}
+
+/*
+ * Their own work, as pictures. An artisan recognises their saree instantly and may not be
+ * able to read the word beside it — and the numeral "4" told them nothing they wanted.
+ */
+.home__shelf {
+  /* Two columns, not four. At four the tiles were 80px thumbnails of the artisan's own work
+     — too small to recognise a saree in, which defeats the entire reason for showing
+     pictures instead of the numeral 4. Two fills the screen the way a shelf of finished
+     goods should, and removes most of the dead space the old layout left below it. */
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.shot {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-1);
+  box-shadow: var(--e1);
+}
+.shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/*
+ * No image yet. Deliberately reads as "waiting", not as a broken tile: every product
+ * currently lands here, because uploads are stored but never attached to a product row
+ * (uploads.py has no endpoint linking the two). A flat grey box looks like the app failed;
+ * a dashed frame with a camera in it looks like something that has not happened yet.
+ */
+.shot__none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 2px dashed var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  color: var(--line);
+}
+
+/* --- camera: standing vs flat -------------------------------------------- */
+
+/*
+ * Sits above the shutter, over the live preview, so it needs its own contrast rather than
+ * inheriting the page. Pill-shaped and dark for the same reason as the hint: anything
+ * translucent over an arbitrary camera frame has to bring its own background.
+ */
+/*
+ * Stacked bottom-up over the preview: shutter at 40px, hint at 148px, this at 232px.
+ *
+ * They are absolutely positioned against the same edge, so the offsets ARE the layout and
+ * they have to be read together. This sat at 150px, one pixel above a hint that starts at
+ * 148 — so the two overlapped exactly, and "On the ground" wrapping to a second line drove
+ * the pill straight through "Move into the light". Two of the four feedback channels
+ * (§4.6) illegible at once, on the screen where they matter most.
+ */
+.cam__mode {
+  position: absolute;
+  left: 50%;
+  bottom: calc(232px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.55);
+}
+.cam__modeBtn {
+  min-height: 44px; /* inside a 56px group with padding — the group is the target */
+  padding: 0 18px;
+  /* Never wrap. A two-line label grows the pill downward into the hint below it, which is
+     how the collision above became a collision rather than a near miss. */
+  white-space: nowrap;
+  border: 0;
+  border-radius: var(--r-full);
+  background: none;
+  color: #fff;
+  font-size: var(--t-body);
+  font-weight: var(--t-cap-w);
+  transition: background var(--dur-fast) var(--ease);
+}
+.cam__modeBtn--on {
+  background: #fff;
+  color: var(--ink);
+}
+
+/*
+ * Back. Left of the heading, quieter than the replay button on the right — going back is
+ * a recovery, not the thing we want anyone reaching for first. Still a full 56px target,
+ * because the people most likely to need it are the ones least likely to hit a small one.
+ */
+.back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap);
+  height: var(--tap);
+  min-width: var(--tap);
+  margin-left: -8px; /* optical: pull the glyph to the same left edge as the body text */
+  border: 0;
+  border-radius: var(--r-full);
+  background: none;
+  color: var(--ink);
+  transition: background var(--dur-fast) var(--ease);
+}
+.back:active {
+  background: var(--line);
+}
+
+/* --- /lang ---------------------------------------------------------------- */
+
+.lang__title {
+  margin: 8px 0 20px;
+  font-size: var(--t-title);
+  line-height: var(--t-title-lh);
+  font-weight: var(--t-title-w);
+}
+
+/*
+ * The tap-to-begin gate. Browser-only — see the comment in screens/LangPick.jsx.
+ *
+ * Deliberately the whole screen rather than a button in the middle of one. It is the only
+ * target present, the user has been given no instruction they can necessarily read, and a
+ * miss costs them the audio they are waiting for. Nothing here is smaller than the thumb.
+ */
+.begin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60vh;
+  padding: var(--pad);
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  box-shadow: var(--e1);
+  color: var(--accent);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.begin:active {
+  transform: scale(0.99);
+  box-shadow: var(--e2);
+}
+.begin__label {
+  font-size: var(--t-body);
+  line-height: var(--t-body-lh);
+  font-weight: var(--t-title-w);
+  color: var(--ink);
+}
+
+/* --- the microphone ------------------------------------------------------
+ *
+ * See MicButton in kit.jsx for why this exists. The rule that matters here: every state is
+ * fully legible with all animation removed. Motion is added on top of a finished picture,
+ * never used to draw one.
+ */
+
+.mic {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 2px;
+}
+
+.mic__btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 128px against a 72px floor. This is the only thing on screen the artisan is meant to
+     press, and it is pressed with a thumb, outdoors, often one-handed. */
+  width: 128px;
+  height: 128px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--e2);
+  transition: transform var(--dur-fast) var(--ease), background var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.mic__btn:active:not(:disabled) {
+  transform: scale(0.96);
+  box-shadow: var(--e1);
+}
+.mic__glyph {
+  position: relative;
+  display: flex;
+}
+
+/* Both rings sit outside the circle and are invisible until a state turns them on. */
+.mic__halo,
+.mic__ping {
+  position: absolute;
+  inset: -9px;
+  border-radius: var(--r-full);
+  pointer-events: none;
+}
+
+/* --- listening ---
+   Colour, a halo, a ring and an equaliser, all at once. Redundant on purpose: on a cracked
+   panel at noon any single one of them can be the one that fails to read. */
+.mic--listening .mic__btn {
+  background: var(--green);
+  box-shadow: var(--e2), 0 0 0 12px var(--green-halo);
+}
+.mic--listening .mic__halo {
+  border: 4px solid var(--green);
+}
+.mic--listening .mic__ping {
+  border: 4px solid var(--green);
+  animation: mic-ping 1.5s var(--ease) infinite;
+}
+@keyframes mic-ping {
+  from {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+/*
+ * The equaliser. Heights are set per bar in CSS and the animation only scales them, so
+ * frozen it is still an equaliser shape rather than five identical stubs — which is what
+ * a user with reduced motion switched on sees.
+ *
+ * It is not driven by real microphone level; see the note in kit.jsx.
+ */
+.mic__bars {
+  display: none;
+  align-items: flex-end;
+  gap: 5px;
+  height: 26px;
+}
+.mic--listening .mic__bars {
+  display: flex;
+}
+.mic__bars i {
+  width: 7px;
+  border-radius: var(--r-full);
+  background: var(--green-ink);
+  transform-origin: bottom;
+  animation: mic-bar 0.85s var(--ease) infinite alternate;
+}
+.mic__bars i:nth-child(1) {
+  height: 9px;
+  animation-delay: 0ms;
+}
+.mic__bars i:nth-child(2) {
+  height: 17px;
+  animation-delay: 130ms;
+}
+.mic__bars i:nth-child(3) {
+  height: 26px;
+  animation-delay: 260ms;
+}
+.mic__bars i:nth-child(4) {
+  height: 17px;
+  animation-delay: 65ms;
+}
+.mic__bars i:nth-child(5) {
+  height: 9px;
+  animation-delay: 195ms;
+}
+@keyframes mic-bar {
+  from {
+    transform: scaleY(0.25);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* --- thinking ---
+   Grey and quiet. The user is not being asked for anything, so it must not look like a
+   target: no accent fill, no elevation, and the button is genuinely disabled. */
+.mic--thinking .mic__btn {
+  background: var(--line);
+  color: var(--muted);
+  box-shadow: none;
+}
+.mic--thinking .mic__halo {
+  border: 5px solid var(--line);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+
+.mic__label {
+  margin: 0;
+  font-size: var(--t-title);
+  line-height: var(--t-title-lh);
+  font-weight: var(--t-title-w);
+  text-align: center;
+}
+.mic__hint {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: var(--t-body);
+  line-height: var(--t-body-lh);
+  font-weight: var(--t-body-w);
+}
+
+/* --- /catalog/voice ------------------------------------------------------ */
+
+/*
+ * The product photo, on every question. Before this the screen asked "yeh kya hai?" with
+ * the thing it was asking about nowhere on screen — the artisan had to remember which of
+ * five questions was in flight and what it referred to. Now the subject of the sentence is
+ * the largest object on the display.
+ *
+ * Capped at 30vh so the mic below it is never pushed out of the thumb zone on a short
+ * phone. The photo is context, not the content.
+ *
+ * Named `.subject` and not `.shot`: it WAS `.shot`, which is also the class on /home's
+ * shelf tiles four hundred lines up, and this rule sits later in the file — so the home
+ * shelf was silently getting `max-height: 30vh` and a `--line` background it never asked
+ * for. Two screens, one class name, and the one that loads second wins.
+ */
+.subject {
+  display: block;
+  width: 100%;
+  max-height: 30vh;
+  object-fit: cover;
+  border-radius: var(--r-md);
+  background: var(--line);
+}
+
+/*
+ * Progress WITHIN /catalog/voice, as dots. "सवाल 3, कुल 5" is a sentence with two numerals
+ * in it and is exactly the kind of thing our users cannot read. Five dots, filling up, is
+ * a progress bar anybody has seen before.
+ *
+ * Named `.qdots` and not `.steps`: `.steps` is the chain progress bar in the header
+ * (kit.jsx), this is the five questions inside one screen of that chain, and the two were
+ * sharing a class name with this rule sitting later in the file — so the header bar was
+ * silently getting `justify-content: center` and 14px of bottom padding it never asked
+ * for. They measure different things and they are allowed to appear together: the bar says
+ * where you are in making a listing, the dots say where you are in this one conversation.
+ */
+.qdots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 2px 0 14px;
+}
+.qdots i {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--r-full);
+  background: var(--line);
+}
+.qdots i.qdots--done {
+  background: var(--accent);
+}
+/* Current question gets a ring as well as the fill — position in the sequence has to
+   survive being glanced at, and five identical dots do not tell you where you are. */
+.qdots i.qdots--now {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/*
+ * The alternatives to speaking. Deliberately built out of `.help`, the quietest control in
+ * the app: typing is a real escape hatch (a dead microphone must never trap anybody) but it
+ * is not the path, and it must never out-shout the mic above it.
+ */
+.alt {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.alt .help {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+ * The typed fallback. Reached only by asking for it. `user-select` has to be turned back
+ * on here — body switches it off app-wide so a long-press cannot select a label, and that
+ * would otherwise make this field impossible to correct.
+ */
+.type {
+  width: 100%;
+  min-height: 92px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  box-shadow: var(--e1);
+  font-size: var(--t-title);
+  line-height: var(--t-title-lh);
+  color: var(--ink);
+  resize: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.type:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* --- splash: the loom ----------------------------------------------------- */
+
+/*
+ * See ui/Splash.jsx for what this is saying and why it is a loom rather than a logo.
+ *
+ * The whole sequence is stroke-dashoffset on ten straight lines plus two transforms. No
+ * canvas, no library, no image to decode — it has to be on screen in the first frame after
+ * the WebView hands over, on a phone that is also still starting React, so it cannot afford
+ * to load anything.
+ *
+ * Colours are --accent and white only, so the splash is themed for free along with
+ * everything else. The native splash underneath (res/drawable/splash.png) is a still frame
+ * of roughly this final state in the default palette, which is why the handover does not
+ * flash: the artisan sees a static loom, then the same loom starts weaving.
+ */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--accent);
+  color: #fff;
+  /* Not interactive, and must not eat the first tap if it is still fading. */
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 400ms var(--ease);
+}
+.splash--out {
+  opacity: 0;
+}
+
+.splash__stage {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin-bottom: 22px;
+}
+.splash__loom,
+.splash__mark {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * The threads. 84px of line, drawn by pulling a 84px dash gap back to zero.
+ *
+ * `--i` comes from the JSX and staggers each thread by 70ms. Warp runs first (0-620ms),
+ * weft follows it (520-1200ms) — overlapping slightly, because a weaver does not wait for
+ * the last warp thread to settle before throwing the shuttle.
+ */
+.splash__warp line,
+.splash__weft line {
+  stroke: #fff;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: 0.55;
+  stroke-dasharray: 84;
+  stroke-dashoffset: 84;
+  animation: thread 520ms var(--ease) forwards;
+}
+.splash__warp line {
+  animation-delay: calc(var(--i) * 70ms);
+}
+.splash__weft line {
+  animation-delay: calc(520ms + var(--i) * 70ms);
+}
+@keyframes thread {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/*
+ * The motif, coming off the cloth. Starts slightly small and transparent so it reads as
+ * emerging FROM the weave rather than being pasted on top of it.
+ */
+.splash__mark {
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.82);
+  animation: mark-in 620ms var(--ease) 1180ms forwards;
+}
+@keyframes mark-in {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.splash__word {
+  margin: 0;
+  font-size: var(--t-display);
+  line-height: var(--t-display-lh);
+  font-weight: var(--t-display-w);
+  letter-spacing: -0.02em;
+  opacity: 0;
+  animation: rise 500ms var(--ease) 1420ms forwards;
+}
+.splash__tag {
+  margin: 0;
+  max-width: 22ch;
+  text-align: center;
+  font-size: var(--t-body);
+  line-height: var(--t-body-lh);
+  opacity: 0;
+  animation: rise 500ms var(--ease) 1600ms forwards;
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 0.92;
+    transform: none;
+  }
+}
+
+/*
+ * Reduced motion, handled here AND in Splash.jsx.
+ *
+ * The blanket rule at the bottom of this file collapses every animation to 0.01ms, which
+ * for a `forwards` fill is exactly right — every element lands on its final frame
+ * instantly. This class exists to make that explicit rather than accidental, because the
+ * failure mode if the blanket rule ever changed is a permanently half-drawn loom with the
+ * app hidden behind it. The component also shortens its own timer to match.
+ */
+.splash--still .splash__warp line,
+.splash--still .splash__weft line,
+.splash--still .splash__mark,
+.splash--still .splash__word,
+.splash--still .splash__tag {
+  animation: none;
+  opacity: 1;
+  transform: none;
+  stroke-dashoffset: 0;
+}
+.splash--still .splash__warp line,
+.splash--still .splash__weft line {
+  opacity: 0.55;
+}
+
+/*
+ * Reduced motion. Vestibular disorders are not rare, and the OS-level toggle is the only
+ * way a user tells us. One blanket rule beats remembering to guard each transition.
+ *
+ * The spinner is exempted rather than frozen: a motionless "loading" ring is how an app
+ * gets force-closed while it was actually working fine. It just turns slowly instead. The
+ * mic's thinking ring is the same argument, and gets the same exemption.
+ *
+ * Nothing else needs a rule here. The listening state's colour, halo and equaliser are all
+ * plain static properties; killing the ping and the bar animation leaves a green, ringed,
+ * equalised mic that is still unmistakably different from the idle one.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .spinner__ring,
+  .mic--thinking .mic__halo {
+    animation-duration: 2.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+}

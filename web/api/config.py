@@ -1,0 +1,92 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Anchored to this file, not the working directory. A relative ".env" silently resolves
+# against wherever the process happened to start, so the API would fall back to every
+# default and then fail on the first database call with a connection error that says
+# nothing about the real cause.
+ENV_FILE = Path(__file__).resolve().parent / ".env"
+
+
+class Settings(BaseSettings):
+    """Every secret comes from the environment. Nothing here has a usable default."""
+
+    model_config = SettingsConfigDict(env_file=ENV_FILE, extra="ignore")
+
+    # Runtime connection. On Supabase this is the TRANSACTION pooler (port 6543) — it is
+    # what survives a lot of short-lived serverless-ish connections. See db.py for the two
+    # settings pgbouncer forces on us.
+    database_url: str = "postgresql+psycopg://kaarigar:kaarigar@localhost:5432/kaarigar"
+
+    # Migrations need a different connection. Alembic takes advisory locks and runs long
+    # DDL transactions, and neither survives transaction-mode pooling — so migrations go
+    # through the SESSION pooler (port 5432) or a direct connection. Defaults to
+    # database_url so a plain local Postgres needs no second setting.
+    database_migration_url: str = ""
+
+    redis_url: str = "redis://localhost:6379/0"
+
+    @property
+    def migration_url(self) -> str:
+        return self.database_migration_url or self.database_url
+
+    # AI service. web/ calls ai/ over HTTP and never imports across that line — they are
+    # separate deploy units and the AI box has a GPU that this one does not.
+    ai_base_url: str = "http://localhost:8001"
+
+    # Object storage for raw and enhanced images.
+    s3_endpoint: str = "http://localhost:9000"
+    s3_bucket: str = "kaarigar"
+    s3_access_key: str = ""
+    s3_secret_key: str = ""
+
+    # Bhashini (MeitY) — ASR, translation, TTS for Indian languages.
+    bhashini_user_id: str = ""
+    bhashini_api_key: str = ""
+    bhashini_pipeline_url: str = "https://meity-auth.ulcacontrib.org/ulca/apis/v0/model/getModelsPipeline"
+
+    # Sarvam AI — ASR and TTS for Indian languages. Tried BEFORE Bhashini: it is one
+    # documented REST call with one key, where Bhashini needs a pipeline-config round trip
+    # first and its commercial terms are still unconfirmed (spec §18 item 5).
+    #
+    # Whichever is configured wins. With both, Sarvam leads and Bhashini is the fallback,
+    # so losing a provider costs quality rather than going silent — and silence, for a user
+    # who cannot read, is the app not working at all.
+    sarvam_api_key: str = ""
+    sarvam_base_url: str = "https://api.sarvam.ai"
+
+    # Auth.
+    jwt_secret: str = ""
+    jwt_ttl_hours: int = 720  # long-lived on purpose: re-authenticating is a real burden
+    otp_ttl_seconds: int = 300
+
+    # 🔒 Wraps the only third-party credentials we ever hold: Amazon and Flipkart OAuth
+    # refresh tokens (spec §14.2 exception). Fernet key, base64, 32 bytes.
+    # Everything else about a channel is a boolean or a self-reported status.
+    token_encryption_key: str = ""
+
+    # Channel credentials. Absent in dev; the adapters fall back to dry-run.
+    amazon_client_id: str = ""
+    amazon_client_secret: str = ""
+    flipkart_app_id: str = ""
+    flipkart_app_secret: str = ""
+
+    # ONDC. We register once as a Marketplace Seller Node; artisans are sub-sellers under
+    # this subscriber id and never register themselves. See docs/decisions.md.
+    ondc_subscriber_id: str = ""
+    ondc_signing_private_key: str = ""
+    ondc_encryption_private_key: str = ""
+    ondc_registry_url: str = "https://staging.registry.ondc.org"
+
+    environment: str = "dev"
+
+    @property
+    def is_dev(self) -> bool:
+        return self.environment == "dev"
+
+
+@lru_cache
+def settings() -> Settings:
+    return Settings()
