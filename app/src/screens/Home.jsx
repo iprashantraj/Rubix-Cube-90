@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { api, cachedGet } from '../api/client.js';
 import { useSession } from '../store.js';
 import { t } from '../i18n/index.js';
 import { useVoice } from '../voice/useVoice.js';
@@ -24,10 +24,14 @@ import { IconCreate, IconForward, IconPhoto } from '../ui/icons.jsx';
  * saree instantly and cannot necessarily read the word next to it — and a screen about
  * their work should look like their work.
  */
+/** List endpoints answer either a bare array or `{items}`; both shapes are in use. */
+const list = (r) => (Array.isArray(r) ? r : (r?.items ?? []));
+
 export default function Home() {
   const nav = useNavigate();
   const { lang } = useVoice();
   const artisan = useSession((s) => s.artisan);
+  const patchArtisan = useSession((s) => s.patchArtisan);
 
   const [products, setProducts] = useState(null);
   const [orders, setOrders] = useState(null);
@@ -37,13 +41,22 @@ export default function Home() {
     (async () => {
       // Both endpoints already exist and are already paid for by the tabs. A /home/summary
       // route would be a third thing to keep in step with them for no benefit at this size.
-      const [p, o] = await Promise.all([
-        api.get('/products').catch(() => []),
-        api.get('/orders').catch(() => []),
+      // cachedGet: the counts render from the last visit's copy on the frame the screen
+      // appears, and correct themselves a moment later if the server disagrees. /home was
+      // a spinner every single time it was opened, for numbers that rarely change.
+      const [p, o, me] = await Promise.all([
+        cachedGet('/products', { onUpdate: (d) => alive && setProducts(list(d)) }).catch(() => []),
+        cachedGet('/orders', { onUpdate: (d) => alive && setOrders(list(d)) }).catch(() => []),
+        // The greeting says the artisan's name, and the store's copy of it is only as
+        // fresh as the last screen that wrote one. Sign in on a second phone, reinstall,
+        // or let a /me PATCH land while the app is closed, and this screen greets someone
+        // it has known by name for weeks as a stranger. The server knows; ask it.
+        api.get('/me').catch(() => null),
       ]);
       if (!alive) return;
-      setProducts(Array.isArray(p) ? p : (p?.items ?? []));
-      setOrders(Array.isArray(o) ? o : (o?.items ?? []));
+      setProducts(list(p));
+      setOrders(list(o));
+      if (me?.display_name) patchArtisan({ display_name: me.display_name, craft: me.craft });
     })();
     return () => {
       alive = false;

@@ -13,6 +13,32 @@ import { persist, createJSONStorage } from 'zustand/middleware';
  * 🔒 readiness is booleans only. has_pan is true or false. The number itself never enters
  * this app, this store, or our database. What we don't store cannot leak (spec §14.1).
  */
+/**
+ * When does this token stop working?
+ *
+ * A JWT payload is base64url JSON — no library, no verification. We are not checking the
+ * signature and must not pretend to: the server does that, and `exp` here is only used to
+ * decide whether to bother asking. Anything unreadable returns 0, which reads as "expired"
+ * and costs one clean sign-in rather than a mysterious 401 three screens later.
+ *
+ * The point is WHERE the artisan finds out. A 720h token quietly dying mid-catalogue means
+ * the failure lands on /publish, after they photographed and described a product — the one
+ * moment in the app where being thrown out costs real work.
+ */
+export function tokenExpiry(token) {
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return (JSON.parse(atob(payload)).exp ?? 0) * 1000;
+  } catch {
+    return 0;
+  }
+}
+
+export function tokenValid(token, now = Date.now()) {
+  // A minute of headroom: a token that expires while the request is in flight is expired.
+  return !!token && tokenExpiry(token) - 60_000 > now;
+}
+
 export const useSession = create(
   persist(
     (set) => ({

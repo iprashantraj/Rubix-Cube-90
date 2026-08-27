@@ -7,13 +7,15 @@ ever joins a platform, and editing once regenerates every channel export.
 from __future__ import annotations
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..caching import conditional
 from ..config import settings
 from ..db import get_db
-from ..models import Artisan, InventoryLedger, Product
+from ..models import Artisan, InventoryLedger, Product, ProductImage
 from ..security import current_artisan
 
 router = APIRouter()
@@ -56,20 +58,54 @@ def create(
 
 @router.get("/products")
 def mine(
+    request: Request,
     db: Session = Depends(get_db),
     artisan: Artisan = Depends(current_artisan),
-) -> list[dict]:
-    rows = db.query(Product).filter_by(artisan_id=artisan.id).order_by(Product.created_at.desc())
-    return [
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> Response:
+    """The artisan's catalogue, five columns wide.
+
+    This loaded whole Product entities and then read `p.images` inside the comprehension —
+    one extra query per product, so a 40-product catalogue was 41 round trips through the
+    pooler to build a list of five fields. The primary image is an outer join now, and the
+    columns are named rather than taken wholesale: the descriptions and the channel payloads
+    are long text this response never contained and no longer transfers.
+    """
+    primary = (
+        select(ProductImage.product_id, func.min(ProductImage.url).label("url"))
+        .where(ProductImage.is_primary.is_(True))
+        .group_by(ProductImage.product_id)
+        .subquery()
+    )
+    rows = (
+        db.query(
+            Product.id,
+            Product.title,
+            Product.price,
+            Product.colour_confirmed,
+            primary.c.url,
+        )
+        .outerjoin(primary, primary.c.product_id == Product.id)
+        .filter(Product.artisan_id == artisan.id)
+        # created_at DESC then id. Without the tiebreak two products created in the same
+        # millisecond can swap places between pages, and one of them is then never shown.
+        .order_by(Product.created_at.desc(), Product.id)
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+    payload = [
         {
-            "id": p.id,
-            "title": p.title,
-            "price": float(p.price) if p.price else None,
-            "colour_confirmed": p.colour_confirmed,
-            "image": next((i.url for i in p.images if i.is_primary), None),
+            "id": r.id,
+            "title": r.title,
+            "price": float(r.price) if r.price is not None else None,
+            "colour_confirmed": r.colour_confirmed,
+            "image": r.url,
         }
-        for p in rows
+        for r in rows
     ]
+    return conditional(request, payload, max_age=30)
 
 
 def _own(product_id: str, db: Session, artisan: Artisan) -> Product:
