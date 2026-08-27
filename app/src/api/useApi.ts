@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
-import { api } from './client.js';
+import { api } from './client';
 import { cacheable } from './policy.js';
 import { keyFor } from './queries';
 

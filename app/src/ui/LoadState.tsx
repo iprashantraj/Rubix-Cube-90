@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useVoice } from '../voice/useVoice.js';
+import { useVoice } from '../voice/useVoice';
 import { cn } from '../lib/utils';
 
 /**
@@ -88,7 +88,7 @@ export function LoadState({
   children,
   speakAfterMs = 1500,
 }: {
-  label?: string;
+  label?: string | null;
   /** The skeleton. Defaults to a list, which is what most screens are. */
   children?: React.ReactNode;
   speakAfterMs?: number;
