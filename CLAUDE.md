@@ -72,8 +72,9 @@ If a task conflicts with these, stop and flag it. Do not silently resolve.
 ```bash
 node app/src/camera/gate.js      # camera gate, 19 assertions, no device or framework
 cd web/api && python3 test_uploads.py   # chunk assembly, no database or server
-cd ai && .venv/bin/pytest        # pricing — needs a venv; ai/.venv does not exist yet
+cd ai && .venv/bin/pytest        # pricing, 15 tests. ai/.venv exists as of 2026-08-28
 cd ai && python3 test_gate.py    # server quality gate, 10 assertions, no venv or fixtures
+cd ai && python3 test_segment.py # master downscale; skips the model half without a venv
 python3 images/check.py --resume && python3 images/calibrate.py   # thresholds vs the fixture set
 ```
 

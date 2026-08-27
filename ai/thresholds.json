@@ -23,5 +23,17 @@
   "hysteresis_slack": 1.25,
 
   "_enhance_only": "Server enhancement pipeline only — the app never reads these. Reconciliation §6.",
-  "blur_laplacian_variance_reject_min": 20
+  "blur_laplacian_variance_reject_min": 20,
+
+  "_crop": "crop_fill_target is the product's long side as a fraction of the square listing canvas, and it is the only knob — the reconciliation also proposed crop_padding_pct: 8, which is the same number said backwards ((1 - 0.85) / 2 = 7.5% margin per side). Two keys that can disagree about one measurement is a bug waiting to happen, so there is one. Not calibrated against fixtures: 0.85 is the marketplace requirement (spec §9.1), not a measurement of our photographs.",
+  "crop_fill_target": 0.85,
+  "listing_canvas_px": 2000,
+
+  "_tiers": "Mask confidence and tiers A/B/C. Scored against seg-v1 on 2026-08-28 by research/segmentation/tiers.py: these values catch 5 of the 7 masks a person would refuse to ship, and demote 2 good masks to tier B, which is a safe outcome. A grid search over area/uncertainty/blob values found nothing that does better on this set, so these stay as the reconciliation proposed them — now measured rather than reasoned. What they do NOT catch is in RESULTS.md, and it is a real gap, not a rounding error.",
+  "mask_uncertain_fraction_max": 0.08,
+  "mask_blob_count_max": 3,
+  "mask_area_min": 0.15,
+  "mask_area_max": 0.85,
+  "tier_a_confidence_min": 0.75,
+  "tier_b_confidence_min": 0.45
 }

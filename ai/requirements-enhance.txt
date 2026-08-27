@@ -1,0 +1,30 @@
+# Enhancement worker only — NOT the API service.
+#
+# `requirements.txt` next to this file stays small on purpose: `service.py` accepts a job,
+# queues it and reports status, and none of that needs a GPU stack. This file is ~3GB
+# installed, almost all of it CUDA shared libraries pulled in by torch. Putting these in
+# requirements.txt would put 3GB into the API image for code that never imports them.
+#
+# `pipeline.py` therefore imports nothing from here at module scope, and `test_gate.py`
+# runs the quality gate with plain python3 and no virtualenv at all. Keep it that way:
+# the gate's calibration should stay checkable by anyone who clones the repo.
+#
+# Install (Linux, NVIDIA):
+#   python3 -m venv ai/.venv
+#   ai/.venv/bin/pip install -r ai/requirements.txt -r ai/requirements-enhance.txt \
+#     --extra-index-url https://download.pytorch.org/whl/cu128
+#
+# The cu128 wheels run against driver 595 / CUDA 13.2 on the dev box. On a machine with no
+# NVIDIA driver, drop the extra index and the CPU wheels install instead — segmenter.py
+# falls back to CPU on its own, about twenty times slower but not broken.
+
+torch==2.11.0
+torchvision==0.26.0
+
+# BiRefNet is distributed as a transformers model with `trust_remote_code`, and its remote
+# code imports timm and einops. They are dependencies of the *weights*, not of our code,
+# which is why they look unused here.
+transformers==5.16.1
+timm==1.0.28
+einops==0.8.2
+safetensors==0.8.0
