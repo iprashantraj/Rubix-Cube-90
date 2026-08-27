@@ -28,6 +28,14 @@ class StartRequest(BaseModel):
     @classmethod
     def indian_mobile(cls, v: str) -> str:
         v = v.strip().removeprefix("+91")
+        # Dev takes any digits: demo numbers do not all start 6-9, and a test account is
+        # easier to remember as 1111111111. Still digits-only even here — `phone` is the
+        # account identity, and letting two spellings of one number through would quietly
+        # create two artisans. Production keeps the real rule.
+        if settings().is_dev:
+            if not v.isdigit():
+                raise ValueError("phone must be digits")
+            return v
         if not (v.isdigit() and len(v) == 10 and v[0] in "6789"):
             raise ValueError("not a valid Indian mobile number")
         return v
@@ -49,13 +57,23 @@ def start(req: StartRequest) -> dict:
 
 @router.post("/auth/verify")
 def verify(req: VerifyRequest, db: Session = Depends(get_db)) -> dict:
-    entry = PENDING.get(req.phone)
-    if not entry or entry[1] < time.time():
-        raise HTTPException(400, "otp expired")
-    if not check_otp(req.phone, req.otp, entry[0]):
-        raise HTTPException(400, "otp incorrect")
-    # Single use. Without this a leaked code stays valid for its whole TTL.
-    PENDING.pop(req.phone, None)
+    # 🔒 Dev only, and it must stay that way: any code logs you in, and a number that was
+    # never sent one still logs you in. This exists because there is no SMS gateway yet and
+    # the in-memory PENDING map is emptied by every server restart — mid-demo, that logged
+    # the tester out of an app they were standing in front of a room demonstrating.
+    #
+    # `is_dev` is ENVIRONMENT=dev in the environment, so a deployment that forgets to set it
+    # fails closed into the real check rather than open into this one.
+    if settings().is_dev:
+        PENDING.pop(req.phone, None)
+    else:
+        entry = PENDING.get(req.phone)
+        if not entry or entry[1] < time.time():
+            raise HTTPException(400, "otp expired")
+        if not check_otp(req.phone, req.otp, entry[0]):
+            raise HTTPException(400, "otp incorrect")
+        # Single use. Without this a leaked code stays valid for its whole TTL.
+        PENDING.pop(req.phone, None)
 
     artisan = db.query(Artisan).filter_by(phone=req.phone).one_or_none()
     created = artisan is None

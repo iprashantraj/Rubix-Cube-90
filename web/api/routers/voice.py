@@ -223,6 +223,15 @@ async def _bhashini_tts(text: str, lang: str) -> bytes:
 async def tts(req: TTSRequest) -> Response:
     _require_any_key()
 
+    # English is spoken by the DEVICE, never by a provider here. Both of ours offer English
+    # only as en-IN, and the note above SARVAM_LANGS predicted exactly what happened when a
+    # key was finally added: English TTS silently reverted to a heavy Indian accent, for the
+    # one group of users who chose English *because* they read it. 503 is the client's
+    # "use the next tier" signal (voice/engine.js), and the next tier is the phone's own
+    # voice at whatever tag i18n asks for.
+    if req.lang == "en":
+        raise HTTPException(503, "english is spoken by the device voice")
+
     # Cache lookup precedes provider choice on purpose: a clip already on disk is correct
     # no matter which provider produced it, and re-buying it because the primary changed
     # would be pure waste.
