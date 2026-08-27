@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useDraft } from '../store.js';
 import { useVoice } from '../voice/useVoice.js';
 import { record, transcribe } from '../voice/listen.js';
+import { interpretAnswer } from '../voice/interpret.js';
 import { t } from '../i18n/index.js';
 import { Screen, BigButton, Card, MicButton, Heard } from '../ui/kit.jsx';
 import { IconWrite, IconNext, IconYes, IconBack, IconRetry } from '../ui/icons.jsx';
@@ -161,8 +162,26 @@ export default function CatalogVoice() {
        * The answer is still stored here rather than on confirm: it is theirs either way,
        * and re-recording overwrites it. What the extra beat buys is the chance to notice.
        */
-      answer(q.field, said);
-      setHeard(said);
+      /*
+       * Reduce the sentence to the answer before storing it.
+       *
+       * "yeh cotton ki saree hai" is an answer to "what is it made of", but the field that
+       * feeds the category mapping and the pricing comparables wants "cotton", not the
+       * sentence. Same interpreter as the name screen — local carrier-strip first, model
+       * only when that cannot reduce it. See voice/interpret.js.
+       *
+       * Falls back to the raw sentence rather than dropping it: an un-reduced answer is
+       * still the artisan's answer, and /catalog/review is a second chance to fix it.
+       */
+      const { value, raw } = await interpretAnswer({
+        transcript: said,
+        question: q.key,
+        lang,
+      });
+      answer(q.field, value ?? raw);
+      // Show the sentence they actually said, not our reduction of it — the reduction is
+      // what we are asking them to trust, so the evidence has to be the original.
+      setHeard(raw);
       setPhase('heard');
       return undefined;
     } catch {

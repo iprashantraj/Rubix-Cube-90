@@ -71,7 +71,9 @@ export default function OnboardCraft() {
 
   async function save(craft) {
     setError(null);
-    setPhase('busy');
+    // See OnboardName.save(): 'busy' re-asked the question while the answer was being
+    // saved, so the artisan was asked what they make immediately after telling us.
+    setPhase('saving');
     try {
       await api.patch('/me', { craft });
       patchArtisan({ craft });
@@ -92,7 +94,7 @@ export default function OnboardCraft() {
       // true from the frame it appears. This used to `await say('voice.listening')` first,
       // which announced the microphone about a second before opening it and swallowed
       // whatever the artisan said in reply to the question.
-      recRef.current = await record();
+      recRef.current = await record({ onSilence: stopRec });
       setPhase('rec');
     } catch (e) {
       setPhase('pick');
@@ -150,7 +152,7 @@ export default function OnboardCraft() {
     }
   }
 
-  const confirming = phase === 'confirm';
+  const confirming = phase === 'confirm' || phase === 'saving';
 
   return (
     <Screen

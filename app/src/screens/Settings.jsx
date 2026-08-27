@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { api, cachedGet } from '../api/client.js';
 import { useSession } from '../store.js';
 import { record, transcribe, classifyYesNo } from '../voice/listen.js';
-import { useVoice, resetSpokenHistory } from '../voice/useVoice.js';
+import { useVoice } from '../voice/useVoice.js';
 import { LANGUAGES, t } from '../i18n/index.js';
 import { Screen, BigButton, Card, Chip, Grid, Tile, YesNo, Spinner } from '../ui/kit.jsx';
 import { THEMES, DEFAULT_THEME } from '../ui/theme.js';
@@ -62,8 +62,18 @@ export default function Settings() {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState(null);
 
+  // 30-minute TTL (cache.js) — a name, a craft and a place change less often than anything
+  // else in the app. `api.patch('/me')` below invalidates the entry, so a correction the
+  // artisan makes here is never the thing this cache serves back stale.
   useEffect(() => {
-    api.get('/me').then(setMe, (e) => setError(e.messageKey ?? 'error.unknown'));
+    let alive = true;
+    cachedGet('/me', { onUpdate: (d) => alive && setMe(d) }).then(
+      (d) => alive && setMe(d),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
+    );
+    return () => {
+      alive = false;
+    };
   }, []);
 
   function chooseLang(code) {
@@ -115,10 +125,6 @@ export default function Settings() {
       // erased" and comes back still wearing the palette they chose has visibly kept
       // something, and that is the only evidence they have either way.
       setTheme(null);
-      // And what the app has already said out loud. Screens go quiet on a repeat visit
-      // (see useSpeakOnEnter); after an erasure the next person to hold this phone must
-      // hear the first run, not somebody else's second one.
-      resetSpokenHistory();
       useSession.persist?.clearStorage?.();
       nav('/lang', { replace: true });
     } catch (e) {

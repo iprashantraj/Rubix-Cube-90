@@ -49,9 +49,19 @@ class Settings(BaseSettings):
 
     # Object storage for raw and enhanced images.
     s3_endpoint: str = "http://localhost:9000"
+    # Two buckets, because "public" is a property of a BUCKET, not of a key prefix. A public
+    # bucket serves every object in it to anyone with the URL, so raw originals cannot live
+    # in the same one as the marketplace variants no matter how the keys are named.
     s3_bucket: str = "kaarigar"
+    s3_raw_bucket: str = "kaarigar-raw"
+    # Supabase ignores the value but the S3 signature requires one.
+    s3_region: str = "us-east-1"
     s3_access_key: str = ""
     s3_secret_key: str = ""
+    # Supabase's second S3 auth mode: access key = project ref, secret = anon key, and this
+    # JWT carries the actual authority. Empty for MinIO and for a generated S3 key pair,
+    # which authenticate on the pair alone.
+    s3_session_token: str = ""
 
     # Bhashini (MeitY) — ASR, translation, TTS for Indian languages.
     bhashini_user_id: str = ""

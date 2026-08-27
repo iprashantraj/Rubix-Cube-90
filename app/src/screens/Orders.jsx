@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { cachedGet } from '../api/client.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
 import { Screen, Card, Chip, Spinner, StatusDot } from '../ui/kit.jsx';
@@ -46,8 +46,19 @@ export default function Orders() {
   const [orders, setOrders] = useState(null);
   const [error, setError] = useState(null);
 
+  // Cached, but on the shortest TTL in the app (60s — cache.js). An order that arrived
+  // while the artisan was cataloguing matters within the minute, so this revalidates almost
+  // every visit; what it buys is that the list is on screen while that happens instead of
+  // a spinner standing between them and orders they already knew about.
   useEffect(() => {
-    api.get('/orders').then(setOrders, (e) => setError(e.messageKey ?? 'error.unknown'));
+    let alive = true;
+    cachedGet('/orders', { onUpdate: (d) => alive && setOrders(d) }).then(
+      (d) => alive && setOrders(d),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
+    );
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const fresh = orders?.filter((o) => o.state === 'placed').length ?? 0;

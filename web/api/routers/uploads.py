@@ -6,11 +6,13 @@ queue and it is not a sync engine.
 
 Chunks land on disk under `settings().storage_dir` and are concatenated on `complete()`,
 which returns a url. That url is what `POST /products/{id}/images` accepts and what `ai/`
-is eventually handed. Where the bytes actually go is `../storage.py`'s problem.
+is eventually handed. Where the bytes actually go is `../storage.py`'s problem — and, once S3 is configured,
+`../objectstore.py`'s.
 """
 
 from __future__ import annotations
 
+import logging
 import shutil
 from pathlib import Path
 
@@ -19,13 +21,16 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
+from .. import objectstore
 from ..config import settings
 from ..db import get_db
+from ..images import derive
 from ..models import Artisan, Upload
 from ..security import current_artisan
 from ..storage import AssemblyError, assemble, final_path, parts_dir
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 MAX_BYTES = 25 * 1024 * 1024
 CHUNK_SIZE = 256 * 1024
@@ -139,5 +144,32 @@ def complete(
 
     shutil.rmtree(parts, ignore_errors=True)
     up.url = final.resolve().as_uri()
+
+    # Publish, if there is anywhere to publish to.
+    #
+    # The local file:// url above is what `ai/` opens on the same machine, and it stays the
+    # answer when S3 is unconfigured — an unset bucket is a normal dev box, not an error,
+    # and answering 503 here is what blocked the image pipeline from being testable at all
+    # (docs/Abhay/PIPELINE-RECONCILIATION.md §5, finding 1).
+    #
+    # With S3 configured the derived variants go up and the artisan's ORIGINAL does not
+    # follow them into the public bucket: raw/ is a private bucket, and what a marketplace
+    # page links to is only ever something we deliberately derived for it.
+    if objectstore.available():
+        try:
+            original = final.read_bytes()
+            for name, data in derive(original).items():
+                key = objectstore.key_for(artisan.id, up.id, name, public=(name != "full"))
+                url = objectstore.put(key, data)
+                if name == "display":
+                    up.url = url
+            objectstore.put(
+                objectstore.key_for(artisan.id, up.id, "original", public=False), original
+            )
+        except (objectstore.StorageError, ValueError) as e:
+            # The bytes are already safe on disk and the url already resolves. A failed
+            # publish costs the marketplace variants, never the upload — rule 3.
+            log.warning("upload %s assembled but not published: %s", up.id, e)
+
     db.commit()
     return {"url": up.url}

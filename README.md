@@ -9,6 +9,9 @@ SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Margina
 | `docs/decisions.md` | What's settled and why |
 | `docs/app/Camera-Pipeline.md` | Photo path end to end — gate, thresholds, EXIF strip, enhance, colour lock |
 | `docs/app/Pricing.md` | Cost-up formula, rates, comparables, and the price floor |
+| `docs/app/Questions-Asked.md` | Every question the app asks, categorized |
+| `docs/app/AI-Data-Flow.md` | **What reaches a third-party model, when, and what never does** |
+| `docs/app/Future-Implementations.md` | Vision, remaining questions, known gaps |
 | `docs/Abhay/PIPELINE-RECONCILIATION.md` | Image pipeline — what runs on device vs. server, and why. Read before the other files in `docs/Abhay/` |
 
 ## Layout

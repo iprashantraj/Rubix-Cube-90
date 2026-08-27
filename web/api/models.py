@@ -173,6 +173,26 @@ class Product(Base):
     # Publishing is blocked until the artisan confirms the colour survived white balance.
     colour_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # 🔑 The enhancement, stored as PARAMETERS rather than as a modified image.
+    #
+    # Rule 2 in CLAUDE.md — never destroy the original — is currently kept by discipline: the
+    # pipeline is a sequence of stages each returning a mutated image, and nothing structural
+    # stops one from overwriting what the artisan photographed. A recipe makes it true by
+    # construction. `render(original, mask, recipe)` is the only thing that produces pixels,
+    # so the original is provably untouched, "the artisan chose a different tier" becomes a
+    # field write instead of a re-run of segmentation, and a better mask later can re-render
+    # everything without discarding a single choice they made.
+    #
+    # Shape is owned by ai/ and documented in docs/Abhay/PIPELINE-RECONCILIATION.md §4 —
+    # white balance gains, CLAHE limits, gamma, tier, shadow, crop. Deliberately schemaless
+    # here: this table should not need a migration every time a stage gains a parameter.
+    recipe: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    # Which segmentation model produced the mask this recipe was built against. The reason
+    # to keep it is re-rendering: when a better mask ships, this is what says which products
+    # are worth re-running and which are already current.
+    mask_version: Mapped[str | None] = mapped_column(String(40))
+
     # The AI service's job id for the most recent enhance run. Stored so that
     # GET /api/enhance/{job_id} can prove the caller owns the job before proxying it —
     # otherwise any authenticated artisan could poll anyone's job and read the image urls
