@@ -1,0 +1,56 @@
+# seg-v1 — segmentation benchmark set (decision #1)
+# One filename per line, relative to images/raw/. Lines starting with # are comments.
+# Chosen for background difficulty, not for luma. See seg-v1.md for why each is here.
+
+## real listing-style photographs — the closest thing in the set to what an artisan will shoot
+1816d85d-17c0-4b4c-b96f-6668e38dd868.jpeg
+291e88c5-3d23-4344-af53-e3e865c22165.jpeg
+6b1e313f-64ad-4371-954b-6331f6ad9927.jpeg
+6ca04e8a-33ad-4378-9409-122d13513596.jpeg
+7bcac3f8-131c-4c27-ba72-0c10b69e14e8.jpeg
+a4a1cece-21bc-4bc4-b445-2eaa42bb44f1.jpeg
+a4b9898c-e035-4a8a-9bfb-0b7f969b3c97.jpeg
+a96a34f2-9314-4202-9223-83686bc2a47d.jpeg
+aaacb98e-57b1-458f-bfe2-f348bcde1ee2.jpeg
+b4b717b2-c087-43a2-beb3-ba37ad5a9d8b.jpeg
+eab76f8f-20cf-416e-8c94-235e8762bb4d.jpeg
+
+## specular metal — reflections read as background, edges read as highlight
+brass-bidri-specular-01.jpg
+brass-bidri-specular-02.jpg
+brass-bidri-specular-04.jpg
+brass-diya-specular-01.jpg
+brass-diya-specular-02.jpg
+brass-lamp-specular-01.jpg
+brass-vessel-specular-01.jpg
+brass-vessel-specular-03.jpg
+
+## low contrast — product and background are near the same tone
+pottery-blackware-darkfloor-03.jpg
+pottery-blackware-darkfloor-04.jpg
+pottery-darkclay-darkfloor-01.jpg
+pottery-darkclay-darkfloor-02.jpg
+pottery-darkclay-darkfloor-04.jpg
+pottery-terracotta-darkfloor-01.jpg
+pottery-terracotta-darkfloor-04.jpg
+pottery-earthen-sharp-03.jpg
+pottery-earthen-sharp-04.jpg
+
+## fringe and thread — the alpha-matting case, where a hard mask always looks wrong
+textile-tassel-fringe-01.jpg
+textile-tassel-fringe-02.jpg
+textile-tassel-fringe-03.jpg
+textile-tassel-fringe-04.jpg
+textile-shawl-fringe-03.jpg
+textile-dhurrie-patterned-01.jpg
+textile-blockprint-patterned-03.jpg
+
+## person or hand in frame — is the product the object, or the human holding it?
+textile-pallu-fringe-01.jpg
+textile-pallu-fringe-02.jpg
+
+## adversarial — no single product exists. we want a graceful failure, not a confident wrong mask
+pottery-blackware-darkfloor-01.jpg
+pottery-earthen-sharp-02.jpg
+textile-blockprint-patterned-02.jpg
+pottery-potter-indoor-01.jpg

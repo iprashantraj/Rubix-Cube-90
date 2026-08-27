@@ -1,0 +1,10 @@
+{
+  "device": "cuda",
+  "infer_size": 1024,
+  "max_side": 2048,
+  "models": [
+    "isnet"
+  ],
+  "gpu": "NVIDIA GeForce RTX 2050",
+  "images": 41
+}

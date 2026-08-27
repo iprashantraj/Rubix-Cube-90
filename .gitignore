@@ -41,3 +41,25 @@ images/raw/*
 images/out/*
 !images/raw/.gitkeep
 !images/out/.gitkeep
+ai/.venv/
+
+# research/segmentation/out/ — the benchmark's per-image dumps. Five models x 41
+# fixtures of alpha mattes and cut-outs is ~250MB of binary, regenerable from
+# bench.py in about twenty minutes. Same reasoning as images/out/ above.
+#
+# The six contact sheets and the two metrics tables stay tracked: they are the
+# evidence RESULTS.md argues from, and a verdict whose evidence has to be
+# regenerated before anyone can check it is not much of a verdict. ~9.6MB total.
+# NB: line 32's blanket `out/` ignores the directory itself, and git will not look
+# inside an ignored directory — so the negations below only work if the directory is
+# un-ignored first. Order matters here.
+!research/segmentation/out/
+research/segmentation/out/*
+!research/segmentation/out/sheet-*.png
+!research/segmentation/out/metrics.csv
+!research/segmentation/out/consolidated.csv
+!research/segmentation/out/run.json
+# the upscale follow-up: keep its two small tables, drop the 3MB 100% panels
+!research/segmentation/out/upscale/
+research/segmentation/out/upscale/*
+!research/segmentation/out/upscale/*.csv
