@@ -738,3 +738,55 @@ shed pixels reading as fragmentation.
 
 **Still open** — `white_balance()`, `tone()`, `denoise_sharpen()`, `export()`, `run()`, and
 all of step 9. Nothing calls any of this in production yet.
+
+---
+
+## 2026-08-28 — Step 9: the image path is connected
+
+`POST /enhance` and `GET /enhance/{job_id}` are real. **An artisan's photograph can now reach
+the pipeline and come back as listing images.** Your side already had the calling half —
+`web/api/routers/products.py` was calling `/enhance` and proxying the poll — so this was
+entirely the missing half in `ai/`.
+
+New: `ai/enhance/jobs.py` (job table), `ai/enhance/storage.py` (source and output I/O), plus
+`pipeline.run()` and `pipeline.export()`. `service.py` wires them. Verified end to end
+against the running app: 202 + job id, poll to done, 2000×2000 amazon + 1000×1000 whatsapp
+JPEGs written, no EXIF, pure white corners, whatsapp at 37KB against spec §9.1's 200KB
+ceiling.
+
+**The gate runs synchronously in the POST, before anything is queued.** It costs no GPU, and
+a refusal is worth much more to the artisan now — still holding the object, in the same
+light — than after a twenty-second wait. A rejection returns **200 with no job id**, matching
+`contracts.md`; your `job.get("job_id")` already handles that.
+
+Error shapes, because the app's degrade path depends on them: missing `image_url` → 400,
+unreadable source → **502 with `message_key: enhance.failed`** (our missing file must never
+be reported as the artisan's bad photograph — they would retake a picture that was fine),
+unknown job id → 404, `s3://` → 502 saying exactly what is not wired up.
+
+**Two limits you should know before this goes anywhere near a demo.**
+
+1. **The job table is in memory, in the service process.** Restart the service and in-flight
+   jobs vanish and their ids stop resolving. It also cannot survive a second replica — a poll
+   routed to the other process finds nothing. Decision #2's Redis+RQ fixes both and the swap
+   surface is deliberately two functions, `jobs.submit()` and `jobs.get()`. I did not stand up
+   Redis because that is deployment shape, and it is your call. `worker.py` is where it goes
+   and now explains itself instead of raising.
+2. **One job at a time, on purpose.** One GPU, and BiRefNet holds ~1.6GB of a 4GB card. Two
+   concurrent jobs is an out-of-memory crash, not throughput.
+
+**Still skipped, and named in every response** (`"skipped": [...]`): `white_balance()`,
+`tone()`, `denoise_sharpen()`. Colour is the significant one — a maroon saree under a tungsten
+bulb still comes back orange. Rule 4 means nothing publishes without the artisan confirming
+colour anyway, but this is the largest remaining quality gap.
+
+`run()` also returns `stages`, which is the beginning of step 5's recipe: rule 2 says record
+what was done and render on demand rather than overwriting the original.
+
+**Tests** — new `ai/test_service.py`, 10 assertions over the contract including every error
+path. It needs fastapi, so unlike the other two it does not run on a bare machine; the GPU
+half skips separately. Suite: **59 passed**.
+
+**Not touched.** Still nothing in `app/` or `web/`. The two open requests from earlier stand:
+`fill_fraction` sent with the upload (would likely close the tier system's blind spot), and
+the five mislabelled fixtures in `images/MANIFEST.md`.

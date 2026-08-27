@@ -314,11 +314,11 @@ improving a threshold reaches every phone with no app update.
 | 2 | Link an upload to a product | **Done** |
 | 3 | Server quality gate | **Done** |
 | 4 | Crop and composite | **Done** |
-| 5 | Recipe system | Not started |
+| 5 | Recipe system | Not started — recommended next |
 | 6 | Choose the segmentation model | **Done — BiRefNet** |
 | 7 | Segmentation and matting | **Done** |
 | 8 | Mask confidence and fallback tiers | **Done** |
-| 9 | Connect it to the live service | Not started — recommended next |
+| 9 | Connect it to the live service | **Done** |
 
 ### What step 6 found
 
