@@ -313,26 +313,61 @@ improving a threshold reaches every phone with no app update.
 | 1 | Store uploaded pieces | **Done** |
 | 2 | Link an upload to a product | **Done** |
 | 3 | Server quality gate | **Done** |
-| 4 | Crop and composite | Not started |
+| 4 | Crop and composite | **Done** |
 | 5 | Recipe system | Not started |
-| 6 | **Choose the segmentation model** | Not started — recommended next |
-| 7 | Segmentation and matting | Not started |
-| 8 | Mask confidence and fallback tiers | Not started |
-| 9 | Connect it to the live service | Not started |
+| 6 | Choose the segmentation model | **Done — BiRefNet** |
+| 7 | Segmentation and matting | **Done** |
+| 8 | Mask confidence and fallback tiers | **Done** |
+| 9 | Connect it to the live service | Not started — recommended next |
 
-### Why step 6 is recommended next
+### What step 6 found
 
-Step 6 is choosing which ready-made model will separate the product from the background.
-That decision has been open since the project started, because you cannot pick a model by
-reading about it — you have to run the candidates on your own photographs and compare. There
-were no photographs. Now there are 93, including the difficult ones.
+Step 6 was choosing which ready-made model separates the product from the background. It is
+done. **We use BiRefNet.** Five models were run over 41 of your photographs and the cut-outs
+compared side by side; the full argument and the numbers are in
+`research/segmentation/RESULTS.md`, and the pictures are in `research/segmentation/out/`.
 
-It also answers questions that steps 4, 7 and 8 all depend on: how good the masks will be,
-and therefore what the later stages have to cope with.
+Three things came out of it that change what steps 7 and 8 have to be.
 
-**Known constraint:** these models normally run on a graphics card. The development machine
-does not have one, so the comparison has to be set up to run on the processor instead, with
-the lighter model variants.
+**The fringe problem is smaller than we thought — at the right size.** A tassel is hundreds
+of loose threads, and the fear was that a model would cut a straight line through them and
+produce something obviously fake. BiRefNet followed the individual threads, wisps included.
+The plan assumed a separate "matting" stage would be needed to soften edges afterwards; on
+this evidence it probably is not.
+
+That came with a condition, and it was checked afterwards rather than assumed. The model
+always works at 1024 pixels square, whatever it is given, and its answer is then stretched to
+fit the photo. Stretch it too far and thin things dissolve: on a 22-megapixel photo, a
+wire-thin nose ring turned into a blurred blob and individual hairs smeared together.
+
+**But the pipeline never does that.** Every photo is shrunk to 2000 pixels before anything
+touches it — a rule already in the spec, put there for speed. The stretch is then small, and
+the edges hold. So that rule is doing more work than anyone realised: skipping the shrink to
+"keep more quality" would make the cut-out visibly worse, not better. Measured in
+`research/segmentation/RESULTS.md`.
+
+**The hard case is not the one we prepared for.** A near-black pot on a near-black floor —
+picked as the hardest image in the set — came out clean, handle holes and all. What broke was
+cream cloth on a white background: the model kept a few fringe threads and threw the whole
+cloth away. Pale product on a pale surface is the case to watch, and an artisan photographing
+white cotton on a white sheet is not a rare event.
+
+**The model never says "I am not sure".** Given a photo with no single clear product in it, it
+does not return an empty or hesitant answer — it returns a confident outline around an
+arbitrary piece. Step 8 therefore cannot ask the model how confident it is. It has to work that
+out from the shape of the answer itself.
+
+**Known constraint — resolved 2026-08-28.** This section used to say the development machine
+had no graphics card, so the comparison would have to run on the processor with the lighter
+model variants. It has one: an NVIDIA RTX 2050. The card was there all along; its driver was
+not installed, and a driver only takes effect after a restart. Installed and rebooted, so the
+comparison ran on the full-weight models.
+
+**The constraint that replaces it:** the card has 4GB of memory. That is enough to compute the
+cut-out at 1024x1024, which is the size these models are trained at, but not enough to do it at
+full photo resolution. So the shape of the answer is almost certainly: work out the outline
+small, then scale that outline up to the full photo. Whether that holds up at the edges — a
+tassel is a few pixels wide — is one of the things the benchmark has to measure, not assume.
 
 ---
 
