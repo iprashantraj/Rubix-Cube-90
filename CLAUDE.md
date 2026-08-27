@@ -14,6 +14,11 @@ listing out. The artisan may not be able to read, and may be on a rural tower.
 
 # Read before any image work
 
+**New to the image side, or explaining it to someone who is?**
+`docs/walkthrough/image_processing_flow.md` follows one photograph from the camera to the
+listing image in plain language — what runs on the phone, what runs on the server, what is
+built and what is not. Start there, then come back to the two files below.
+
 **`docs/Abhay/PIPELINE-RECONCILIATION.md`.** It decides between two competing designs for
 the image pipeline and says which parts of each survive.
 
