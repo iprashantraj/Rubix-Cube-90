@@ -8,7 +8,15 @@ import { useVoice } from '../voice/useVoice.js';
 import { LANGUAGES, t } from '../i18n/index.js';
 import { Screen, BigButton, Card, Chip, Grid, Tile, YesNo, Spinner } from '../ui/kit.jsx';
 import { THEMES, DEFAULT_THEME } from '../ui/theme.js';
-import { IconLanguage, IconMic, IconAlert, IconNo } from '../ui/icons.jsx';
+import {
+  IconLanguage,
+  IconMic,
+  IconAlert,
+  IconNo,
+  IconChannel,
+  IconForward,
+  IconHelp,
+} from '../ui/icons.jsx';
 
 /**
  * /settings — language, what we hold, and the DPDP erasure. Spec §5 row 25, §14.
@@ -204,7 +212,34 @@ export default function Settings() {
     // without it the only way out is the hardware gesture, which is the one convention a
     // first-time phone user is least likely to have.
     <Screen prompt={errKey ?? 'settings.title'} hero back="/home">
-      {error && <p className="warn">{t(lang, error)}</p>}
+      {errKey && <p className="warn">{t(lang, errKey)}</p>}
+
+      {/*
+        The three routes that had no way in.
+        
+        /channels, /wizard/gst and /help were all reachable only from inside other flows —
+        /channels from a "back" button on a screen you could only arrive at from /channels,
+        which is a closed loop. This screen is the account hub, so it is where they hang.
+        Rows rather than tiles: these are destinations, not choices, and a row with a
+        forward chevron is the one navigation idiom already used on /products and /orders.
+      */}
+      <Card>
+        <button className="chan" onClick={() => nav('/channels')}>
+          <IconChannel size={24} aria-hidden />
+          <span className="chan__name">{t(lang, 'channels.title')}</span>
+          <IconForward size={24} aria-hidden />
+        </button>
+        <button className="chan" onClick={() => nav('/wizard/gst')}>
+          <IconAlert size={24} aria-hidden />
+          <span className="chan__name">{t(lang, 'gst.title')}</span>
+          <IconForward size={24} aria-hidden />
+        </button>
+        <button className="chan" onClick={() => nav('/help')}>
+          <IconHelp size={24} aria-hidden />
+          <span className="chan__name">{t(lang, 'help.title')}</span>
+          <IconForward size={24} aria-hidden />
+        </button>
+      </Card>
 
       <Card>
         <p style={{ margin: '0 0 12px' }}>{t(lang, 'settings.language')}</p>

@@ -1,0 +1,15 @@
+{
+  "_note": "Strings for the account hub on /settings — the rows that finally give /channels, /wizard/gst and /help a way in. Hindi and Odia below are a first pass and want a native speaker before the demo; a wrong string here is a mislabelled destination, not a wrong answer, so it degrades to a confusing tap rather than to bad data. Odia in particular is the language this repo has the least coverage in.",
+  "en": {
+    "gst.title": "Do you need GST?",
+    "settings.hub": "Your account"
+  },
+  "hi": {
+    "gst.title": "क्या आपको GST चाहिए?",
+    "settings.hub": "आपका खाता"
+  },
+  "or": {
+    "gst.title": "ଆପଣଙ୍କୁ GST ଦରକାର କି?",
+    "settings.hub": "ଆପଣଙ୍କ ଆକାଉଣ୍ଟ"
+  }
+}

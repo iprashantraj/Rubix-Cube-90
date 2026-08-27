@@ -23,6 +23,7 @@ import {
   IconStatusBlocked,
   IconStatusDone,
   IconStatusError,
+  IconSettings,
 } from './icons.jsx';
 
 /**
@@ -93,6 +94,19 @@ export function Screen({
   back,
   hero = true,
   heroExtra,
+  /*
+   * The top-left corner, when there is no back button.
+   *
+   * /home uses it for the account entry point, and that is the whole reason it exists:
+   * /settings was a route with NOTHING in the app navigating to it. It was unreachable, and
+   * so were /help, /channels and /wizard/gst behind it. A fifth tab would have cost the
+   * camera its centre slot, so the account lives here instead — the same answer SplitFree
+   * reached for the same reason.
+   *
+   * Back and headLeft are mutually exclusive by position: a screen deep enough to need
+   * "back" is not a screen that should be offering a detour into settings.
+   */
+  headLeft,
   onPromptSpoken,
   // Speak on entry even though this is not a chain — for a screen whose CONTENT is the
   // point rather than its name. /consent is the case. Chains speak regardless; every other
@@ -166,7 +180,7 @@ export function Screen({
           {/* Back, title-or-progress, replay — one row, in that order, on every screen.
               The row is its own element so a hero can stack a second one under it. */}
           <div className="screen__headRow">
-            {backTo && <BackButton to={backTo} />}
+            {backTo ? <BackButton to={backTo} /> : headLeft}
             {steps ? (
               <Steps {...steps} />
             ) : (
@@ -262,7 +276,7 @@ export function BackButton({ to }) {
       onClick={() => (typeof to === 'string' ? nav(to) : nav(-1))}
       aria-label="back"
     >
-      {renderIcon(IconBack, 26)}
+      {renderIcon(IconBack, 24)}
     </button>
   );
 }
@@ -281,7 +295,7 @@ export function ReplayButton({ text, textLang }) {
   const { sayRaw } = useVoice();
   return (
     <button className="replay" onClick={() => sayRaw(text, textLang)} aria-label="replay">
-      {renderIcon(IconReplay, 26)}
+      {renderIcon(IconReplay, 24)}
     </button>
   );
 }
@@ -299,7 +313,7 @@ export function BigButton({ icon, labelKey, label, onClick, disabled, tone = 'pr
       disabled={disabled}
       aria-disabled={disabled}
     >
-      {icon && <span className="big__icon">{renderIcon(icon, 28)}</span>}
+      {icon && <span className="big__icon">{renderIcon(icon, 24)}</span>}
       <span className="big__label">{label ?? t(lang, labelKey)}</span>
     </button>
   );
@@ -504,7 +518,7 @@ export function StatusDot({ status }) {
   const known = DOTS[status] ? status : 'blocked';
   return (
     <span className={`dot dot--${known}`} role="img" aria-label={known}>
-      {renderIcon(DOTS[known], 22)}
+      {renderIcon(DOTS[known], 18)}
     </span>
   );
 }
@@ -573,7 +587,7 @@ export function BottomNav({ active }) {
         onClick={() => nav('/camera')}
         aria-current={active === '/camera' ? 'page' : undefined}
       >
-        <span className="tabs__shootIcon">{renderIcon(IconCreate, 30)}</span>
+        <span className="tabs__shootIcon">{renderIcon(IconCreate, 32)}</span>
         <span className="tabs__label">{t(lang, 'nav.create')}</span>
       </button>
 
@@ -581,6 +595,26 @@ export function BottomNav({ active }) {
         <Tab key={tab.to} tab={tab} active={active === tab.to} onClick={() => nav(tab.to)} />
       ))}
     </nav>
+  );
+}
+
+/**
+ * The account entry point, for /home's top-left corner.
+ *
+ * 🔎 This is the fix for a route that existed and could not be reached. Nothing in the app
+ * navigated to /settings — no tab, no button, no link — so the DPDP erasure right, the
+ * language picker, the theme picker and (through it) /help, /channels and /wizard/gst were
+ * all live code with no way in. It is one of the few genuinely icon-only controls in the
+ * app, which it earns the same way the replay button does: a fixed position, learned once,
+ * plus an aria-label.
+ */
+export function AccountButton() {
+  const nav = useNavigate();
+  const lang = useSession((s) => s.lang) ?? 'hi';
+  return (
+    <button className="back" onClick={() => nav('/settings')} aria-label={t(lang, 'settings.title')}>
+      {renderIcon(IconSettings, 24)}
+    </button>
   );
 }
 
@@ -593,7 +627,7 @@ export function HelpButton() {
   const lang = useSession((s) => s.lang) ?? 'hi';
   return (
     <button className="help" onClick={() => nav('/help')}>
-      {renderIcon(IconHelp, 22)}
+      {renderIcon(IconHelp, 18)}
       <span>{t(lang, 'help.button')}</span>
     </button>
   );
