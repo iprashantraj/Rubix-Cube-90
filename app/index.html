@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="hi">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover so the camera preview can go edge to edge under the notch -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <!-- The clay accent, matching :root in ui/styles.css. App.jsx rewrites this whenever
+         the palette changes; this value is only what the browser uses before React has run,
+         so it has to be the DEFAULT PALETTE rather than white — otherwise every cold start
+         paints a white strip and then repaints it. -->
+    <meta name="theme-color" content="#9c3d24" />
+    <title>Kaarigar</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

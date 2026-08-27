@@ -1,0 +1,14 @@
+{
+  "appId": "in.gov.sih.kaarigar",
+  "appName": "Kaarigar",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#9c3d24"
+    }
+  }
+}

@@ -4,8 +4,29 @@ __pycache__/
 venv/
 node_modules/
 .env
+.env.local
 .DS_Store
 research/data/
+
+# Dev databases. NOT just build noise — a working dev.db holds real artisan rows: phone
+# numbers, names and consent artifacts from whoever last tested on a device. Committing one
+# publishes personal data and contradicts the privacy rules in docs/ and app/README.md.
+# Recreate an empty one with api.db.create_all() (see web/README.md); never commit it.
+*.db
+*.sqlite
+*.sqlite3
+
+# Server-side TTS clip cache. Regenerated on demand, and it is bought audio, not source.
+web/api/.cache/
 *.pt
 *.pth
 *.onnx
+
+# build output
+dist/
+.next/
+out/
+android/
+ios/
+*.tsbuildinfo
+next-env.d.ts

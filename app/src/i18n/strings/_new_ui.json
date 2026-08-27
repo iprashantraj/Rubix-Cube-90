@@ -1,0 +1,39 @@
+{
+  "_note": "Strings added by the chrome/theme/camera-recovery pass. One file, every language, folded into the base bundles by i18n/index.js — see the comment there for why these live apart from en/hi/or.json. Odia is deliberately absent: an unreviewed Odia draft spoken to someone who cannot read it is worse than honest English in an English voice, and resolve() already handles that fallback. Add `or` here only after a native speaker has checked it.",
+
+  "en": {
+    "app.name": "Kaarigar",
+
+    "camera.opening": "Opening the camera",
+    "camera.insecure": "This phone cannot open the camera here",
+    "camera.gate_down": "Cannot reach the server, so the camera cannot check your photo yet",
+    "net.retry": "Try again",
+    "onboard.craft_unclear": "I heard you, but I did not recognise the craft. Please choose from the pictures",
+
+    "settings.theme": "App colour",
+    "theme.forest": "Green",
+    "theme.indigo": "Blue",
+    "theme.terracotta": "Terracotta",
+    "theme.plum": "Purple",
+
+    "splash.tagline": "Your craft, in every market"
+  },
+
+  "hi": {
+    "app.name": "कारीगर",
+
+    "camera.opening": "कैमरा खुल रहा है",
+    "camera.insecure": "यह फ़ोन यहाँ कैमरा नहीं खोल सकता",
+    "camera.gate_down": "सर्वर से बात नहीं हो पा रही, इसलिए अभी फ़ोटो जाँची नहीं जा सकती",
+    "net.retry": "फिर से कोशिश करें",
+    "onboard.craft_unclear": "सुना, पर काम पहचान नहीं पाया। तस्वीरों में से चुनिए",
+
+    "settings.theme": "ऐप का रंग",
+    "theme.forest": "हरा",
+    "theme.indigo": "नीला",
+    "theme.terracotta": "मिट्टी",
+    "theme.plum": "बैंगनी",
+
+    "splash.tagline": "आपका हुनर, हर बाज़ार में"
+  }
+}
