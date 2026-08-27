@@ -14,6 +14,24 @@ Spec §17. Close each with evidence from `research/`, then log the verdict here.
 
 Reasoning for the block below is in `docs/Application-Architecture.md`.
 
+- **The app is TypeScript + Tailwind 4 + shadcn/Radix + TanStack Query.** *Reverses the
+  earlier "JavaScript not TypeScript" rule in `CLAUDE.md`, 2026-08-28, by the app dev.* The
+  reason is one stack across the owner's two apps rather than any property of this one:
+  SplitFree already runs exactly this, and its `EmptyState`, `PageHeader`, `skeletons` and
+  `bottom-nav` are being ported here — a shared stack makes those shared code instead of
+  transcriptions that drift apart.
+  Recorded honestly, because the usual argument for the change does not hold: of the three
+  bugs fixed on 2026-08-28 — `record()` called without `onSilence`, a stale closure in
+  `CatalogReview.mic()`, and `stripCarrier()` applied to catalogue answers — **TypeScript
+  would have caught none of them.** What is actually being bought is Tailwind's token
+  system, TanStack Query replacing the hand-rolled `api/cache.js`, and consistency. Not
+  type-safety-as-bug-prevention.
+  ⚠️ `shadcn/Radix` was adopted over a recommendation against it. Radix earns its keep in a
+  forms-and-dialogs app; this one has no dialogs, selects or dropdowns, and bottom sheets
+  were explicitly ruled out the same day. Its primitives also assume pointer and keyboard
+  focus semantics for users who read, which is not this audience. Expect most of it to go
+  unused — if it is still unused at the next review, remove it rather than finding somewhere
+  to put it.
 - **Online-first, not offline-first.** Reverses the v1 spec. No offline queue, no local DB, no sync
   engine. Network handling is resumable upload with retry plus a spoken failure message. Every AI
   feature is a server call anyway — offline capture without offline inference gets the artisan a

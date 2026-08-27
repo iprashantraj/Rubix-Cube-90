@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // ── during the migration ────────────────────────────────────────────────
+    // 50 files convert in this pass and they cannot all land in one commit, so
+    // .jsx and .tsx have to compile side by side. `checkJs` stays OFF: type-
+    // checking files that have not been converted yet would report hundreds of
+    // errors that are not defects, only unfinished work, and that noise is how a
+    // real error gets missed. Both of these come out once src/ is fully .tsx —
+    // leaving them in is how a "temporary" migration setting becomes permanent.
+    "allowJs": true,
+    "checkJs": false,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

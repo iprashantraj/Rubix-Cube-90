@@ -5,7 +5,7 @@ listing out. The artisan may not be able to read, and may be on a rural tower.
 
 | Folder | What | Owner |
 |---|---|---|
-| `app/` | Artisan mobile app — React + Vite + Capacitor, JavaScript not TypeScript | app dev |
+| `app/` | Artisan mobile app — React + Vite + Capacitor, TypeScript + Tailwind 4 + shadcn/Radix + TanStack Query | app dev |
 | `web/api/` | FastAPI backend + channel adapters | web dev |
 | `ai/` | The three PS features, deployed as its own service on port 8001 | AI/ML |
 | `images/` | Calibration fixtures for the image thresholds. Pixels gitignored | AI/ML |
