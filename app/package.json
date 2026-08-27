@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node src/camera/gate.js",
-    "sync": "npm run build && cap sync"
+    "test": "node src/camera/gate.js && node src/voice/micLifecycle.js && node src/api/queries.test.mjs",
+    "sync": "npm run build && cap sync",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@capacitor-community/text-to-speech": "^8.0.2",

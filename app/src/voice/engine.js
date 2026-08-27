@@ -150,7 +150,7 @@ async function fetchClip(text, lang) {
 
   // Always via apiUrl(): on a device Capacitor serves from https://localhost and a bare
   // '/api/...' resolves into the bundled assets instead of the server.
-  const { apiUrl } = await import('../api/client.js');
+  const { apiUrl } = await import('../api/client');
   const res = await fetch(apiUrl('/tts'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -192,7 +192,7 @@ const NATIVE = {
   async play(text, lang, gen) {
     // ttsTag, not bcp47: the tag to SPEAK a language with is not always the tag to write it
     // with. English is written en-IN and spoken en-GB — see the note in i18n/index.js.
-    const { ttsTag } = await import('../i18n/index.js');
+    const { ttsTag } = await import('../i18n/index');
     if (superseded(gen)) return;
     stopCurrent = () => TextToSpeech.stop().catch(() => {});
     // rate 0.9: these are instructions, not narration.
@@ -236,7 +236,7 @@ const WEB = {
   available: () => typeof window !== 'undefined' && !!window.speechSynthesis,
   async play(text, lang, gen) {
     const synth = window.speechSynthesis;
-    const { ttsTag } = await import('../i18n/index.js');
+    const { ttsTag } = await import('../i18n/index');
     const voices = await getVoices(synth);
     if (superseded(gen)) return;
 
