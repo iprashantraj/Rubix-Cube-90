@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../api/client.js';
+import { api, cachedGet } from '../api/client.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t, bcp47 } from '../i18n/index.js';
 import { Screen, Card, Chip, Spinner, YesNo, HelpButton } from '../ui/kit.jsx';
@@ -30,8 +30,22 @@ export default function Earnings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
+  // Same `/orders` entry the Orders tab fills, so arriving here from that tab is free.
+  //
+  // ⚠️ No `onUpdate`, for the same reason as OrderDetail.jsx: `confirmPayment()` below
+  // writes optimistically into this list so the artisan can clear several in a row, and a
+  // revalidation that resolves just after one of those taps would put the row back to
+  // unconfirmed — on the money screen, which is the worst place in the app to appear to
+  // undo something. The mutation invalidates the entry, so the next visit is authoritative.
   useEffect(() => {
-    api.get('/orders').then(setOrders, (e) => setError(e.messageKey ?? 'error.unknown'));
+    let alive = true;
+    cachedGet('/orders').then(
+      (d) => alive && setOrders(d),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
+    );
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const rows = orders ?? [];

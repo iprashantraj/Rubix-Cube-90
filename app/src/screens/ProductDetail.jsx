@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { api, cachedGet } from '../api/client.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
 import { Screen, BigButton, Card, Chip, Spinner, StatusDot } from '../ui/kit.jsx';
@@ -41,14 +41,26 @@ export default function ProductDetail() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
+  // Both lists are the same cache entries the /products tab and /channels screen fill, so
+  // tapping a product from the list it was just rendered in costs no request at all. The
+  // product is found by filtering the cached list, so `onUpdate` has to re-filter too.
   useEffect(() => {
-    Promise.all([api.get('/products'), api.get('/channels')]).then(
+    let alive = true;
+    const pick = (list) => list.find((p) => p.id === id) ?? false;
+    Promise.all([
+      cachedGet('/products', { onUpdate: (d) => alive && setProduct(pick(d)) }),
+      cachedGet('/channels', { onUpdate: (d) => alive && setChannels(d) }),
+    ]).then(
       ([list, chans]) => {
-        setProduct(list.find((p) => p.id === id) ?? false);
+        if (!alive) return;
+        setProduct(pick(list));
         setChannels(chans);
       },
-      (e) => setError(e.messageKey ?? 'error.unknown'),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
     );
+    return () => {
+      alive = false;
+    };
   }, [id]);
 
   /*

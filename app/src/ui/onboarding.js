@@ -50,9 +50,27 @@ export const CREATE = [
 
 /** Where the first step of each chain goes back to. Null means "nowhere you may return". */
 const CHAIN_ENTRY = new Map([
-  // Language and consent are already given by this point and are not re-openable here.
+  // /auth's way back is in PRELUDE below, not here — it leaves the chain rather than
+  // stepping inside it.
   [ONBOARDING, null],
   [CREATE, '/camera'],
+]);
+
+/*
+ * The three screens before onboarding proper: language, consent, phone.
+ *
+ * They are deliberately outside ONBOARDING — a progress bar over a DPDP notice frames a
+ * legal choice as a formality to get through — but "not in a chain" was quietly also
+ * meaning "no back button", and these are the first three screens anyone ever sees.
+ * Choosing the wrong language is the most likely first mistake in this app, and it left
+ * someone stranded on a consent notice they could not read, in a language they did not
+ * pick, with nothing on screen that went back.
+ *
+ * /lang is absent because it is genuinely first. Everything else has a way out.
+ */
+const PRELUDE = new Map([
+  ['/consent', '/lang'],
+  ['/auth', '/consent'],
 ]);
 
 function chainOf(pathname) {
@@ -80,6 +98,9 @@ export function stepOf(pathname) {
  * straight back where they started.
  */
 export function backOf(pathname) {
+  // PRELUDE first: /auth is both the first ONBOARDING step and a prelude screen, and the
+  // prelude answer is the useful one.
+  if (PRELUDE.has(pathname)) return PRELUDE.get(pathname);
   const found = chainOf(pathname);
   if (!found) return null;
   return found.i > 0 ? found.chain[found.i - 1] : (CHAIN_ENTRY.get(found.chain) ?? null);
@@ -103,7 +124,9 @@ if (import.meta.env.DEV) {
       if (i > 0) ok(backOf(path) !== null, `${path} has no way back — nobody may be trapped`);
     });
   }
-  ok(backOf('/auth') === null, '/auth is the first step and must not offer a way back');
+  ok(backOf('/auth') === '/consent', '/auth goes back to the notice it followed');
+  ok(backOf('/consent') === '/lang', 'the wrong language must be escapable from consent');
+  ok(backOf('/lang') === null, 'language is genuinely the first screen');
   ok(backOf('/capture/review') === '/camera', 'rejecting a photo means taking another one');
   ok(stepOf('/home') === null, 'a destination is not a chain and gets a title, not a bar');
   ok(backOf('/home') === null, 'a destination has no previous step');

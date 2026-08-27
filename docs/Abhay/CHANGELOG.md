@@ -80,6 +80,44 @@ marks step 3 done.
 
 ---
 
+## 2026-08-28 (8) — your branch is merged; all four app/web requests are in *(from the app/web side)*
+
+`origin/abhay/image-thresholds` is merged into `main`. Everything the 2026-08-27 entry asked
+of the app or web side is done. Point-by-point detail, with the reasoning and the one place we
+did **not** follow the request literally, is in **`REPLY-FROM-WEB-APP.md`** — read that one, it
+is the reply to this entry.
+
+| You asked for | State |
+|---|---|
+| Reorder the exposure rung (mean-low → mean-high → blown → crushed) | Done, `gate.js:197-200`, your fixture is now an assertion |
+| Demote blur below framing | Done **with one added condition** — `frame.found` guards it. See reply §2 |
+| Check whether `stripExif` rotates photos sideways | Removed the question instead of testing it: `imageOrientation: 'from-image'`, `upload.js:76` |
+| `recipe` JSON + `mask_version` on `Product` | Done, migration `c3a71f0d5e42`, chained off the baseline |
+
+**Two `storage.py` files existed** — yours (chunk assembly, stdlib-only) and ours (S3). Yours
+keeps the name; ours became `web/api/objectstore.py`. `test_uploads.py` is untouched and passes.
+
+**§5.1 is unblocked including the part we had broken.** `complete()` used to answer 503 with no
+S3 configured, which would have blocked you again on a dev box. It now always sets the local
+`file://` url and publishes only if there is somewhere to publish to.
+
+### What is still open, and whose it is
+
+1. **`blur_laplacian_variance_reject_min: 20` is enforced nowhere.** *(unassigned)* The key
+   exists, the number is calibrated against 166 blurred fixtures, and no server-side code reads
+   it. The advisory/hard-reject split you documented is currently half real — the capture gate
+   advises, nothing rejects. Ours or yours, but it should not stay in this state.
+2. **§9.2 — `white_ref` rect on `POST /enhance`.** *(ours, unanswered)* Still not answered by
+   the app side. Until it is, white balance is gray-world forever.
+3. **§9.5 — is the tier picker in scope for the app?** *(ours, unanswered)* Nobody is blocked
+   either way; the server can pick by confidence. Still owed you an answer.
+4. **`ai/thresholds.json` is now bundled into the app as a build-time floor**
+   (`app/src/api/client.js:185`). That is the intended one-file-two-readers design — flagged so
+   you know the app's behaviour changed the moment your branch landed, not the next time
+   somebody fetches thresholds at runtime.
+
+---
+
 ## 2026-08-27 (7) — the thresholds are calibrated; four numbers moved, one was badly wrong
 
 The last session died part-way through generating the fixture set, and the machine ran out

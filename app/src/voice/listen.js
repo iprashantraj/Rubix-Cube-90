@@ -1,4 +1,8 @@
+import { App } from '@capacitor/app';
+
 import { apiUrl } from '../api/client.js';
+import { close, resume, Silence, suspend } from './micLifecycle.js';
+import { shutUp } from './speak.js';
 
 /**
  * Voice capture for the cataloger. Spec §6.
@@ -66,8 +70,22 @@ function cue() {
  * "listening" on the line after the await and be telling the truth. Do not reintroduce a
  * spoken announcement before this call — see cue() above for what that cost.
  */
-export async function record() {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+export async function record({ onSilence } = {}) {
+  // Nothing of ours may still be talking. `{audio: true}` recorded the phone's own speaker,
+  // and the proof is in an artisan's confirmation screen reading back "आपका नाम क्या है?
+  // मेरा नाम वैणगोपाल मुत्तुस्वामी अय्यर है।" — our question and their answer, transcribed
+  // as one sentence, because the loudspeaker was still finishing the question when the mic
+  // opened. shutUp() ends our side; echoCancellation handles the tail and the room.
+  shutUp();
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      // A courtyard, a workshop, a room with a fan. The answer is often softly spoken and
+      // the phone is often not close.
+      autoGainControl: true,
+    },
+  });
   const mimeType = pickMime();
   const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
   const chunks = [];
@@ -80,18 +98,103 @@ export async function record() {
 
   const release = () => stream.getTracks().forEach((t) => t.stop());
 
+  // The recording is settled here, at construction, rather than inside stop(). The mic can
+  // now be closed by something other than the caller — see suspend() — and a stop() that
+  // installed its own onstop afterwards would wait for an event that already fired.
+  const finished = new Promise((resolve) => {
+    rec.onstop = () => {
+      detach();
+      release();
+      resolve(new Blob(chunks, { type: mimeType || 'audio/webm' }));
+    };
+  });
+
+  /*
+   * Leaving the app must not leave the microphone open.
+   *
+   * Two signals for one event, because neither is reliable alone: Capacitor's appStateChange
+   * is the accurate one on a device but does not exist in a browser, and visibilitychange is
+   * the portable one but has been known not to fire on some Android WebViews when the screen
+   * simply locks. Both handlers are idempotent — they act on `rec.state`, not on a flag — so
+   * a device that fires both pauses once.
+   *
+   * Pause, not stop: the artisan is mid-sentence describing a saree. Someone calls, they
+   * take it, they come back — asking them to start the whole description again is how a
+   * feature stops being used. The clip continues where it left off.
+   */
+  const pause = () => suspend(rec);
+  const unpause = () => resume(rec, stream.getTracks());
+  const onVisibility = () => (document.hidden ? pause() : unpause());
+  const onPagehide = () => close(rec, release);
+
+  /*
+   * Stop when they stop talking.
+   *
+   * Tapping the button again to end a recording is a convention learned from other apps,
+   * and our users do not have those apps. They answer the question, then wait — and the
+   * mic stayed open until somebody who did not know they had to, pressed something.
+   *
+   * The caller still owns what "stop" means (it has to transcribe, and only it knows what
+   * to do with the text), so this reports rather than acts. The decision itself is in
+   * micLifecycle.Silence, where it can be tested without a microphone.
+   */
+  let vadTimer = null;
+  if (onSilence) {
+    const ctx = new (window.AudioContext ?? window.webkitAudioContext)();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const frame = new Uint8Array(analyser.fftSize);
+    const vad = new Silence();
+
+    // setInterval, not requestAnimationFrame: rAF stops in a backgrounded WebView, and a
+    // recording that is paused there must not also lose the timer that would end it.
+    vadTimer = setInterval(() => {
+      if (rec.state !== 'recording') return;
+      analyser.getByteTimeDomainData(frame);
+      let sum = 0;
+      for (const v of frame) {
+        const d = (v - 128) / 128;
+        sum += d * d;
+      }
+      if (vad.update(Math.sqrt(sum / frame.length), performance.now()) === 'stop') {
+        clearInterval(vadTimer);
+        vadTimer = null;
+        ctx.close().catch(() => {});
+        onSilence();
+      }
+    }, 100);
+  }
+
+  let appListener = null;
+  let detached = false;
+  document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('pagehide', onPagehide);
+  App.addListener('appStateChange', ({ isActive }) => (isActive ? unpause() : pause()))
+    .then((h) => {
+      appListener = h;
+      // Registration is async and the recording can be over before it lands.
+      if (detached) h.remove();
+    })
+    .catch(() => {});
+
+  function detach() {
+    detached = true;
+    if (vadTimer) clearInterval(vadTimer);
+    document.removeEventListener('visibilitychange', onVisibility);
+    window.removeEventListener('pagehide', onPagehide);
+    appListener?.remove();
+  }
+
   return {
-    stop: () =>
-      new Promise((resolve) => {
-        rec.onstop = () => {
-          release();
-          resolve(new Blob(chunks, { type: mimeType || 'audio/webm' }));
-        };
-        rec.stop();
-      }),
+    stop: () => {
+      if (rec.state !== 'inactive') rec.stop();
+      return finished;
+    },
     cancel: () => {
+      detach();
       try {
-        rec.stop();
+        if (rec.state !== 'inactive') rec.stop();
       } finally {
         release();
       }

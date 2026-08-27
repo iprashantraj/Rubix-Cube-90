@@ -14,6 +14,7 @@ from .config import settings
 from .routers import (
     artisans,
     auth,
+    catalog,
     channels,
     marketplace,
     orders,
@@ -76,7 +77,7 @@ app.add_middleware(
 
 for r in (
     auth, artisans, uploads, products, publish, channels,
-    orders, marketplace, thresholds, voice, price,
+    orders, marketplace, thresholds, voice, price, catalog,
 ):
     app.include_router(r.router, prefix="/api")
 

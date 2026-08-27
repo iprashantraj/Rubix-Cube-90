@@ -371,14 +371,26 @@ production, and it is the common path in development today.
 
 1. ~~**Where do persisted chunks land in dev?**~~ **Answered and built.** `STORAGE_DIR`, default
    `web/api/.storage/`, and `complete()` returns a `file://` url that `ai/` can open directly.
-   Swapping in object storage later is `web/api/storage.py` and nothing else.
+   Object storage has since been built alongside it, in `web/api/objectstore.py` — `storage.py`
+   assembles chunks on local disk, `objectstore.py` publishes them to S3. With no S3 configured
+   the `file://` url stands and nothing else happens.
 2. **Is the `white_ref` rect acceptable as an optional field on `POST /enhance`?** It changes
    `ai/contracts.md` and needs one tap on the review screen. Without it, white balance is gray-world
    forever and the colour lock will be answered "no" more often than it should be.
-3. **Who makes the blur-demotion change in `gate.js`?** It is one line and one self-test assertion,
-   but it is in the app's covered path and I would rather not touch it uninvited.
-4. **Can `Product` take a `recipe` JSON column and a `mask_version` string?** Everything
-   non-destructive depends on it, and it is one migration.
+   **Still open — the app side has not answered this.**
+3. ~~**Who makes the blur-demotion change in `gate.js`?**~~ **Done, by the app side.** Blur now
+   runs below framing, but guarded by `frame.found` — a frame with no busy region anywhere is not
+   the same fact as a product that is small in the frame, and it falls through to the blur rung
+   instead. `gate.js:216` and `:229-233`; reasoning in `REPLY-FROM-WEB-APP.md` §2.
+4. ~~**Can `Product` take a `recipe` JSON column and a `mask_version` string?**~~ **Yes, done.**
+   `models.py:189` and `:194`, migration `c3a71f0d5e42`, chained off the baseline. Both additive
+   and defaulted; `recipe` carries a `server_default` so a non-ORM writer cannot leave a NULL.
+   The shape of `recipe` is still yours and stays documented in §4.
 5. **Is the tier picker in scope for the app?** Three thumbnails, artisan taps one, never labelled
    A/B/C in the UI. If it is not in scope, the server picks by confidence and nobody is blocked —
    but the picker is what turns a wrong automatic choice into a two-second fix instead of a retake.
+   **Still open — the app side has not answered this.**
+
+**One open item that is not a question for anyone — it is unassigned work.**
+`blur_laplacian_variance_reject_min: 20` is read by no code. The advisory/hard-reject split in
+§6 is half real until some server-side path enforces it.
