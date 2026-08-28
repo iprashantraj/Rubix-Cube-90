@@ -130,6 +130,27 @@ def url_for(key: str) -> str:
     return f"{base}/{bucket_for(key)}/{key}"
 
 
+def signed_url(key: str, ttl_seconds: int = 900) -> str:
+    """A time-limited URL for a PRIVATE object.
+
+    The enhancement pipeline needs the `full` variant, which lives in the private bucket and
+    therefore cannot be fetched by an anonymous GET — and `ai/` holds no S3 credentials by
+    design, because it is a separate deploy unit that should not need them.
+
+    So the caller signs one URL, valid for a few minutes, and hands over that. The AI
+    service opens it exactly like any other https source (`ai/enhance/storage.py`), the
+    original never becomes publicly readable, and no key ever crosses the service boundary.
+
+    ⚠️ NOT for anything stored in the database. This string expires; `url_for()` is the
+    stable identifier and is what a Product row keeps.
+    """
+    return _client().generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket_for(key), "Key": key},
+        ExpiresIn=ttl_seconds,
+    )
+
+
 def available() -> bool:
     """Whether storage is configured at all. Dev boxes frequently have no S3."""
     s = settings()

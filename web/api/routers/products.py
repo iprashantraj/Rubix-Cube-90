@@ -6,17 +6,22 @@ ever joins a platform, and editing once regenerates every channel export.
 
 from __future__ import annotations
 
+import logging
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import objectstore
 from ..caching import conditional
 from ..config import settings
 from ..db import get_db
 from ..models import Artisan, InventoryLedger, Product, ProductImage, Upload
 from ..security import current_artisan
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -288,8 +293,37 @@ async def enhance(
     raw = next((i.url for i in p.images if i.size_variant == "raw"), None)
     if not raw:
         raise HTTPException(400, "no raw image")
+
+    """
+    ⚠️ Send the FULL variant, not the url on the image row.
+
+    What `add_image` stores is `Upload.url`, and `complete()` sets that to the DISPLAY
+    variant — 1200px on the long edge — because that string is also what the app renders in
+    an <img> and what a marketplace links to. It is the right url for looking at and the
+    wrong one for processing: at 4:3 it is 900x1200, and `ai/enhance/pipeline.py` gate()
+    refuses anything under `resolution_min_px` (1000) on the SHORT side. Every photograph
+    came back `photo.too_small` without the model ever running.
+
+    `full` is never resized (web/api/images.py) and is the variant the pipeline is meant to
+    see. It lives in the private bucket, so it is handed over as a short-lived signed URL:
+    `ai/` holds no S3 credentials by design, and the artisan's full-resolution photograph
+    does not become publicly readable just because we wanted to enhance it.
+    """
+    source = raw
+    if objectstore.available():
+        up = db.query(Upload).filter_by(artisan_id=artisan.id, url=raw).first()
+        if up is not None:
+            try:
+                source = objectstore.signed_url(
+                    objectstore.key_for(artisan.id, up.id, "full", public=False)
+                )
+            except objectstore.StorageError as e:
+                # Fall back to the display url rather than failing the request. It may still
+                # be refused for size, but the artisan hears a real reason either way.
+                log.warning("could not sign full variant for %s: %s", up.id, e)
+
     job = await _ai("/enhance", {
-        "product_id": p.id, "image_url": raw,
+        "product_id": p.id, "image_url": source,
         "targets": ["amazon", "gem", "whatsapp"],
     })
     # Bind the job to this product so the poll below can check ownership. Recorded before
