@@ -158,6 +158,20 @@ export default function Publish() {
    * the set that needs nothing from them.
    */
   /*
+   * ⚠️ `owns` must be declared BEFORE anything that calls it.
+   *
+   * `readyNow` below used to sit above this line, and `const` bindings are in the temporal
+   * dead zone until their declaration is evaluated — so the filter threw "Cannot access
+   * 'owns' before initialization" on the first render and took the whole screen down. The
+   * artisan finished pricing, tapped through, and got a blank page.
+   *
+   * TypeScript does not flag it (it permits the reference and trusts the ordering), and
+   * neither does any test that never renders this component. Ordering is the guard.
+   */
+  const owns = (c: Channel) =>
+    c.tier === 'A' || c.tier === 'C' || c.connected || (sellsOn ?? []).includes(c.id);
+
+  /*
    * Everything the hero button will actually fire: tier A (needs nothing), tier C (produces
    * a file), and any tier B the artisan has connected. Deliberately excludes tier D and
    * unconnected B — the count under the button has to be a promise we keep, and claiming
@@ -170,9 +184,6 @@ export default function Publish() {
       owns(c) &&
       (c.tier === 'A' || c.tier === 'C' || (c.tier === 'B' && c.connected)),
   );
-
-  const owns = (c: Channel) =>
-    c.tier === 'A' || c.tier === 'C' || c.connected || (sellsOn ?? []).includes(c.id);
 
   const inTier = (tier: Channel['tier']) =>
     channels?.filter((c: Channel) => c.tier === tier && owns(c)) ?? [];
