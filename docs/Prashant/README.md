@@ -1,7 +1,7 @@
 # F3 — Dynamic Pricing Assistant
 
-**Owner:** Prashant · **PS 26090 feature 3** · **Status: built, running, and unvalidated —
-see [What is left](#what-is-left)**
+**Owner:** Prashant · **PS 26090 feature 3** · **Status: built, running, and backed by 144
+real listings — [the verdict](#the-verdict--144-listings-2026-08-28)**
 
 My scope was feature 3 of the problem statement:
 
@@ -61,12 +61,12 @@ every time.
 | `ai/service.py` — `POST /price` | ✅ |
 | `web/api/routers/price.py` — the proxy hop | ✅ |
 | `app` — 6th voice question, unit parser, clamp-and-speak screen | ✅ |
-| `ai/test_price.py` | ✅ **29 tests** |
+| `ai/test_price.py` | ✅ **30 tests** |
 | Verified over real HTTP, all three services running | ✅ |
-| **Validated against real sale prices** | ❌ **never** |
+| Market comparables — 144 real listings collected | ✅ |
+| **Validated against real *sold* prices** | ❌ these are listed prices |
 
-**Everything is built. Nothing is validated.** Those are different claims, and the second is
-the one a judge will ask about.
+Built, running, and now with a first evidence base behind it — see the verdict below.
 
 ---
 
@@ -113,7 +113,7 @@ cd app      && npm run dev
 Prerequisites — Python 3.10+, Postgres, `.env` — are in the root [`README.md`](../../README.md).
 
 ```bash
-cd ai  && .venv/bin/python -m pytest test_price.py    # 29
+cd ai  && .venv/bin/python -m pytest test_price.py    # 30
 cd app && npm test                                    # camera gate + number parser
 ```
 
@@ -127,38 +127,70 @@ curl -s -X POST localhost:8001/price -H 'Content-Type: application/json' \
 
 ```json
 {"floor": 23000, "suggested_price": 23000, "mrp": 25556,
+ "market_range": {"low": 1200.0, "high": 5000.0, "sample_size": 39},
+ "below_floor_warning": true,
  "breakdown_voice_hi": "800 रुपये का सामान, 160 घंटे का काम। 23000 रुपये सही रहेगा।"}
 ```
+
+`below_floor_warning: true` against 39 real comparables is the feature working: twenty days
+of weaving does not clear what the observed market pays, and the app says so out loud.
+
+---
+
+## The verdict — 144 listings, 2026-08-28
+
+Collected from **indiahandmade.com**, the Ministry of Textiles' own marketplace for verified
+weavers. Full write-up in [`research/RESULTS.md`](../../research/RESULTS.md); protocol in
+[`research/pricing/README.md`](../../research/pricing/README.md).
+
+| Category | n | median |
+|---|---|---|
+| `textiles.saree` (cotton) | 39 | ₹2,140 |
+| `textiles.saree.silk` | 9 | ₹30,000 |
+| `textiles.dhurrie` | 48 | ₹3,230 |
+| `painting.madhubani` | 30 | ₹3,225 |
+| `painting` | 18 | ₹4,122 |
+
+**The verdict flips on one input, and it is the one we trust least.** Same materials, same
+cluster: at 12 labour hours the floor is ₹2,576 and sits inside the observed saree spread; at
+160 hours it is ₹23,000 and sits above all of it. The formula is not right or wrong on its
+own — it is a lever on `labour_hours`, which arrives as a spoken answer through a
+first-number-wins parser that still cannot read *"बीस दिन"*.
+
+### The number for the slide
+
+At the median listed price of **₹2,140**, minus ₹800 of materials, ₹1,340 is left for labour:
+
+| Time taken | Implied wage |
+|---|---|
+| 2 days (16 h) | ₹84/hour |
+| 5 days (40 h) | ₹34/hour |
+| 20 days (160 h) | **₹8/hour** |
+
+> To clear the Sambalpur cluster wage of ₹120/hour, a handloom cotton saree would have to be
+> woven in **11.2 hours** — on the government's own artisan marketplace, not a discount
+> consumer platform.
+
+That is direct evidence for the premise this feature is built on: under-pricing, not
+over-pricing, is the problem in this sector.
+
+**Three caveats, stated rather than buried:** these are *listed* prices, not sold prices;
+`textiles.saree` is too broad a class, since a plain Santipuri and a Sambalpuri bandha ikat
+differ perhaps tenfold in labour; and ₹120/hour is itself unsourced and is the denominator of
+every number above.
 
 ---
 
 ## What is left
 
-**One thing, and it is not code: nobody has collected real prices.**
-
-`research/RESULTS.md` → `pricing` is still `open`. The tooling is written and exercised —
-`research/pricing/pricing.py check` prints, per category, whether our floor lands inside the
-observed spread, above it, or below it. It needs an afternoon of browsing to fill
-`research/pricing/observed.csv`. Protocol:
-[`research/pricing/README.md`](../../research/pricing/README.md).
-
-Two reasons it matters more than it sounds:
-
-1. **Without it the demo shows a price sitting exactly on the floor.** Our own marketplace is
-   empty until artisans list, and GeM, Amazon and Flipkart have no queryable price API — so
-   `market_range` is `null` and the "current market trends" half of the PS sentence goes
-   unanswered on stage.
-2. **The camera thresholds were calibrated against 591 fixtures on 27 Aug. This floor has met
-   zero real transactions.** Both feed a number an artisan acts on; only one has evidence
-   behind it.
-
-All three outcomes of that check are publishable — including *"the market pays below cost"*,
-which is the finding this whole feature exists to expose and a better slide than a working
-algorithm.
-
-**Smaller, optional:** `material`/`size` are accepted by `/price` but not yet sent by the app
-(~4 lines); spelled-out numbers — *"बीस दिन"* — still parse to `null` rather than 20, pending
-a real sample of what Bhashini actually returns.
+1. **Weave-specific collection.** The biggest weakness in the current set is breadth —
+   `textiles.saree.sambalpuri` rather than `textiles.saree`. The taxonomy walk-up already
+   supports it; it needs more browsing.
+2. **Source the cluster wage rates.** `ai/price/rates.json` says outright that they are a
+   field question, and they set every floor.
+3. **Spelled-out numbers** in the voice parser — *"बीस दिन"* → `null`. The verdict above makes
+   this more urgent than it looked: `labour_hours` is the input the whole feature pivots on.
+4. **`material`/`size` through the app** (~4 lines); `/price` already accepts them.
 
 ---
 
@@ -170,9 +202,10 @@ a real sample of what Bhashini actually returns.
 | 2026-08-28 | [F3-post-price.md](F3-post-price.md) | `POST /price` — the floor guard had never once run |
 | 2026-08-28 | [F3-comparables.md](F3-comparables.md) | Comparables from our own marketplace, and an outlier trim that did nothing below ten samples |
 | 2026-08-28 | [F3-price-snapshot.md](F3-price-snapshot.md) | Snapshot loader + collection protocol for the sources with no API — numbers deliberately left to a human |
+| 2026-08-28 | [`research/RESULTS.md`](../../research/RESULTS.md) | **The verdict** — 144 listings collected, and what they say about the floor |
 | 2026-08-28 | [dev-setup-and-theme-check.md](dev-setup-and-theme-check.md) | Not F3: a self-check that failed on every page load, and the undocumented Python 3.10+ requirement |
 
-Commits: `c2c58dd` · `819aa3c` · `8633a0c` · `6e955bc`, plus `40fb279` (a missing migration
+Commits: `c2c58dd` · `819aa3c` · `8633a0c` · `6e955bc` · `cb63fa2`, plus `40fb279` (a missing migration
 that broke `POST /api/products` on any fresh clone) and `7b4101d`.
 
 The permanent spec stays where it lives — Master ref §7 and
