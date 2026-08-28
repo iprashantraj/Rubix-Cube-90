@@ -7,6 +7,8 @@ ever joins a platform, and editing once regenerates every channel export.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -438,7 +440,58 @@ async def enhance_status(
     owner = db.query(Product).filter_by(artisan_id=artisan.id, enhance_job_id=job_id).first()
     if owner is None:
         raise HTTPException(404, "unknown job")
-    return await _ai_get(f"/enhance/{job_id}")
+    job = await _ai_get(f"/enhance/{job_id}")
+    return _publish_results(job, owner, artisan)
+
+
+def _publish_results(job: dict, product: Product, artisan: Artisan) -> dict:
+    """Put the pipeline's output somewhere the phone can actually load it.
+
+    🐞 `ai/enhance/storage.py` writes each rendered variant to local disk and returns
+    `file:///tmp/rubix-ai-out/...`. A WebView on a phone cannot open a path on the AI box,
+    so `displayable()` in CatalogPrefill.tsx fell through to the artisan's OWN photo and the
+    screen showed the unprocessed original — while announcing that the photo had been
+    improved, and then asking "is this the real colour?" about an image nothing had touched.
+
+    That last part is the reason this is not cosmetic. The colour lock is the one hard gate
+    before publishing (`colour_confirmed`), and it exists because white balance MOVES
+    colour. Asking it against the original makes the artisan confirm a question that was
+    never posed — the gate still latches, and nothing downstream can tell it was answered
+    about the wrong picture.
+
+    ⚠️ CEILING: this reads the AI service's local files, so it only works while both
+    services share a machine — which is the dev setup and not production. The right home for
+    this is `ai/enhance/storage.py` publishing directly (`contracts.md` already specifies
+    `s3://out/...` as the output), and that needs storage credentials in `ai/.env`, which it
+    does not have today. Move it there before this is deployed anywhere real.
+    """
+    if not objectstore.available():
+        return job
+
+    images = job.get("images")
+    if not images:
+        return job
+
+    for img in images:
+        url = img.get("url") or ""
+        if not url.startswith("file://"):
+            continue  # already published, or a scheme we do not own
+        src = Path(unquote(urlparse(url).path))
+        if not src.exists():
+            log.warning("enhanced file missing on the ai box: %s", src)
+            continue
+        try:
+            key = objectstore.key_for(
+                artisan.id, product.id, f"enh_{img.get('target', 'out')}", public=True
+            )
+            img["url"] = objectstore.put(key, src.read_bytes())
+        except (objectstore.StorageError, OSError) as e:
+            # Leave the file:// url in place. The app degrades to the artisan's own photo,
+            # which is what it did before this function existed — a failure here costs the
+            # prettier picture, never the listing (rule 3).
+            log.warning("could not publish %s: %s", src.name, e)
+
+    return job
 
 
 @router.post("/products/{product_id}/prefill")
