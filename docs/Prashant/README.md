@@ -61,12 +61,23 @@ every time.
 | `ai/service.py` — `POST /price` | ✅ |
 | `web/api/routers/price.py` — the proxy hop | ✅ |
 | `app` — 6th voice question, unit parser, clamp-and-speak screen | ✅ |
+| Floor persisted to the product, so GeM's publish-time guard runs | ✅ |
+| Cluster wage rates reachable — pincode → cluster on onboarding | ✅ |
 | `ai/test_price.py` | ✅ **30 tests** |
 | Verified over real HTTP, all three services running | ✅ |
 | Market comparables — 144 real listings collected | ✅ |
 | **Validated against real *sold* prices** | ❌ these are listed prices |
+| Cluster pincode prefixes confirmed in the field | ❌ postal ranges, not catchments |
 
-Built, running, and now with a first evidence base behind it — see the verdict below.
+Built, running, and with a first evidence base behind it — see [the verdict](#the-verdict--144-listings-2026-08-28).
+
+> **Two things were quietly doing nothing until 2026-08-28**, and both are worth knowing about
+> because they are the shape of bug this feature attracts: a safeguard that reads as covered.
+> `channels/gem.py` refuses to publish below the floor — but nothing ever *saved* the floor, so
+> it exited on its first line every time. And `rates.json` has carried four cluster wage rates
+> since the feature was written, none of which any artisan could reach, so the labour half of
+> every floor was one hardcoded ₹120 for the whole country. Both fixed; details in
+> [F3-floor-persistence-and-clusters.md](F3-floor-persistence-and-clusters.md).
 
 ---
 
@@ -192,6 +203,10 @@ every number above.
 3. **Spelled-out numbers** in the voice parser — *"बीस दिन"* → `null`. The verdict above makes
    this more urgent than it looked: `labour_hours` is the input the whole feature pivots on.
 4. **`material`/`size` through the app** (~4 lines); `/price` already accepts them.
+5. **A database fixture for `web/api`.** `cluster_for_pincode` has no unit test because its
+   longest-prefix rule lives in the SQL and there is nothing to test a query against. It was
+   verified live on three pincodes including the no-match fallback, which is the case that
+   must not regress.
 
 ---
 
