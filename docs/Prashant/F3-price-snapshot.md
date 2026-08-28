@@ -86,3 +86,17 @@ category (10 minimum, 20–30 ideally), what to record, and the one counter-intu
 Worth stating plainly to the team: the camera thresholds were calibrated against 591 fixtures
 yesterday. **The pricing floor has been validated against zero real transactions.** Both feed
 a number an artisan acts on; only one has evidence behind it.
+
+---
+
+## Postscript — 2026-08-28, later the same day
+
+**Collected.** 144 listings from indiahandmade.com, the Ministry of Textiles' own marketplace for
+verified weavers, chosen over Amazon and Flipkart because it is a genuine comparison class and needs
+no seller account. It was added as a fifth source.
+
+The rule above held: every number came off a real listing with a resolvable URL and a date, and none
+were invented. What is written above about *why* the numbers were left blank is the record of the
+decision, not a description of the current state.
+
+Verdict, method and caveats: [`research/RESULTS.md`](../../research/RESULTS.md).
