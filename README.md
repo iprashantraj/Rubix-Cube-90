@@ -9,6 +9,7 @@ SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Margina
 | `docs/decisions.md` | What's settled and why |
 | `docs/app/Camera-Pipeline.md` | Photo path end to end — gate, thresholds, EXIF strip, enhance, colour lock |
 | `docs/app/Pricing.md` | Cost-up formula, rates, comparables, and the price floor |
+| `docs/Prashant/` | Change notes — what landed, when, and what it left open |
 
 ## Layout
 
