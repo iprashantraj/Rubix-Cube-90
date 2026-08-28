@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useApiQuery } from '../api/useApi';
 import type { Channel, PublishResult, PublishJob } from '../api/types';
-import { useDraft } from '../store';
+import { useDraft, useSession } from '../store';
 import { useVoice } from '../voice/useVoice';
 import { t } from '../i18n/index';
 import { ChannelBlock, type CopyItem } from './ChannelBlock';
@@ -97,6 +97,9 @@ export default function Publish() {
    * endpoint. The draft still wins when it is set, because it is fresher than the list.
    */
   const { data: products } = useApiQuery<{ id: string; colour_confirmed: boolean }[]>('/products');
+  // What they told us on /onboard/channels. Read from the session, not fetched: it is
+  // answered once and a network hiccup must not silently put Amazon back on their screen.
+  const sellsOn = useSession((s) => s.artisan?.sells_on);
   const productId = draft.listing?.product_id as string | undefined;
   const colourOk =
     draft.colourConfirmed ||
@@ -137,7 +140,42 @@ export default function Publish() {
   // The `/publish/{jobId}` poll further down stays a plain `api.get`: a job status is the
   // one thing in this app that must never be answered from a copy.
 
-  const inTier = (tier: Channel['tier']) => channels?.filter((c: Channel) => c.tier === tier) ?? [];
+  /*
+   * ⚠️ Only channels this artisan has anything to do with.
+   *
+   * /publish listed all seven regardless, so somebody who told us on /onboard/channels that
+   * they have no Amazon and no Flipkart account was still shown both, with Connect buttons,
+   * on every product. We asked the question and then ignored the answer, which is worse
+   * than never asking — it teaches them their answers do not matter.
+   *
+   * What survives the filter:
+   *   tier A       ours and ONDC. No account, no paperwork, always available to everyone.
+   *   tier C       GeM, which produces a file anybody can upload.
+   *   connected    we hold a token, so it is live whatever they said in onboarding.
+   *   sells_on     they told us they have an account there.
+   *
+   * `sells_on` empty (or a pre-migration account) shows tier A and C only, which is exactly
+   * the set that needs nothing from them.
+   */
+  /*
+   * Everything the hero button will actually fire: tier A (needs nothing), tier C (produces
+   * a file), and any tier B the artisan has connected. Deliberately excludes tier D and
+   * unconnected B — the count under the button has to be a promise we keep, and claiming
+   * seven when two can go is exactly the "one click everywhere" lie the tiering exists to
+   * avoid.
+   */
+  const readyNow = (channels ?? []).filter(
+    (c: Channel) =>
+      !skipped.includes(c.id) &&
+      owns(c) &&
+      (c.tier === 'A' || c.tier === 'C' || (c.tier === 'B' && c.connected)),
+  );
+
+  const owns = (c: Channel) =>
+    c.tier === 'A' || c.tier === 'C' || c.connected || (sellsOn ?? []).includes(c.id);
+
+  const inTier = (tier: Channel['tier']) =>
+    channels?.filter((c: Channel) => c.tier === tier && owns(c)) ?? [];
 
   /** The channels in this tier we can actually fire right now, which is not all of them. */
   const sendable = (tier: Channel['tier']) =>
@@ -164,8 +202,30 @@ export default function Publish() {
     else say('error.unknown');
   }
 
+  /*
+   * Every channel that can genuinely go, in one press.
+   *
+   * `send(tier)` still exists and still drives the per-section buttons below — this is not
+   * a replacement for the tiered flow, it is the shortcut past it for the common case. The
+   * distinction the adapters make is preserved exactly: a channel we cannot push to is not
+   * in `readyNow`, so pressing this never claims to have sent something it did not.
+   */
+  async function sendAll() {
+    const ids = readyNow.map((c) => c.id);
+    if (ids.length === 0) return;
+    await sendChannels(ids);
+    // Past the sections, since they have just been fired. Anything needing a connect or a
+    // manual upload is still below, and the rows now say so.
+    setStage(TIERS.length - 1);
+  }
+
   async function send(tier: Channel['tier']) {
-    const ids = sendable(tier).map((c: Channel) => c.id);
+    await sendChannels(sendable(tier).map((c: Channel) => c.id));
+  }
+
+  /** The actual fan-out. One implementation, so the hero button and the per-tier buttons
+   *  cannot drift into behaving differently. */
+  async function sendChannels(ids: string[]) {
     if (ids.length === 0) return;
     setBusy(true);
     setError(null);
@@ -278,6 +338,36 @@ export default function Publish() {
         </Card>
       )}
 
+      {/*
+        The one control this screen exists for, on its own and centred.
+
+        It used to be the third element inside the first of four stacked cards, at roughly
+        60% of the page height and the same visual weight as "connect your Amazon account".
+        Somebody who has just spent four minutes photographing and describing a product is
+        here to do one thing, and the screen made them hunt for it. Everything else is still
+        below — the order just matches what people came for.
+      */}
+      <div className="pub-hero">
+        <BigButton
+          icon={IconPublish}
+          labelKey="publish.send_all"
+          onClick={() => {
+            if (!colourOk) {
+              say('colour.confirm');
+              nav('/catalog/prefill');
+              return;
+            }
+            sendAll();
+          }}
+          disabled={busy}
+          tone="yes"
+        />
+        <p className="pub-hero__note">
+          {t(lang, 'publish.send_all_note', { count: String(readyNow.length) })}
+        </p>
+      </div>
+
+      <div className="pub-rest">
       {TIERS.slice(0, stage + 1).map((tr) => {
         const group = inTier(tr);
         if (group.length === 0) return null;
@@ -374,6 +464,7 @@ export default function Publish() {
           </Card>
         );
       })}
+      </div>
     </Screen>
   );
 }

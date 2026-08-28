@@ -6,7 +6,8 @@ import { useVoice } from '../voice/useVoice';
 import { record, transcribe, type RecHandle } from '../voice/listen';
 import { interpretAnswer } from '../voice/interpret';
 import { t } from '../i18n/index';
-import { Screen, BigButton, YesNo, MicButton, Heard } from '../ui/kit';
+import { Screen, BigButton, YesNo, Heard } from '../ui/kit';
+import { AnswerBox } from '../ui/AnswerBox';
 import { IconRetry, IconNext } from '../ui/icons';
 
 /**
@@ -106,6 +107,21 @@ export default function OnboardName() {
     }
   }
 
+  /** Save an explicit value — the typed path, which has no confirm step to read `heard`. */
+  async function saveName(name: string) {
+    setError(null);
+    setPhase('saving');
+    try {
+      await api.patch('/me', { display_name: name });
+      patchArtisan({ display_name: name });
+      nav('/onboard/craft');
+    } catch (e) {
+      // Back to the question with what they wrote still on screen, not to a dead end.
+      setPhase('confirm');
+      fail(e, 'net.offline');
+    }
+  }
+
   async function save() {
     setError(null);
     // 'saving', not 'busy'. `busy` drops the confirm UI, so for as long as the PATCH was in
@@ -144,9 +160,17 @@ export default function OnboardName() {
           remembering what the app said a moment ago. Tapping it while live is what stops
           the recording — the second button that used to do that is gone. */}
       {(phase === 'ask' || phase === 'rec' || phase === 'busy') && (
-        <MicButton
-          state={phase === 'rec' ? 'listening' : phase === 'busy' ? 'thinking' : 'idle'}
-          onClick={phase === 'rec' ? stopRec : startRec}
+        <AnswerBox
+          phase={phase}
+          onRecord={startRec}
+          onStop={stopRec}
+          onTyped={(value) => {
+            // A typed name needs no confirmation step. They read it as they wrote it, and
+            // the confirm exists because ASR mishears — a keyboard does not.
+            setHeard(value);
+            setRawHeard(value);
+            saveName(value);
+          }}
         />
       )}
 

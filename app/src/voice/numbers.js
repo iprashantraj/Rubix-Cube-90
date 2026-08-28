@@ -21,14 +21,23 @@
  * The same failure exists on the rupee side and is worse: "2 हज़ार" read as 2 understates
  * the material cost by a thousandfold.
  *
- * ── What it does not do, deliberately ───────────────────────────────────────────────
- * ponytail: digits only. "बीस दिन" spelled out in words still yields null, because a
- * spoken-number table for three languages is ~80 entries of data whose value depends
- * entirely on whether Bhashini returns numerals or words — and that is an open question
- * (research/RESULTS.md, asr-bhashini). Build the table when a real transcript sample says
- * it is needed, not before. Null is safe here: the caller sends null and the server prices
- * on what it does have. A wrong number is worse than no number.
+ * ── Words, not only digits ──────────────────────────────────────────────────────────
+ * This file used to say "digits only" and defer the word table until a real transcript
+ * sample proved it necessary. Use proved it: ASR returns spelled-out numbers routinely, and
+ * "बीस दिन" yielded null while the artisan had answered perfectly clearly.
+ *
+ * The table it was deferring already existed. `numberWords.js` was written for the PIN code
+ * parser and carries 1–99 in Devanagari, Odia and romanised Hindi, plus composing English
+ * tens. Two parsers for the same job, one of them blind. They share it now — which is also
+ * why numberWords stopped being TypeScript: this file runs under bare `node` as its own
+ * test and cannot import a `.ts`.
+ *
+ * Compounds are the part that matters. "do sau tirasi" is 283, not 2, and a material cost
+ * read as 2 instead of 283 moves the price floor by two orders of magnitude in the one
+ * direction that costs the artisan money.
  */
+
+import { DIGIT_WORDS, NUMBER_WORDS, TENS_EN, UNITS_EN } from './numberWords.js';
 
 /**
  * Working hours per unit. These are a calibration, not a fact — a "day" of weaving is a
@@ -86,10 +95,90 @@ const has = (said, words) => words.some((w) => said.includes(w));
  * out in words. Zero is a real answer and is returned as 0: a potter who digs their own
  * clay genuinely spent nothing on materials, and that is not the same as not answering.
  */
+/** Scale word -> multiplier, flattened from SCALE_WORDS so a token lookup is one map hit. */
+const SCALE_BY_WORD = Object.fromEntries(
+  Object.entries(SCALE_WORDS).flatMap(([mult, words]) => words.map((w) => [w, Number(mult)])),
+);
+
+/**
+ * A number spelled out in words. Returns null when the sentence contains no number word.
+ *
+ * Composes the way the languages actually do:
+ *
+ *   "do sau tirasi"      2, ×100, +83   -> 283
+ *   "ek hazaar do sau"   1, ×1000, 2×100 -> 1200
+ *   "twenty five"        tens+unit       -> 25
+ *   "बीस"                direct          -> 20
+ *
+ * A scale of 100 multiplies what is being built; a thousand or a lakh closes the group and
+ * banks it, which is what makes "ek hazaar do sau" 1200 rather than 100000. That is the
+ * whole difference between the two kinds of scale word and the only subtle thing here.
+ *
+ * Unknown words are skipped rather than treated as boundaries. A spoken sentence is mostly
+ * unknown words — "mujhe do sau tirasi rupaye lage" — and splitting on them would find the
+ * 2 and stop. That is the opposite trade from `extractPincode`, which needs an unknown word
+ * to end the run so "ek minute, 753001" cannot become 175300; a PIN is a digit sequence and
+ * this is an arithmetic value, so they genuinely want different rules.
+ */
+export function spokenNumber(text) {
+  const words = toAsciiDigits(String(text ?? ''))
+    .toLowerCase()
+    // \p{M} matters: Devanagari matras are combining MARKS, not letters, so a class of
+    // letters-and-digits alone splits "बीस" into "ब" and "स" and finds no number at all.
+    .split(/[^\p{L}\p{N}\p{M}]+/u)
+    .filter(Boolean);
+
+  let total = 0;
+  let current = 0;
+  let seen = false;
+
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+
+    // English composes: a tens word takes the unit after it, if there is one.
+    if (TENS_EN[w]) {
+      const next = words[i + 1];
+      const unit = next && UNITS_EN[next] ? UNITS_EN[next] : '0';
+      if (unit !== '0') i++;
+      current += Number(TENS_EN[w] + unit);
+      seen = true;
+      continue;
+    }
+
+    // Hindi and Odia do not compose below a hundred — 83 is its own word, `tirasi`.
+    //
+    // DIGIT_WORDS carries the romanised units (ek, do, teen) because it was built for the
+    // PIN parser, where every digit is spoken separately; NUMBER_WORDS starts at the teens.
+    // Both are needed, and consulting only one is why "do sau tirasi" came out as 183.
+    const direct = NUMBER_WORDS[w] ?? DIGIT_WORDS[w] ?? UNITS_EN[w];
+    if (direct !== undefined) {
+      current += Number(direct);
+      seen = true;
+      continue;
+    }
+
+    const scale = SCALE_BY_WORD[w];
+    if (scale) {
+      // "sau" with nothing before it is a hundred, not zero hundreds.
+      if (scale >= 1000) {
+        total += (current || 1) * scale;
+        current = 0;
+      } else {
+        current = (current || 1) * scale;
+      }
+      seen = true;
+    }
+  }
+
+  return seen ? total + current : null;
+}
+
 export function numberFrom(text) {
   const said = toAsciiDigits(String(text ?? '')).toLowerCase();
   const m = /(\d+(?:\.\d+)?)/.exec(said);
-  if (!m) return null;
+  // No numeral anywhere: the answer may still be a number, spelled out. Digits first
+  // because when ASR gives us both they agree, and a numeral is unambiguous.
+  if (!m) return spokenNumber(said);
 
   let n = Number(m[1]);
   // Only a scale word AFTER the number scales it: "2 hazaar" is 2000, but "hazaar rupaye
@@ -125,7 +214,15 @@ export function hoursFrom(text) {
 
   const said = toAsciiDigits(String(text ?? '')).toLowerCase();
   const m = /(\d+(?:\.\d+)?)/.exec(said);
-  const after = said.slice(m.index + m[1].length);
+  /*
+   * `m` is null whenever the number was spelled out — "बीस दिन लगे" has no numeral at all.
+   * numberFrom answers that case now, so this line could no longer assume a match and was
+   * throwing on every word-only answer: a crash where the old behaviour was merely null.
+   *
+   * With no numeral there is no "after the number" to prefer, so the unit is searched for
+   * across the whole sentence, which is the fallback scope below anyway.
+   */
+  const after = m ? said.slice(m.index + m[1].length) : said;
 
   for (const scope of [after, said]) {
     for (const [unit, words] of Object.entries(UNIT_WORDS)) {
@@ -160,7 +257,10 @@ function demo() {
   };
 
   // The bug this file exists for.
-  ok(hoursFrom('बीस दिन लगे'), null, 'spelled-out number is still out of reach — and null, not wrong');
+  // This asserted `null` and called it "still out of reach". It is the sentence the whole
+  // file opens with — twenty days of weaving — and it is now read correctly: 20 × 8 hours.
+  // The old floor for it was ₹3,680 against a real ₹23,000.
+  ok(hoursFrom('बीस दिन लगे'), 160, 'twenty days, spelled out, is 160 working hours');
   ok(hoursFrom('20 दिन लगे'), 160, 'twenty days is 160 working hours, not 20');
   ok(hoursFrom('20 din'), 160, 'romanised hindi');
   ok(hoursFrom('took 20 days'), 160, 'english');
@@ -185,6 +285,38 @@ function demo() {
   ok(rupeesFrom('hazaar rupaye ka 2 metre kapda'), 2, 'scale word BEFORE the number does not scale it');
   ok(rupeesFrom('kuch nahi laga'), null, 'no number at all');
   ok(rupeesFrom('0'), 0, 'zero is a real answer — the potter digs their own clay');
+
+  // ── Spelled-out numbers, which used to yield null ────────────────────────────────
+  // Reported from the phone: numbers spoken as words were not recognised at all, and
+  // compounds were the worst of it. Every case below returned null or a wrong value before
+  // numberWords.js was shared with this file.
+  ok(spokenNumber('बीस'), 20, 'a Devanagari number word');
+  ok(spokenNumber('तिरासी'), 83, 'Hindi does not compose below a hundred — 83 is one word');
+  ok(spokenNumber('ଚାଳିଶ'), 40, 'Odia');
+  ok(spokenNumber('pachchis'), 25, 'romanised Hindi');
+  ok(spokenNumber('twenty five'), 25, 'English composes: tens plus unit');
+  ok(spokenNumber('forty'), 40, 'a tens word alone is the round number');
+
+  // 🐞 The tokenizer split "बीस" into "ब" and "स" and found nothing, because Devanagari
+  // matras are combining MARKS and the character class only allowed letters and digits.
+  ok(numberFrom('बीस दिन लगे'), 20, 'a matra does not break the word apart');
+
+  // 🐞 "do sau tirasi" came out as 183: the romanised units live in DIGIT_WORDS, written
+  // for the PIN parser, and only NUMBER_WORDS was being consulted — so "do" was invisible
+  // and "sau" multiplied an implicit 1.
+  ok(spokenNumber('do sau tirasi'), 283, 'two hundred and eighty three');
+  ok(spokenNumber('paanch sau'), 500, 'five hundred');
+  ok(spokenNumber('ek hazaar do sau'), 1200, 'a thousand banks the group; a hundred scales it');
+  ok(spokenNumber('ek lakh'), 100000, 'lakh');
+  ok(spokenNumber('sau'), 100, 'a bare hundred is one hundred, not zero');
+
+  // Unknown words are skipped rather than ending the run — a real sentence is mostly
+  // unknown words, and stopping at the first would find the 2 in "do" and quit.
+  ok(numberFrom('mujhe do sau tirasi rupaye lage'), 283, 'a number inside a sentence');
+  ok(spokenNumber('kuch nahi'), null, 'no number word at all');
+
+  // Digits still win when both are present: a numeral is unambiguous and ASR gives both.
+  ok(numberFrom('2 hazaar'), 2000, 'digits are preferred over words');
 
   if (!process.exitCode) console.log('all passed');
 }

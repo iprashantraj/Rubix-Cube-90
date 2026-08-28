@@ -152,7 +152,19 @@ export default function OnboardCraft() {
     }
   }
 
-  const confirming = phase === 'confirm' || phase === 'saving';
+  /*
+   * 🐞 Tapping a tile used to render the confirmation screen, empty.
+   *
+   * `save()` sets phase to 'saving', and this read `phase === 'confirm' || phase ===
+   * 'saving'` — so a tile tap, which never sets `heard`, showed "Did I hear ?" with a
+   * blank where the craft should be, plus a yes/no about nothing. The artisan had just
+   * pointed at a picture of a loom; there was nothing to confirm and we asked anyway.
+   *
+   * 'saving' is in here at all so the confirmation does not flicker away while the PATCH
+   * is in flight after a VOICE answer. That only applies when something was heard, so
+   * that is the condition.
+   */
+  const confirming = phase === 'confirm' || (phase === 'saving' && Boolean(heard));
 
   return (
     <Screen

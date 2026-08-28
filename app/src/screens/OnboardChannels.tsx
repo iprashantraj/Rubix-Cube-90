@@ -11,6 +11,7 @@ import {
   IconChannelAmazon,
   IconChannelFlipkart,
   IconChannelMeesho,
+  IconChannelGeM,
   IconChannelWhatsApp,
 } from '../ui/icons';
 
@@ -53,9 +54,22 @@ const CHANNELS = [
   { id: 'amazon', icon: IconChannelAmazon, key: 'channel.amazon' },
   { id: 'flipkart', icon: IconChannelFlipkart, key: 'channel.flipkart' },
   { id: 'meesho', icon: IconChannelMeesho, key: 'channel.meesho' },
-  // Last on purpose: it is the one most of them actually use, and a grid whose most likely
-  // answer sits in the final cell is read all the way through instead of abandoned on the
-  // first.
+  /*
+   * GeM belongs here and was missing. An artisan genuinely can hold their own GeM seller
+   * account — plenty do, through a cluster or an SHG — and if they already have one, its
+   * fields are worth asking for.
+   *
+   * ONDC deliberately is NOT here, and that is not an oversight. Nobody sells on ONDC the
+   * way they sell on Amazon: it is a protocol, and an artisan reaches it through a seller
+   * node. We ARE that node (channels/ondc.py) — they need no registration, no DigiReady
+   * and no GST, which is the single best thing this product does for them. Putting it on
+   * this grid would ask "do you have an ONDC account?", to which the honest answer is
+   * "nobody has one of those, and you do not need one". Same for Hamara Bazaar, which is
+   * ours: asking whether they have an account with us is a question we can answer.
+   */
+  { id: 'gem', icon: IconChannelGeM, key: 'channel.gem' },
+  // Last on purpose: the likeliest answer. A grid whose obvious cell is first gets
+  // abandoned there instead of read through.
   { id: 'whatsapp', icon: IconChannelWhatsApp, key: 'channel.whatsapp' },
 ];
 
