@@ -20,7 +20,7 @@ from .. import objectstore
 from ..caching import conditional
 from ..config import settings
 from ..db import get_db
-from .. import learning
+from .. import learning, taxonomy
 from ..models import (
     Artisan,
     FieldCorrection,
@@ -284,8 +284,33 @@ def update(
     p = _own(product_id, db, artisan)
     for k, v in body.model_dump(exclude_unset=True, exclude={"quantity"}).items():
         setattr(p, k, v)
+
+    # 🐞 `category_map` had five readers and no writers, so every adapter's
+    # `(product.category_map or {}).get("gem_id")` resolved to None: GeM emitted a generic
+    # sheet, Amazon sent no product type, Flipkart no vertical. The mapping was designed and
+    # then never populated, which made the step gem.py calls "the hardest and most valuable
+    # in the whole system" a silent no-op.
+    #
+    # Derived HERE rather than in the app so every writer gets it -- the cataloguer, a later
+    # edit from /products/:id, and anything added next. Recomputed on every PATCH because
+    # the category can change and a stale map is worse than an absent one: it publishes a
+    # saree under a pottery heading with nothing to show it went wrong.
+    resolved = taxonomy.lookup(p.category, artisan.craft)
+    if resolved:
+        p.category_map = {
+            k: resolved[k]
+            for k in ("gem_id", "amazon_node", "flipkart_vertical", "ondc_code", "meesho_cat")
+            if resolved.get(k)
+        } | {"gst_rate": resolved.get("gst_rate"), "amazon_ptc": resolved.get("amazon_ptc")}
+
+        # Six of the seven marketplaces make HSN mandatory and no artisan can supply one.
+        # Only filled when empty: a code somebody set deliberately outranks our table, and
+        # `verified: False` rows are guidance rather than settled -- see taxonomy.py.
+        if not p.hsn_code and resolved.get("hsn"):
+            p.hsn_code = resolved["hsn"]
+
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "category_map": p.category_map, "hsn_code": p.hsn_code}
 
 
 class ImageIn(BaseModel):

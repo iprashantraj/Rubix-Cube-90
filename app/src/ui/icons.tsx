@@ -65,6 +65,27 @@ export {
   Handbag as IconCraftLeather,
   Leaf as IconCraftBamboo,
 
+  /*
+   * --- the marketplaces, on /onboard/channels -------------------------------
+   *
+   * Four DIFFERENT shapes, and that is the whole requirement. The craft grid works because
+   * eight different drawings mean eight different things; the channel grid shipped with one
+   * generic mark repeated four times, which put the entire burden on a text label — for the
+   * exact users who cannot read one.
+   *
+   * Deliberately not brand logos. Using the real marks needs licensed assets, and four
+   * approximations drawn from memory are both a trademark problem and worse at the job: a
+   * bad Amazon swoosh is less recognisable than an honest globe. So these say what each
+   * platform IS to an artisan — somewhere far away, a bag, a shop, the app they already use
+   * every day.
+   *
+   * If licensed marks ever arrive, this is the only place that changes.
+   */
+  Globe as IconChannelAmazon,
+  ShoppingBag as IconChannelFlipkart,
+  Store as IconChannelMeesho,
+  MessageCircle as IconChannelWhatsApp,
+
   // --- meta -----------------------------------------------------------------
   CircleQuestionMark as IconHelp,
   Settings as IconSettings,
