@@ -4,7 +4,7 @@ Spec §17. Close each with evidence from `research/`, then log the verdict here.
 
 | # | Decision | Status |
 |---|---|---|
-| 1 | Segmentation model (BiRefNet / SAM 2 / rembg) | open — benchmark in `research/segmentation/` |
+| 1 | Segmentation model | **closed 2026-08-28 — BiRefNet** (`ZhengPeng7/BiRefNet`, MIT, self-hosted, 1024², 1615 MiB, ~645 ms). Benchmarked 5 models over 41 fixtures: `research/segmentation/RESULTS.md` |
 | 2 | Backend framework | **closed — FastAPI + Postgres + Redis/RQ + S3.** Same language as `ai/` |
 | 3 | LLM choice | leaning Claude (`claude-sonnet-5`) for description + category mapping |
 | 4 | Framing check method | grid variance (cheap) — spec recommends it |

@@ -1,0 +1,5 @@
+image,mp,factor,crop_xy,band_full,band_crop,iou,band_ratio
+textile-pallu-fringe-01.jpg,2.7,1.95,"172,105",4.48,2.78,0.9936,1.61
+brass-bidri-specular-04.jpg,3.2,1.95,"34,136",3.32,1.77,0.9981,1.88
+brass-bidri-specular-02.jpg,3.0,1.95,"7,238",3.23,1.5,0.9989,2.15
+textile-blockprint-patterned-03.jpg,3.0,1.95,"3,226",12.99,6.52,0.7626,1.99

@@ -2,8 +2,9 @@
 
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 
+from enhance import jobs, pipeline, storage
 from interpret import InterpretError
 from interpret import interpret as run_interpret
 
@@ -48,14 +49,55 @@ async def catalog_interpret(req: dict) -> dict:
 
 
 @app.post("/enhance")
-def enhance(req: dict):
-    """F1. Queues the job — enhancement takes ~20s. See contracts.md."""
-    raise NotImplementedError
+def enhance(req: dict, response: Response):
+    """F1. Queues the job — enhancement takes ~20s. See contracts.md.
+
+    **The quality gate runs here, synchronously, before anything is queued.** It is the one
+    piece of work done in the request, and it is done in the request on purpose: it costs no
+    GPU, and a refusal is worth far more to the artisan now — while they are still holding
+    the object, in the same light — than after a twenty-second wait. `contracts.md` shows
+    the rejection as an immediate body with no job id, and `web/api` already handles a
+    response without one.
+
+    A rejection is not an error, so it is 200 rather than 4xx. The photograph was received
+    and understood; the answer is "retake it", and the app speaks `message_key` to the
+    artisan.
+    """
+    image_url = req.get("image_url")
+    if not image_url:
+        raise HTTPException(400, "image_url is required")
+    product_id = req.get("product_id") or "unknown"
+    targets = req.get("targets") or [pipeline.PRIMARY]
+
+    try:
+        image = storage.open_image(image_url)
+    except storage.SourceError as e:
+        # Our file is missing, not their photograph's fault. `enhance.failed` is the app's
+        # degrade path — it keeps the artisan's own photo and carries on.
+        raise HTTPException(502, {"reason": str(e), "message_key": "enhance.failed"})
+
+    rejection = pipeline.gate(image)
+    if rejection:
+        response.status_code = 200
+        return {"status": "rejected", **rejection}
+
+    job_id = jobs.submit(pipeline.run, image, targets, product_id)
+    response.status_code = 202
+    return {"job_id": job_id, "status": "queued"}
 
 
 @app.get("/enhance/{job_id}")
 def enhance_status(job_id: str):
-    raise NotImplementedError
+    """Poll a job. `web/api` proxies this and checks ownership before it reaches the app.
+
+    404 on an unknown id is survivable by design: the job table is process-local (see
+    `enhance/jobs.py`), so a service restart makes ids stop resolving, and the app degrades
+    to the artisan's own photograph on any failure.
+    """
+    job = jobs.get(job_id)
+    if job is None:
+        raise HTTPException(404, "unknown job id")
+    return job
 
 
 @app.post("/catalog")

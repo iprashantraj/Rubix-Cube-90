@@ -18,8 +18,8 @@ against a moving folder.
 
 | Set | Images | Purpose |
 |---|---|---|
-| `gate-v1` | — | Calibrates the capture and server quality gates |
-| `seg-v1` | — | Benchmarks segmentation models (decisions.md #1) |
+| `gate-v1` | 591 | Calibrates the capture and server quality gates. The whole of `raw/` — 93 originals plus 498 synthetic degradations. Verdict in `research/RESULTS.md` |
+| `seg-v1` | 41 | Benchmarks segmentation models (decisions.md #1). Membership is `research/segmentation/seg-v1.txt`, reasoning is `seg-v1.md` alongside it |
 | `wb-v1` | — | Paired with/without white paper, for the white-balance path |
 | `pottery-terracotta-darkfloor-01.jpg` | terracotta | darkfloor | web | fusion-of-horizons | BY 2.0 | [source](https://www.flickr.com/photos/9019841@N08/14758735498) |
 | `pottery-terracotta-darkfloor-02.jpg` | terracotta | darkfloor | web | john bonham2 | BY-SA 2.0 | [source](https://www.flickr.com/photos/95205391@N05/9024859706) |
@@ -603,3 +603,21 @@ Illustrator Percy James Billingh | PUBLIC DOMAIN | [source](https://commons.wiki
 | `textile-zari-bad-overexposed-04.jpg` | textile-zari | bad/overexposed | synthetic | degrade.py | n/a — derived from `textile-zari-specular-04.jpg` | +2.0 stops, highlights clipped |
 | `textile-zari-bad-toofar-04.jpg` | textile-zari | bad/toofar | synthetic | degrade.py | n/a — derived from `textile-zari-specular-04.jpg` | subject at 0.32 of frame |
 | `textile-zari-bad-underexposed-04.jpg` | textile-zari | bad/underexposed | synthetic | degrade.py | n/a — derived from `textile-zari-specular-04.jpg` | -3.0 stops in linear light |
+
+### ⚠ Mislabelled fixtures — found 2026-08-28 while picking `seg-v1`
+
+Five files carry a filename that does not describe their contents:
+
+| File | Filename claims | Actually shows |
+|---|---|---|
+| `textile-zari-specular-01.jpg` | zari textile | a guitarist |
+| `textile-zari-specular-02.jpg` | zari textile | a drummer on stage |
+| `textile-zari-specular-03.jpg` | zari textile | a man in a branded jacket |
+| `textile-zari-specular-04.jpg` | zari textile | a runner at an athletics meet |
+| `textile-dupatta-fringe-04.jpg` | dupatta with fringe | forested mountains |
+
+They are harmless to `gate-v1`: that calibration only ever read brightness, blur and
+framing statistics, and never needed the subject to match the name. They would have
+silently corrupted `seg-v1`, where the subject is the whole point. All five are excluded
+from `seg-v1` and should be renamed or dropped before the set is reused for anything
+content-dependent.

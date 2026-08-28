@@ -14,6 +14,11 @@ listing out. The artisan may not be able to read, and may be on a rural tower.
 
 # Read before any image work
 
+**New to the image side, or explaining it to someone who is?**
+`docs/walkthrough/image_processing_flow.md` follows one photograph from the camera to the
+listing image in plain language — what runs on the phone, what runs on the server, what is
+built and what is not. Start there, then come back to the two files below.
+
 **`docs/Abhay/PIPELINE-RECONCILIATION.md`.** It decides between two competing designs for
 the image pipeline and says which parts of each survive.
 
@@ -67,11 +72,27 @@ If a task conflicts with these, stop and flag it. Do not silently resolve.
 ```bash
 node app/src/camera/gate.js      # camera gate, 19 assertions, no device or framework
 cd web/api && python3 test_uploads.py   # chunk assembly, no database or server
-cd ai && .venv/bin/pytest        # pricing — needs a venv; ai/.venv does not exist yet
+cd ai && .venv/bin/pytest        # pricing, 15 tests. ai/.venv exists as of 2026-08-28
+cd ai && python3 test_gate.py    # server quality gate, 10 assertions, no venv or fixtures
+cd ai && python3 test_segment.py # master downscale; skips the model half without a venv
+cd ai && .venv/bin/pytest test_service.py  # the /enhance contract end to end; needs fastapi
+python3 images/check.py --resume && python3 images/calibrate.py   # thresholds vs the fixture set
 ```
 
 # Current state
 
-Everything in `ai/` is `NotImplementedError` — that is the work in progress, and the app's
-`enhance.failed` degrade path is the **common path in development**, not a bug you caused.
+**The F1 image path is wired end to end as of 2026-08-28.** `POST /enhance` gates, queues and
+returns 202; `GET /enhance/{job_id}` polls; the job runs gate → 2000px master → BiRefNet →
+tier → crop → per-target JPEG. Start it with `uvicorn service:app` — `worker.py` is not
+needed yet and says so.
+
+Three stages inside that sequence are still unwritten and are **skipped explicitly**, with
+every response naming them: `white_balance()`, `tone()`, `denoise_sharpen()`. Colour is the
+significant absence. F2 (`/catalog`) and F3 (`/price`) are still stubs, so the app's
+`enhance.failed` degrade path remains the common path for everything except images.
+
+The job table is process-local (`ai/enhance/jobs.py`): one worker thread, because one GPU.
+Restarting the service loses in-flight jobs and their ids. `docs/decisions.md` #2's Redis+RQ
+is the fix and the swap surface is two functions.
+
 See `docs/Abhay/CHANGELOG.md` for what moved most recently and what is still blocked.

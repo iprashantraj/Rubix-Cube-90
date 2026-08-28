@@ -6,6 +6,80 @@ repeats in `PIPELINE-RECONCILIATION.md` §9.
 
 ---
 
+## 2026-08-27 (8) — the server gate is built; step 3 of the list is done
+
+First working stage in `ai/enhance/`. `gate()` decides whether a photograph is worth
+spending a GPU on, and it decides it on the numbers calibrated in entry (7) rather than on
+guesses.
+
+**`ai/enhance/pipeline.py` `gate()`** — returns `None` when the photo is worth processing,
+or the rejection body from `contracts.md`, `{"reason", "message_key"}`, which `service.py`
+returns under `{"status": "rejected"}`. Six refusals: resolution, mean too low, mean too
+high, blown highlights, crushed shadows, blur. Pure numpy and Pillow — no model, no GPU,
+211ms and 391MB on a 22MP photograph.
+
+**It does not check framing, on purpose.** Too far, too close and off-centre are all
+repairable, and `crop()` is the thing that repairs them — refusing them here would throw
+away a listing the pipeline was built to rescue. Framing is coached on the phone where the
+artisan can still act on it, and fixed on the server. Only what cannot be repaired is
+refused: pixels that were never captured, detail that is not there, and clipped values that
+hold no information at all.
+
+**The check order deliberately differs from `gate.js`.** The mean settles dark-or-bright
+first and the clipping tests follow, so a 50%-blown photograph is never announced as "too
+dark" — which is bug 1 in entry (7), still open on the app side. There is a test named after
+it. I did not want to build the same mistake into the server while the request to fix it on
+the phone is outstanding.
+
+**Blur reads `blur_laplacian_variance_reject_min`, not the capture advisory.** That key is
+now in a third `_enhance_only` section of `thresholds.json`, as reconciliation §6 proposed,
+though at 20 rather than the 30 that section guessed — 30 costs six more good photographs
+for four more blurred ones, and rule 3 prices that trade the other way.
+
+**`ai/enhance/metrics.py` — new, and the reason it exists matters.** The luma, Laplacian and
+exposure measurements now live in one module that both the server gate and `images/check.py`
+import. They were briefly duplicated, which would have quietly turned entry (7)'s
+calibration into evidence for nothing: every threshold in `thresholds.json` was set using
+these exact functions, so a second copy that drifted by a rounding rule would mean the gate
+no longer does what the fixtures say it does. Same argument as the one thresholds file.
+`check.py` keeps the half that describes the phone — the 12×9 framing grid and the `gate.js`
+verdict ladder — because that half is a mirror of someone else's code, not shared logic.
+
+The module carries the banded, bounded-memory implementations from entry (7). That matters
+more here than it did there: this runs on a worker box sized for model inference, where a
+gigabyte spent looking at a photograph is a gigabyte not available to BiRefNet.
+
+**`ai/test_gate.py` — new, 10 assertions, runs on plain `python3` with no venv and no
+fixtures.** Same spirit as `node app/src/camera/gate.js` and `web/api/test_uploads.py`.
+Synthetic images with a known defect, asserting the gate refuses each one *for the right
+reason* — a correct refusal with the wrong spoken message is still a failure, because the
+message is what the artisan acts on. It also asserts that framing is never a reason to
+refuse, and that the two blur numbers have not been collapsed into one.
+
+The last test replays the whole calibration set and asserts the counts recorded in
+`research/RESULTS.md`: **25 of 93 good photographs refused, 291 of 498 degraded fixtures
+caught.** If either moves, the gate has stopped agreeing with the evidence its thresholds
+were set on, or a threshold moved without the RESULTS row that is supposed to accompany it.
+It skips itself when the fixture pixels are not on the machine, since they are gitignored.
+
+Verified separately against 50 real fixtures through `gate()` itself rather than through the
+recorded measurements — all 50 agree.
+
+**Where the numbers differ from what entry (7) implied.** I quoted 450 of 498 for the server
+gate there. That figure included framing, which this stage does not check; the correct number
+for the gate as specified is 291, and the difference is 159 off-centre and too-far fixtures
+that now pass through to `crop()` as they should. The count of good photographs refused is
+unchanged at 25.
+
+**Also updated:** `CLAUDE.md`'s "Current state" no longer says everything in `ai/` is
+`NotImplementedError`, and its testing block lists the two new commands. Reconciliation §8
+marks step 3 done.
+
+**Not touched.** No file in `app/` or `web/`. Nothing calls `gate()` in production yet —
+`/enhance` is still a stub, and it is step 9.
+
+---
+
 ## 2026-08-28 (8) — your branch is merged; all four app/web requests are in *(from the app/web side)*
 
 `origin/abhay/image-thresholds` is merged into `main`. Everything the 2026-08-27 entry asked
@@ -450,3 +524,307 @@ demotion in `gate.js` (finding 3). Both are unchanged requests.
 
 **Not touched.** No file in `app/`, `web/` or `ai/` was modified this session — only
 `docs/Abhay/`, the new `images/`, and two lines of `.gitignore`.
+
+---
+
+## 2026-08-28 — Segmentation model chosen: BiRefNet (decision #1 closed)
+
+**Decided**
+
+`docs/decisions.md` #1 is closed. We use **BiRefNet** (`ZhengPeng7/BiRefNet`, MIT licence,
+self-hosted, run at 1024×1024). Measured on the dev machine's RTX 2050: 1615 MiB peak VRAM,
+~645 ms per image. BiRefNet-lite is held in reserve as a drop-in swap if GPU memory ever
+becomes the binding constraint. Both revisions are pinned in `research/segmentation/RESULTS.md`
+— these repos ship `trust_remote_code`, so tracking `main` would let upstream change our
+pipeline silently.
+
+Five models over 41 fixtures, chosen by eye from contact sheets with metrics as support.
+Rejected: `isnet-general-use` (48 holes per image), `u2net` (weakest on fringe), and
+**RMBG-2.0**, which never ran — its repo is gated behind a Hugging Face account approval, and
+its CC BY-NC 4.0 licence means a good score could not have changed the outcome. Worth knowing,
+since it is the model most commonly recommended for this task online. InSPyReNet was a close
+second and lost mainly on memory (2924 MiB of a 4GB card).
+
+**Three findings that change steps 7 and 8**
+
+1. **Fringe is largely solved by the model itself.** The four museum tassels were in the set to
+   force the question of whether we need a separate alpha-matting stage. BiRefNet followed
+   individual threads including stray wisps. On this evidence the separate matting stage in the
+   spec may be unnecessary — worth proving before building it.
+2. **Pale-on-pale is the real failure, not dark-on-dark.** `1816d85d` (near-black pot, near-black
+   ground) was picked as the hardest image and came out clean. `textile-shawl-fringe-03` (cream
+   linen on white) lost the entire cloth, keeping only a few fringe threads. An artisan shooting
+   white cotton on a white sheet is not a rare event.
+3. **The model never signals doubt.** On frames with no single product, it returns a confident
+   outline around an arbitrary region rather than an empty or low-confidence mask. Two full-frame
+   textile close-ups drove it to 0.017 and 0.042 consensus IoU. **Step 8 cannot ask the model how
+   sure it is** — confidence has to be derived from the mask's own geometry.
+
+**Also found**
+
+- **Five fixtures are mislabelled.** `textile-zari-specular-01..04` are a guitarist, a drummer, a
+  man in a branded jacket and a runner at an athletics meet; `textile-dupatta-fringe-04` is a
+  photograph of mountains. Harmless to the threshold calibration, which only ever read luma
+  statistics and never needed the subject to match the name. They would have corrupted this
+  benchmark. Excluded, and recorded in `images/MANIFEST.md`.
+- **Roughly half the 93 originals cannot be used for segmentation** — book plates, engravings,
+  flat full-frame fabric with no background, documentary shots of weavers. Not a defect: the set
+  was built to measure light and blur, where content is irrelevant.
+- Two metrics I introduced turned out to be misleading and are documented as such in RESULTS.md.
+  Soft-edge fraction *inversely* tracked fringe quality — BiRefNet has the lowest and the best
+  edges; what the metric rewards is a smeared boundary. Hole count is meaningless inside the
+  fringe group, where gaps between threads are correct.
+
+**Environment** — `ai/.venv` now exists (gitignored) with torch 2.11.0+cu128. The NVIDIA
+driver was installed and the machine rebooted, so the RTX 2050 is usable; the walkthrough's
+"the development machine has no graphics card" note is corrected. Note `python3.10-venv` is not
+installed system-wide, so the venv was bootstrapped via `get-pip.py`. **`ai/requirements.txt`
+is unchanged** — it still describes the CPU service, and the benchmark's dependencies
+(transformers, timm, rembg, transparent-background) are deliberately not in it until step 7
+decides what the service actually imports.
+
+**New files** — all under `research/segmentation/`: `seg-v1.txt` (the set), `seg-v1.md` (why
+those 41), `bench.py`, `consolidate.py`, `sheets.py`, `RESULTS.md`, and `out/` with every
+cut-out and six contact sheets. `out/` is large and binary; it should be gitignored the same
+way `images/out/` is, which I have **not** done — say the word and I will.
+
+**Not touched.** No file in `app/`, `web/` or `ai/` was modified. `ai/.venv/` was created and
+one line added to `.gitignore`.
+
+### Same day, follow-up — the upscale question, answered
+
+The one measurement step 6 could not make. `research/segmentation/upscale_test.py`, results
+appended to `research/segmentation/RESULTS.md`.
+
+BiRefNet infers at 1024² regardless of input, so its mask is stretched to fit the photo. At
+full sensor resolution (3.6–5.6×) the outline stays correct — IoU ~0.99 — but fine detail
+dissolves: the edge band grows from ~2px to 7–13px, and at 100% a wire-thin nose ring becomes
+a blob. **At the 2000px master the spec already mandates (`IMAGE_PIPELINE_SPEC_WEB.md:230`),
+the stretch is 1.95× and the band is 3–4px** — near-indistinguishable from the detail ceiling.
+
+Two consequences:
+
+- **Step 7 does not need a separate matting stage**, provided segmentation runs on the 2000px
+  master and not the raw upload. The tassel result from the benchmark holds, because those
+  fixtures were already in the ~1.9× regime.
+- **The spec's downscale-first rule is load-bearing for mask quality, not just speed.** It is
+  justified on performance grounds in the spec. Anyone who later "optimises" by segmenting the
+  full-resolution upload would get a slower pipeline and worse edges. Worth a comment in the
+  code when step 7 is written.
+
+If a channel ever needs images above ~2000px, this stops applying — re-run
+`upscale_test.py --master <N>` before assuming otherwise.
+
+---
+
+## 2026-08-28 — Step 7 started: segmentation is implemented
+
+`ai/enhance/pipeline.py` `segment()` and `matte()` are no longer `NotImplementedError`.
+This is the first working model stage in `ai/`.
+
+**New: `ai/enhance/segmenter.py`.** BiRefNet, pinned to the revision the benchmark measured.
+Lazy singleton behind a lock, half precision on CUDA, automatic CPU fallback (~20× slower,
+kept working on purpose — rule 3 says losing enhancement must never cost the listing).
+
+Two constants in it are conclusions rather than settings, and both are commented as such:
+
+- `REVISION` is pinned because BiRefNet ships `trust_remote_code` — the code that builds the
+  network downloads with the weights. Tracking `main` would let upstream change our pipeline
+  with no commit on our side, and it is remote code execution besides.
+- `MASTER_LONG_EDGE = 2000` is not a speed setting. The model infers at 1024² whatever it is
+  given and its mask is stretched to fit, so **the master's size is the edge quality**.
+  Measured: 1.95× stretch at 2000px, 3.9× on a raw 12MP upload, where a wire-thin nose ring
+  becomes a blob.
+
+**`matte()` returns the mask unchanged, deliberately.** The spec assumed a trimap and alpha
+matting stage; BiRefNet's output is already soft where the subject is soft, and at 2000px the
+edge band sits 3–4px against a 1.5–2.8px ceiling. Documented as an evidence-backed no-op with
+the three conditions that would bring it back, rather than deleted — output above ~2000px, a
+model swap, or genuinely translucent goods (muslin, net, chanderi, glass), which `seg-v1`
+contains no fixture for and which is therefore untested rather than disproven.
+
+**Requirements are now split.** `ai/requirements.txt` stays small — `service.py` queues jobs
+and needs no GPU stack. The new `ai/requirements-enhance.txt` is the worker's ~3GB of torch
+and CUDA. `pipeline.py` imports nothing from it at module scope, which is what keeps
+`python3 test_gate.py` runnable with no virtualenv; that property is load-bearing for the
+gate's calibration staying checkable and there is a comment saying so in both files.
+
+**Tests** — `ai/test_segment.py`, same two-half shape as `test_gate.py`. The geometry half
+(7 assertions on the master downscale, including aspect-ratio preservation and never
+upscaling) runs on plain `python3`. The model half skips without torch, and skips are
+reported as SKIP rather than counted as passes. Whole suite: 24 passed under
+`ai/.venv/bin/pytest`.
+
+Verified end to end on real fixtures: 22MP → 1333×2000 master → alpha in 1204 ms on the
+RTX 2050, 645 ms for the smaller ones.
+
+**Still open in step 7** — nothing calls `segment()` in production yet. `service.py`
+`/enhance` and `worker.py` are still stubs, and `crop()`, `composite()`, `white_balance()`,
+`tone()` and `denoise_sharpen()` remain unimplemented. Step 8's tier system is where the
+"model never signals doubt" finding gets handled.
+
+**Not touched.** No file in `app/` or `web/` was modified. `CLAUDE.md` gained one line in the
+testing block; `ai/README.md` gained the requirements split and a segmentation note.
+
+### Same day — `crop()` and `composite()` built
+
+`ai/enhance/pipeline.py`. The pipeline now produces a finished 2000×2000 listing image from
+a raw photograph: `segment → matte → composite → crop`. 42–177 ms for the two geometry
+stages on top of segmentation's ~650 ms.
+
+**`composite()`** lays the product on pure #FFFFFF and asserts the invariant on every call:
+every fully transparent pixel comes out *exactly* 255, not approximately. Marketplaces sample
+pixels and reject (252,252,252); the artisan would see a rejected listing with no explanation
+they could act on.
+
+I went looking for the colour-fringing artefact — a half-transparent edge pixel keeps some of
+the original background's colour, so a product shot against something dark should leave a
+dark rim on white. **It is not there.** On the two worst fixtures (`1816d85d`, a near-black
+pot on a near-black ground, and `brass-bidri-specular-02`), rim pixels deviate from an ideal
+blend by +2.3 and +37.3 — *toward* white, not away from it, where a dark halo would be
+negative. At 4× zoom both silhouettes ramp cleanly. So foreground colour estimation is not
+built, and the docstring records the measurement rather than the worry.
+
+**`crop()`** squares the frame with the product at `crop_fill_target`. Two decisions worth
+knowing:
+
+- **The product box is found by alpha *mass*, not by `alpha > 0`.** A soft mask carries faint
+  dust — one alpha-0.01 pixel in a corner — and a naive bounding box snaps to the frame edge
+  and shrinks the product to a stamp. The box is the interval holding all but 0.1% of the
+  mask's weight per axis. There is a test for exactly that speck.
+- **`crop_plan()` is separate from `crop()`** and reports `upscale`. A product photographed
+  from far away has a small square box, and reaching 2000px enlarges it — 4.07× on one
+  fixture. Lanczos interpolates rather than inventing detail, so this is not the rule-1
+  fabrication, but past ~2× the result is visibly soft and **the caller should turn it into a
+  `warnings` entry** (the array already exists in `contracts.md`) instead of quietly shipping
+  a mushy listing.
+
+**`crop()` must run after `composite()`** — it pads with white where the square runs off the
+photograph, which is only right once the background already is white. Said plainly in the
+docstring, since the signatures do not enforce it.
+
+**Thresholds** — added `crop_fill_target: 0.85` and `listing_canvas_px: 2000` under
+`_enhance_only`. The reconciliation also proposed `crop_padding_pct: 8`; that is the same
+number said backwards ((1 − 0.85) / 2 = 7.5%), so I did not add it. Two keys that can
+disagree about one measurement is a bug waiting to happen. Neither number is calibrated
+against fixtures — 0.85 is the marketplace requirement from spec §9.1, and the comment in the
+JSON says so rather than implying evidence that does not exist.
+
+**Tests** — `ai/test_segment.py` is now 20 assertions, still runnable with plain `python3`
+(the model half skips). Whole suite 37 passed. One of the new tests caught a bug in itself
+rather than in the code: PIL sizes are (w, h) and numpy shapes are (h, w), so my first
+"mismatched alpha" case was accidentally a matching one. Worth knowing, because a transposed
+mask composites a product against its own background and looks *almost* right.
+
+**Still open** — `white_balance()`, `tone()`, `denoise_sharpen()`, `export()` and `run()`
+remain stubs, and nothing calls any of this in production: `service.py /enhance` and
+`worker.py` are still unimplemented.
+
+---
+
+## 2026-08-28 — Step 8: mask confidence and tiers A/B/C
+
+`ai/enhance/pipeline.py` — `mask_signals()`, `mask_confidence()`, `tier()`, `apply_tier()`,
+and a numpy connected-components (`_components`, run-length union-find, no OpenCV and no
+scipy, because `test_gate.py` and the fixture tools run on a clean machine). ~13 ms per mask.
+
+**Calibrated, not assumed.** `research/segmentation/tiers.py` scores the reconciliation's
+proposed thresholds against the 41 masks BiRefNet produced on `seg-v1`, using seven masks I
+labelled unshippable by eye from the contact sheets. Result: **catches 5 of 7, demotes 2 good
+masks to tier B.** A grid search found nothing better on this set, so the values stand — now
+measured. Full table in `RESULTS.md`.
+
+**The gap is real and worth your attention.** `b4b717b2` — a frame-filling textile close-up —
+scores a perfect 1.00 and goes to tier A. Its mask is 57% of the frame, one clean piece,
+almost no undecided alpha: by every shape measure an excellent mask, and completely wrong. Its
+twin `291e88c5` is caught only because its mask happened to land at 92% coverage.
+
+This matters because filling the frame with cloth is *how people photograph cloth*, so it
+lands hardest on textile artisans. I tried an edge-alignment signal for exactly this (a real
+silhouette follows image gradients, an invented one cuts through flat colour) and **it does
+not separate** — bad masks span 0.98–9.66, good ones 0.76–24.87, and the lowest score of all
+belongs to a correct mask. Rejected, and written up so nobody repeats it.
+
+**→ Request for the app side.** What would catch it is knowing there is no background in the
+frame, and the capture gate already measures that as `fill_fraction` before the shutter. That
+number does not currently reach the server. Sending it with the upload would likely close this
+gap; it is a change in `app/` so it is a request, not something I have done.
+
+**Two deliberate divergences from spec §6.3**, both argued in the docstrings and RESULTS.md:
+
+- Tier B is **feathered-on-white**, not the spec's "soft studio gradient" — a gradient cannot
+  be a marketplace primary (`contracts.md`, spec §9.1 both require #FFFFFF), so it would cause
+  the rejection the tier exists to prevent.
+- Tier C **removes nothing at all**, not the spec's "background blurred + dimmed". The spec
+  asks for that blur two lines after promising C *"removes nothing, so it cannot damage the
+  product"* — but blurring needs the mask, and C is exactly when the mask is not trustworthy.
+  Blurring with a bad mask smears the product. The guarantee is worth more than the nicety.
+
+**Non-obvious property, now documented and tested:** deductions are 0.4/0.3/0.3 from 1.0 and
+tier B starts at 0.45, so a single anomaly only ever reaches B. **Tier C takes two independent
+failures.** Deliberate — one odd measurement is usually an odd photograph, and refusing to
+enhance on one signal costs more listings than it saves. Two tests found this before a user
+would have.
+
+**Thresholds** — the six `_tiers` keys are live in `thresholds.json` with the calibration
+result in the comment.
+
+**Tests** — `test_segment.py` is now 32 assertions, still plain-`python3` runnable. Suite: 49
+passed. Two of the new tests initially failed on a real edge in my own code: blobs sized at
+exactly the 1% speck cutoff, which is worth knowing since that cutoff is what stops a tassel's
+shed pixels reading as fragmentation.
+
+**Still open** — `white_balance()`, `tone()`, `denoise_sharpen()`, `export()`, `run()`, and
+all of step 9. Nothing calls any of this in production yet.
+
+---
+
+## 2026-08-28 — Step 9: the image path is connected
+
+`POST /enhance` and `GET /enhance/{job_id}` are real. **An artisan's photograph can now reach
+the pipeline and come back as listing images.** Your side already had the calling half —
+`web/api/routers/products.py` was calling `/enhance` and proxying the poll — so this was
+entirely the missing half in `ai/`.
+
+New: `ai/enhance/jobs.py` (job table), `ai/enhance/storage.py` (source and output I/O), plus
+`pipeline.run()` and `pipeline.export()`. `service.py` wires them. Verified end to end
+against the running app: 202 + job id, poll to done, 2000×2000 amazon + 1000×1000 whatsapp
+JPEGs written, no EXIF, pure white corners, whatsapp at 37KB against spec §9.1's 200KB
+ceiling.
+
+**The gate runs synchronously in the POST, before anything is queued.** It costs no GPU, and
+a refusal is worth much more to the artisan now — still holding the object, in the same
+light — than after a twenty-second wait. A rejection returns **200 with no job id**, matching
+`contracts.md`; your `job.get("job_id")` already handles that.
+
+Error shapes, because the app's degrade path depends on them: missing `image_url` → 400,
+unreadable source → **502 with `message_key: enhance.failed`** (our missing file must never
+be reported as the artisan's bad photograph — they would retake a picture that was fine),
+unknown job id → 404, `s3://` → 502 saying exactly what is not wired up.
+
+**Two limits you should know before this goes anywhere near a demo.**
+
+1. **The job table is in memory, in the service process.** Restart the service and in-flight
+   jobs vanish and their ids stop resolving. It also cannot survive a second replica — a poll
+   routed to the other process finds nothing. Decision #2's Redis+RQ fixes both and the swap
+   surface is deliberately two functions, `jobs.submit()` and `jobs.get()`. I did not stand up
+   Redis because that is deployment shape, and it is your call. `worker.py` is where it goes
+   and now explains itself instead of raising.
+2. **One job at a time, on purpose.** One GPU, and BiRefNet holds ~1.6GB of a 4GB card. Two
+   concurrent jobs is an out-of-memory crash, not throughput.
+
+**Still skipped, and named in every response** (`"skipped": [...]`): `white_balance()`,
+`tone()`, `denoise_sharpen()`. Colour is the significant one — a maroon saree under a tungsten
+bulb still comes back orange. Rule 4 means nothing publishes without the artisan confirming
+colour anyway, but this is the largest remaining quality gap.
+
+`run()` also returns `stages`, which is the beginning of step 5's recipe: rule 2 says record
+what was done and render on demand rather than overwriting the original.
+
+**Tests** — new `ai/test_service.py`, 10 assertions over the contract including every error
+path. It needs fastapi, so unlike the other two it does not run on a bare machine; the GPU
+half skips separately. Suite: **59 passed**.
+
+**Not touched.** Still nothing in `app/` or `web/`. The two open requests from earlier stand:
+`fill_fraction` sent with the upload (would likely close the tier system's blind spot), and
+the five mislabelled fixtures in `images/MANIFEST.md`.
