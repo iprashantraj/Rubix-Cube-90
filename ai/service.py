@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from enhance import jobs, pipeline, storage
 from interpret import InterpretError
+from interpret import harvest as run_harvest
 from interpret import interpret as run_interpret
 from price import comps
 from price.compute import quote
@@ -51,6 +52,29 @@ async def catalog_interpret(req: dict) -> dict:
     # `choice`, not `value`, because that is what ai/contracts.md already publishes and what
     # app/src/voice/interpret.js already reads.
     return {"choice": result["value"], "confidence": result["confidence"]}
+
+
+@app.post("/catalog/harvest")
+async def catalog_harvest(req: dict) -> dict:
+    """One sentence -> every slot it happened to contain. Contract: ai/contracts.md.
+
+    Always optional, and the caller must treat it that way. The artisan's direct answer to
+    the question actually asked is already stored before this is called; a harvest only
+    fills slots that are still empty. So an empty result and a 503 mean the same thing to
+    the app — ask the next question — and neither is a failure worth telling the artisan
+    about. They said a sentence; we got what we could out of it.
+
+    Same three outcomes as /catalog/interpret, for the same reasons.
+    """
+    try:
+        result = await run_harvest(req)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    except InterpretError as e:
+        log.warning("harvest unavailable: %s", e)
+        raise HTTPException(503, "interpreter unavailable") from e
+
+    return {"slots": result["slots"], "confidence": result["confidence"]}
 
 
 @app.post("/enhance")

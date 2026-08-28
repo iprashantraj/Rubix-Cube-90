@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,8 @@ from ..channels.base import PublishResult
 from ..db import get_db
 from ..models import Artisan, ChannelStatus, Listing, Product
 from ..security import current_artisan
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 router = APIRouter()
 
@@ -97,3 +99,57 @@ def publish_status(job_id: str) -> dict:
     if job_id not in JOBS:
         raise HTTPException(404, "unknown job")
     return JOBS[job_id]
+
+
+@router.get("/publish/gem/{product_id}.xlsx")
+def gem_workbook(
+    product_id: str,
+    db: Session = Depends(get_db),
+    artisan: Artisan = Depends(current_artisan),
+) -> Response:
+    """The GeM catalogue sheet, built on demand.
+
+    ⚠️ This route is why GeM "file generation" did not work. `GeMAdapter.render` built the
+    workbook, threw the bytes away, and returned `artifact_url=f"s3://gem/{id}.xlsx"` — a
+    string composed on the spot, pointing at an object nobody had written, in a bucket
+    scheme nothing in this repo produces. The artisan was told their file was ready and
+    there was no file.
+
+    Built on request rather than stored, deliberately. The sheet is a pure function of the
+    product, so a saved copy is a cache with no invalidation: edit the title, and the
+    download still serves the old one. Regenerating costs milliseconds — openpyxl over one
+    row — and is always right. If it ever stops being cheap, cache it against
+    `product.updated_at` and not before.
+
+    Ownership is enforced by the query, not checked afterwards: a product id belonging to
+    someone else is a 404 here, and 404 rather than 403 because "does this id exist" is not
+    a question a stranger gets to have answered.
+    """
+    product = (
+        db.query(Product)
+        .filter(Product.id == product_id, Product.artisan_id == artisan.id)
+        .first()
+    )
+    if product is None:
+        raise HTTPException(404, "unknown product")
+
+    adapter = registry.get("gem")
+
+    # The same refusal render() makes, made again here. Someone who deep-links this URL
+    # must not be able to walk around the floor guard — under-pricing is the thing this
+    # whole feature exists to prevent, and a spreadsheet is how it would reach GeM.
+    if problem := adapter.check_discount(product):
+        raise HTTPException(409, problem)
+
+    data, warnings = adapter.build_workbook(product)
+    return Response(
+        content=data,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="gem-{product_id}.xlsx"',
+            # Surfaced as a header so the app can speak the shortfall without a second
+            # request. Missing template, empty required cell — the artisan should hear
+            # "this sheet is incomplete" before they upload it to GeM and wait three days.
+            "X-Gem-Warnings": "; ".join(warnings)[:500] or "none",
+        },
+    )

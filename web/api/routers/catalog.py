@@ -35,6 +35,13 @@ log = logging.getLogger(__name__)
 # or anything that could reach this endpoint — decides what a third party receives.
 FORWARDED_FIELDS = ("transcript", "question", "options", "language")
 
+# The harvest envelope, kept separate from FORWARDED_FIELDS on purpose. `slots` is a list of
+# field names where `question` is a single id, so the two shapes are genuinely different and
+# a single tuple covering both would let a harvest smuggle a `question` or an interpret call
+# smuggle `slots`. Mirrors ALLOWED_HARVEST_FIELDS in ai/interpret.py — this is the outer half
+# of the same two-filter guarantee, and neither half trusts the other to have run.
+HARVEST_FIELDS = ("transcript", "slots", "language")
+
 TIMEOUT_SECONDS = 15
 
 
@@ -72,3 +79,49 @@ async def catalog_interpret(req: dict, artisan=Depends(current_artisan)) -> dict
     # Re-shaped rather than passed through, so a change on the AI side cannot silently
     # introduce a new field into the app's response.
     return {"choice": body.get("choice"), "confidence": body.get("confidence", 0.0)}
+
+
+@router.post("/catalog/harvest")
+async def catalog_harvest(req: dict, artisan=Depends(current_artisan)) -> dict:
+    """Pull every slot one spoken sentence contains. Contract: ai/contracts.md.
+
+    Asked what a thing is, an artisan says "yeh sambalpuri cotton saree hai, teen din laga".
+    That is four answers in one breath, and asking for three of them again is the largest
+    single waste in the interview.
+
+    Authenticated for the same reason as interpret: it spends money per call. The artisan's
+    id is used HERE and forwarded nowhere — see HARVEST_FIELDS, and the self-check in
+    ai/interpret.py that asserts a whole draft handed to the builder yields three fields.
+
+    A failure is not surfaced to the artisan. They have already answered the question that
+    was actually asked and that answer is already stored; a harvest that returns nothing
+    just means the next question gets asked, which is what used to happen every time.
+    """
+    payload = {k: req.get(k) for k in HARVEST_FIELDS if req.get(k) is not None}
+
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
+            res = await client.post(
+                f"{settings().ai_base_url}/catalog/harvest",
+                json=payload,
+            )
+    except httpx.HTTPError as e:
+        log.warning("ai service unreachable for harvest: %s", e)
+        raise HTTPException(503, "harvest unavailable") from e
+
+    if res.status_code == 422:
+        raise HTTPException(422, res.text)
+    if res.status_code != 200:
+        log.warning("ai harvest returned %s: %s", res.status_code, res.text[:200])
+        raise HTTPException(503, "harvest unavailable")
+
+    body = res.json()
+    found = body.get("slots")
+    # Re-shaped, and re-checked. `slots` crossed a process boundary as arbitrary JSON, so it
+    # is rebuilt as a flat string map here rather than handed to the app as it arrived.
+    slots = (
+        {str(k): str(v) for k, v in found.items() if isinstance(v, (str, int, float))}
+        if isinstance(found, dict)
+        else {}
+    )
+    return {"slots": slots, "confidence": body.get("confidence", 0.0)}

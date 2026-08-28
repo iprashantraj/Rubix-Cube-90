@@ -1,12 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useDraft } from '../store';
+import { api } from '../api/client';
 import { useApiQuery } from '../api/useApi';
 import { useVoice } from '../voice/useVoice';
 import { record, transcribe, type RecHandle } from '../voice/listen';
 import { interpretAnswer } from '../voice/interpret';
 import { numberFrom } from '../voice/numbers';
-import { plan } from '../catalog/slots';
+import { plan, absorb, harvestTargets } from '../catalog/slots';
 import { t } from '../i18n/index';
 import { Screen, BigButton, Card, MicButton, Heard } from '../ui/kit';
 import { IconWrite, IconNext, IconYes, IconNo, IconBack, IconRetry } from '../ui/icons';
@@ -168,6 +169,37 @@ export default function CatalogVoice() {
   }
 
   /**
+   * Ask the server what else that sentence contained, and keep whatever comes back.
+   *
+   * Not awaited by the caller: the artisan is looking at `Heard` deciding whether we got
+   * their answer right, and blocking that on a second network round trip would add a
+   * spinner to the one moment in the flow that is supposed to feel immediate. The result
+   * lands in the draft before they reach the next question, and if it does not, the next
+   * question simply gets asked.
+   *
+   * `absorb()` is what makes an out-of-order arrival safe — it never overwrites a slot that
+   * already has a value, so a slow harvest cannot clobber an answer given while it was in
+   * flight.
+   */
+  async function harvestFrom(said: string, from: string) {
+    try {
+      const { slots } = await api.post('/catalog/harvest', {
+        transcript: said,
+        slots: harvestTargets(from),
+        lang,
+      });
+      if (!slots) return;
+      const current = useDraft.getState().answers;
+      const merged = absorb(current, slots);
+      for (const [field, value] of Object.entries(merged)) {
+        if (current[field] !== value) answer(field, value as string);
+      }
+    } catch {
+      // 503, no key, no network, nothing found. All the same thing: ask the next question.
+    }
+  }
+
+  /**
    * They agreed with what we had — from the photo, or from what they said last time.
    *
    * Stored as a real answer, because it is one. The alternative was writing it silently at
@@ -272,6 +304,25 @@ export default function CatalogVoice() {
         ? await interpretAnswer({ transcript: said, question: q.key, lang })
         : { value: numberFrom(said), raw: said };
       answer(q.field, String(value ?? raw));
+
+      /*
+       * Everything else that sentence happened to contain.
+       *
+       * "yeh sambalpuri cotton saree hai, teen din laga" answers what, material and time in
+       * one breath. Asking for the other two again is the largest single waste in the
+       * interview, and it is the thing artisans notice: they told us, and we asked anyway.
+       *
+       * Deliberately after the direct answer is stored, and deliberately unable to
+       * overwrite it — `absorb()` skips any slot that already has a value. What was asked
+       * for beats what was inferred from a sentence about something else.
+       *
+       * Failure is silent by design. The question they were asked is answered; a harvest
+       * that returns nothing just means the next question gets asked, which is what
+       * happened on every product before this existed.
+       */
+      if (q.open && harvestTargets(q.field).length) {
+        void harvestFrom(said, q.field);
+      }
       // Show the sentence they actually said, not our reduction of it — the reduction is
       // what we are asking them to trust, so the evidence has to be the original.
       setHeard(raw);
