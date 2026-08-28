@@ -8,7 +8,7 @@ import logging
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
-from enhance import jobs, pipeline, storage
+from enhance import jobs, pipeline, recipe, storage
 from catalog import seo
 from catalog.describe import (
     SYSTEM_PROMPT_DESCRIBE,
@@ -122,6 +122,49 @@ def enhance(req: dict, response: Response):
     job_id = jobs.submit(pipeline.run, image, targets, product_id)
     response.status_code = 202
     return {"job_id": job_id, "status": "queued"}
+
+
+@app.post("/enhance/rerender")
+def enhance_rerender(req: dict, response: Response):
+    """Re-apply a stored recipe. **No GPU when the mask is still cached.**
+
+    This is the endpoint the tier picker calls. `{product_id, image_url, recipe, targets}`,
+    plus an optional `tier` to change before rendering — sending `tier` marks the recipe
+    `tier_source: "user"`, and once a person has overruled the confidence score a later
+    automatic pass must not quietly overrule them back.
+
+    Synchronous, unlike `/enhance`: with the mask cached this is tens of milliseconds, and
+    a job id for that would be slower than the work. It falls back to re-segmenting if the
+    mask is gone, which is the one case where it takes as long as `/enhance` — acceptable,
+    because it is rare and the alternative is failing.
+
+    The caller stores the returned `recipe` back on the product row. `contracts.md` has the
+    shapes.
+    """
+    image_url = req.get("image_url")
+    rec = req.get("recipe")
+    if not image_url or not rec:
+        raise HTTPException(400, "image_url and recipe are required")
+    product_id = req.get("product_id") or "unknown"
+    targets = req.get("targets") or [pipeline.PRIMARY]
+
+    if req.get("tier"):
+        try:
+            rec = recipe.with_tier(rec, req["tier"], by_user=True)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    try:
+        image = storage.open_image(image_url)
+    except storage.SourceError as e:
+        raise HTTPException(502, {"reason": str(e), "message_key": "enhance.failed"})
+
+    try:
+        return pipeline.rerender(image, targets, product_id, rec)
+    except ValueError as e:
+        # A recipe render() cannot honour. 422 rather than 500: the request is well-formed
+        # and the stored recipe is the problem, and the caller's fix is to re-run /enhance.
+        raise HTTPException(422, {"reason": str(e), "message_key": "enhance.failed"})
 
 
 @app.get("/enhance/{job_id}")
