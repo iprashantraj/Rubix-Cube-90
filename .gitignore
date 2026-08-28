@@ -11,6 +11,9 @@ node_modules/
 .supabase-token
 .DS_Store
 research/data/
+# The raw price observations. The DERIVED file (ai/price/comps_seed.json) is what gets
+# committed, same rule as research/data/: commit the manifest, not the collection.
+research/pricing/observed.csv
 
 # Dev databases. NOT just build noise — a working dev.db holds real artisan rows: phone
 # numbers, names and consent artifacts from whoever last tested on a device. Committing one

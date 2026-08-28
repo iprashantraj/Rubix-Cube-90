@@ -1,0 +1,9 @@
+{
+  "_comment": "Hand-collected market prices for the sources that have no queryable API: GeM (none exists), Amazon and Flipkart (seller APIs, no open price search). NOT generated, NOT scraped, NOT estimated — somebody looked at real listings and wrote the numbers down. Collection protocol and the reasons for every rule: research/pricing/README.md. Build this file with `python3 research/pricing/pricing.py build`.",
+
+  "_warning": "Do not invent numbers here. This file feeds the price an artisan is shown and the validation of whether our cost-up floor matches reality. A plausible-looking guess is worse than an empty file, because an empty file prices honestly on cost alone and a guess does not.",
+
+  "collected": null,
+  "collector": null,
+  "categories": {}
+}
