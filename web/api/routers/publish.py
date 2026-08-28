@@ -156,6 +156,12 @@ def gem_workbook(
             # Surfaced as a header so the app can speak the shortfall without a second
             # request. Missing template, empty required cell — the artisan should hear
             # "this sheet is incomplete" before they upload it to GeM and wait three days.
-            "X-Gem-Warnings": "; ".join(warnings)[:500] or "none",
+            #
+            # 🐞 ASCII-folded, and that is not tidiness. HTTP header values must be
+            # latin-1 encodable; the warning text carries an em dash, so every download of
+            # a sheet with any warning attached — which today is every sheet, since no
+            # category templates exist — died with a 500 while the workbook itself was
+            # built perfectly. The bytes were fine; the header describing them was not.
+            "X-Gem-Warnings": ("; ".join(warnings).encode("ascii", "replace").decode()[:500] or "none"),
         },
     )
