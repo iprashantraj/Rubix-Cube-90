@@ -92,27 +92,84 @@ The four layers map exactly onto Master ref §7.2 ①–④, and ⑤ onto §7.3.
 | Field | Type | Where the app gets it | Notes |
 |---|---|---|---|
 | `product_id` | str | `draft.listing.product_id` | Created at `/capture/review` |
-| `material_cost` | number | `draft.listing.cost_material` | **`null` today** — see below |
-| `labour_hours` | number | `hoursFrom(draft.answers.time)` | Parsed out of a spoken answer |
+| `material_cost` | number | `draft.listing.cost_material` | From the sixth voice question. Null only if skipped |
+| `labour_hours` | number | `draft.listing.labour_hours ?? hoursFrom(draft.answers.time)` | Unit-aware — see below |
 | `cluster_id` | str | `useSession.getState().artisan?.cluster_id` | Selects the wage rate |
 | `category` | str | `draft.listing.category` | For comparables only |
 | `channel` | str | Hardcoded `'gem'` (`Price.jsx:84`) | Deliberate — see §5 |
 
-### `material_cost` is null today, and it is the wrong kind of wrong
+### `material_cost` — captured since the sixth question landed
 
-The five voice questions (`app/src/screens/CatalogVoice.jsx:49-55`) are: what · material · time ·
-special · size. `catalog.q_material` asks *"What is it made of?"* — the material's **identity**, not
-its **cost**. Nothing in the flow asks what the thread cost.
+**Resolved.** This section used to say nothing in the flow asked what the materials cost, and that the
+service therefore priced on labour alone — a floor too low, in the one direction that costs the artisan
+money.
 
-`Price.jsx:75-78` flags this in a comment, and the direction matters:
+`app/src/screens/CatalogVoice.jsx` now asks six questions: what · material · **cost** · time · special
+· size. `catalog.q_cost` is *"सामान कितने का आया?"* (hi) / *"What did the materials cost?"* (en) /
+*"କଞ୍ଚାମାଲ କେତେ ଟଙ୍କାର ଆସିଲା?"* (or), placed immediately after `q_material` so that "what is it made
+of" and "what did that cost" read as one conversational beat rather than a question bolted to the end.
 
-> "the service prices on labour alone. That understates the floor, which is the wrong direction —
-> worth a sixth question."
+`CatalogReview.accept()` parses both pricing figures and PATCHes them onto the product:
 
-A floor that is too low is the exact failure this feature exists to prevent. Master ref §7.2 ① already
-names the fix: ask by voice — *"dhaaga kitne ka aaya?"*. **Adding that sixth question is the single
-highest-value pricing change available**, and it is a one-entry addition to the `QUESTIONS` array plus
-a number parse.
+```js
+cost_material: rupeesFrom(draft.answers?.cost),
+labour_hours: hoursFrom(draft.answers?.time),
+```
+
+Both columns already existed in `models.py` and nothing had ever written to either. Persisting them —
+rather than only handing them to `/price` — is what lets a listing be re-priced later from
+`/products/:id` without asking the questions again, which is why `Price.jsx` now reads
+`d.listing?.labour_hours` first and only falls back to re-parsing the draft.
+
+🔒 **`cost` never reaches a buyer.** It is the artisan's own input cost, not a line in a public
+listing. `compose()` builds the description from a named field list and `cost` is deliberately absent
+from it — safe by construction, and commented at both ends so a later tidy-up does not "helpfully"
+add it.
+
+`material_cost` is still nullable and must stay that way: the question is skippable, and a fabricated
+material cost moves the floor. The floor is the one number in this feature that is never guessed.
+
+### The units parser · `app/src/voice/numbers.js`
+
+**Also resolved, and it was the larger of the two errors.** `hoursFrom()` used to live inline in
+`Price.jsx` and took the first number in the answer as hours, ignoring the unit word sitting next to
+it. A weaver saying *"बीस दिन लगे"* — twenty days — produced 20 hours:
+
+```
+parsed  20 hours   ->  floor = (800 + 20×120)  × 1.15 = ₹3,680
+real   160 hours   ->  floor = (800 + 160×120) × 1.15 = ₹23,000
+```
+
+**Six times too low.** Genuine Sambalpuri ikat sarees sell for ₹8,000–₹25,000, so ₹23,000 is the
+honest figure and ₹3,680 is the app handing a weaver to the middleman with a receipt.
+
+The parser now lives in its own module, imports nothing, and covers three things:
+
+| | Example | Result |
+|---|---|---|
+| **Unit words** in hi/en/or, matched as stems | `"3 हफ्ते"` | 144 hours |
+| **Indic digits** — Devanagari and Odia | `"२० दिन"`, `"୨୦ ଦିନ"` | 160 hours |
+| **Scale words** on the rupee side | `"2 हज़ार"` | ₹2,000, not ₹2 |
+
+The scale words matter more than the units: reading `"2 हज़ार"` as 2 understates the material cost by
+a thousandfold. A scale word only multiplies when it *follows* the number, so *"hazaar rupaye ka 2
+metre kapda"* stays 2.
+
+Working hours per unit are a **calibration, not a fact** — `HOURS_PER` treats a day as 8 hours, a week
+as 48 and a month as 200 (working days, not calendar ones). Tune per craft if field testing says
+artisans mean something else; both directions move the floor.
+
+Unit selection takes the unit that **follows** the number, with a whole-sentence fallback for the
+`"din bees, 20"` word order. Mixed units undercount — `"एक हफ्ते और 2 दिन"` resolves as two days and
+loses the week — which is an acceptable crudeness only because the sixfold error is gone.
+
+⚠️ **Known ceiling, deliberately left:** spelled-out numbers. `"बीस दिन"` still returns `null`, because
+a number-word table across three languages is ~80 entries of data whose value depends entirely on
+whether Bhashini returns numerals or words — an open question in `research/RESULTS.md`. `null` is the
+safe failure: the floor falls back to what it does have. A wrong number is worse than no number.
+
+**Self-check:** `cd app && npm test` runs `node src/voice/numbers.js` alongside the camera gate. 21
+cases, every one a sentence somebody would actually say into the microphone.
 
 ⚠️ Note also that `floor_price()` does not accept `None`. Verified:
 `floor_price(None, 12, 'sambalpur')` raises `TypeError: unsupported operand type(s) for +: 'NoneType'
@@ -343,11 +400,8 @@ Supporting details:
 
 - `stepFor(p) = max(10, round(p × 0.1 / 10) × 10)` (`:39`) — 10% steps rounded to the nearest ₹10.
   Fine-grained control is not the ask; three big buttons are.
-- `hoursFrom(text)` (`:47-50`) takes the first number out of a spoken answer. It carries its own
-  `ponytail:` comment naming the ceiling: *"eleven days" spelled out yields nothing and the service
-  falls back to its own default. Upgrade to a spoken-number/unit parser when the answers from real
-  users say it is worth it — a wrong number here is worse than no number.* Note it also does not
-  convert units: "11 din" yields `11`, which the service will read as eleven **hours**.
+- `hoursFrom(text)` no longer lives here. It moved to `app/src/voice/numbers.js` when it learned
+  units — see §2. `Price.jsx` imports it, and prefers the value already saved on the product.
 - The visible warning (`:190-195`) shows while `atFloor || below_floor_warning`, and it is the **only**
   warning this screen can show (rule 4, one problem at a time).
 - The breakdown chips (`:198-200`) render `material` / `labour` / `margin` from `breakdown`, and the
@@ -372,33 +426,37 @@ never the artisan's listing.
 |---|---|---|
 | `ai/price/compute.py` — `wage_rate`, `floor_price`, `mrp_for_channel`, `suggest` | ✅ **Fully implemented** | Read the file; ran it |
 | `ai/price/rates.json` | ✅ Real values for 4 clusters | Read the file |
-| `ai/test_price.py` — 5 tests | ✅ **Passing** | Ran them |
+| `ai/test_price.py` — 12 tests | ✅ **Passing** | Ran them |
 | `ai/price/comps.py` — `market_range` | 🟡 Implemented, but useless today | Returns `None` because both its inputs are stubbed |
 | `ai/price/comps.py` — `fetch`, `normalize` | ⛔ **`raise NotImplementedError`** | `comps.py:16`, `:22` |
-| `ai/service.py` — `POST /price` | ⛔ **`raise NotImplementedError`** | `service.py:38` |
-| `web/api` — a `/price` route | ⛔ **Does not exist** | Grepped every `@router.` in `web/api/routers/`. There is no `/price` anywhere |
-| No `ai/.venv`, nothing on port 8001 | ⛔ | `ls -a ai/`; `ss -ltn` shows only :8000 |
-| `breakdown_voice_hi` | ⛔ Not generated anywhere | Grepped. It is in `ai/contracts.md` and consumed at `Price.jsx:105`; nothing produces it |
+| `ai/service.py` — `POST /price` | ✅ **Implemented** | Smoke-tested over real HTTP; 12 tests in `test_price.py` |
+| `web/api` — a `/price` route | ✅ **Exists** | `web/api/routers/price.py`, registered in `main.py`. Proxies to the AI service; returns 503, never a fabricated price |
+| `ai/.venv` + the service on 8001 | 🟡 Runs, but must be started | `.venv/bin/uvicorn service:app --port 8001` |
+| `app/src/voice/numbers.js` — unit-aware parsing | ✅ **Implemented + self-checked** | `cd app && npm test` |
+| The sixth question (`catalog.q_cost`) | ✅ **Asked, parsed, persisted** | `CatalogVoice.jsx`, `CatalogReview.jsx`, all three string bundles |
+| `breakdown_voice_hi` | ✅ **Generated** | `compute.voice_line_hi()` — a template, never an LLM |
 
-**What the artisan experiences today.** `Price.jsx:73` posts to `/price`, which resolves to
-`/api/price`, which no router serves. The 404 becomes an `ApiError`, `:91` sets `failed =
-'price.unavailable'` — hi: *"अभी दाम नहीं निकल पाया"* — and the screen offers retry or skip. **The
-listing still publishes.** So the floor guard, the most important feature in the problem statement,
-is fully written, fully tested, and never runs in the app.
+**What the artisan experiences today.** With the AI service running, a real quote. `Price.jsx` posts
+to `/api/price`, `routers/price.py` proxies to port 8001, `ai/service.py` validates, asks
+`comps.market_range()` (which returns `None` until `fetch` is built, so the price sits on the floor),
+and returns the contract shape including the spoken Hindi sentence.
+
+With the service **not** running the old behaviour is intact and still correct: 503 → `failed =
+'price.unavailable'` → retry or "set the price later", and the listing still publishes. An AI outage
+costs a suggestion, never a listing.
 
 ### What to implement, in order
 
-1. **`POST /price` in `ai/service.py`.** Validate the request (`material_cost` and `labour_hours` are
-   `None` today and `compute.py` will `TypeError` on both), call `comps.market_range(...)`, pass the
-   result into `suggest(...)`, return the `ai/contracts.md` shape. `suggest()` already returns almost
-   exactly that shape — the missing field is `breakdown_voice_hi`.
-2. **Add a `/price` route to `web/api`.** `web/api/routers/products.py:119-123` already has the `_ai()`
-   helper for exactly this hop, and the file header states the rule: `web/` calls `ai/` over HTTP and
-   never imports across the line. This is a handful of lines and it turns the whole feature on.
-3. **`breakdown_voice_hi`.** A template, not an LLM — money math stays deterministic and the LLM never
-   touches a price (`docs/decisions.md`). `ai/contracts.md` gives the target register: *"800 rupaye
-   dhaaga, 12 ghante kaam. 2600 sahi hai."*
-4. **The sixth voice question** for material cost (§2). Highest value per line in this document.
+1. ~~**`POST /price` in `ai/service.py`.**~~ ✅ **Done.** Nulls are coerced and reported via
+   `assumed_missing`; with neither cost input it returns 422 rather than a ₹0 floor. Response
+   assembly lives in `compute.quote()` so the whole shape is testable without FastAPI.
+2. ~~**Add a `/price` route to `web/api`.**~~ ✅ **Done** — `web/api/routers/price.py`. `web/` calls
+   `ai/` over HTTP and never imports across the line.
+3. ~~**`breakdown_voice_hi`.**~~ ✅ **Done** — `compute.voice_line_hi()`, a template. Clauses drop when
+   an input is missing rather than speaking it as zero: *"0 रुपये का सामान"* states a falsehood about
+   what the thing cost.
+4. ~~**The sixth voice question** for material cost.~~ ✅ **Done** — see §2, along with the units
+   parser it depended on to be worth anything.
 5. **`comps.fetch` and `comps.normalize`.** Start with our own marketplace — it is our database and
    needs no API key. Amazon and Flipkart where a Tier B channel is connected, GeM rate contracts last.
    Honour the contract: `fetch` returns `[]` on failure and never raises.
