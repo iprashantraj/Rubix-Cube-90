@@ -5,6 +5,10 @@ venv/
 node_modules/
 .env
 .env.local
+.env.bak
+# Supabase personal access token. Full control of every project in the account — a wider
+# credential than anything in .env, and it is only here long enough to bootstrap.
+.supabase-token
 .DS_Store
 research/data/
 
@@ -18,6 +22,10 @@ research/data/
 
 # Server-side TTS clip cache. Regenerated on demand, and it is bought audio, not source.
 web/api/.cache/
+
+# Assembled uploads. Real artisan photographs — the same privacy argument as the dev
+# database two blocks up, and the default location for STORAGE_DIR.
+web/api/.storage/
 *.pt
 *.pth
 *.onnx
@@ -26,7 +34,23 @@ web/api/.cache/
 dist/
 .next/
 out/
-android/
+
+# NOT android/ wholesale. `app/android/` is a Capacitor project, and two files in it are
+# hand-written rather than generated:
+#   res/xml/network_security_config.xml   cleartext for loopback, for `adb reverse`
+#   AndroidManifest.xml                   that config + camera/mic/vibrate permissions
+# Ignoring the whole folder means a rebuilt native project silently loses both, and the
+# symptom is the app reporting "no network" on a phone with full signal — the exact failure
+# app/src/api/client.js warns about, arriving from a completely different direction.
+# So: keep the project. app/android/.gitignore (Capacitor's own, from the Android template)
+# already excludes everything Gradle regenerates — 512K of source is tracked, not 84M.
 ios/
 *.tsbuildinfo
 next-env.d.ts
+
+# Calibration fixtures. The manifest is committed, the pixels are not — same rule
+# as research/data/. See images/README.md.
+images/raw/*
+images/out/*
+!images/raw/.gitkeep
+!images/out/.gitkeep

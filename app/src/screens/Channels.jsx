@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { cachedGet } from '../api/client.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
 import { Screen, Card, Chip, Spinner, StatusDot, HelpButton } from '../ui/kit.jsx';
@@ -73,8 +73,17 @@ export default function Channels() {
   const [channels, setChannels] = useState(null);
   const [error, setError] = useState(null);
 
+  // The channel list and its connection states barely move between visits, and this screen
+  // is walked through repeatedly during setup — cached, with the server correcting it after.
   useEffect(() => {
-    api.get('/channels').then(setChannels, (e) => setError(e.messageKey ?? 'error.unknown'));
+    let alive = true;
+    cachedGet('/channels', { onUpdate: (d) => alive && setChannels(d) }).then(
+      (d) => alive && setChannels(d),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
+    );
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const prompt = error ?? (channels == null ? 'common.loading' : 'channels.title');

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { cachedGet } from '../api/client.js';
 import { record, transcribe } from '../voice/listen.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
@@ -87,19 +87,29 @@ export default function ChannelSetup() {
   const [listening, setListening] = useState(false);
   const [step, setStep] = useState(0); // index into the selector pack's guided steps
 
+  // Three reads, all cached. This screen is entered from /channels — which just filled the
+  // first of them — and the artisan walks in and out of it repeatedly while following the
+  // guided steps on their other hand. The selector pack in particular is static config that
+  // was being re-fetched on every one of those returns.
   useEffect(() => {
+    let alive = true;
+    const pick = (chans) => chans.find((c) => c.id === id) ?? false;
     Promise.all([
-      api.get('/channels'),
-      api.get('/me'),
-      api.get(`/channels/${id}/selectorpack`),
+      cachedGet('/channels', { onUpdate: (d) => alive && setChannel(pick(d)) }),
+      cachedGet('/me', { onUpdate: (d) => alive && setMe(d) }),
+      cachedGet(`/channels/${id}/selectorpack`, { onUpdate: (d) => alive && setPack(d) }),
     ]).then(
       ([chans, profile, p]) => {
-        setChannel(chans.find((c) => c.id === id) ?? false);
+        if (!alive) return;
+        setChannel(pick(chans));
         setMe(profile);
         setPack(p);
       },
-      (e) => setError(e.messageKey ?? 'error.unknown'),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
     );
+    return () => {
+      alive = false;
+    };
   }, [id]);
 
   /**

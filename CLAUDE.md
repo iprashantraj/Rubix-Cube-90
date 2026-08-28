@@ -1,0 +1,77 @@
+# Project
+
+AI cataloging app for artisans (SIH PS 26090). Voice + camera in, published marketplace
+listing out. The artisan may not be able to read, and may be on a rural tower.
+
+| Folder | What | Owner |
+|---|---|---|
+| `app/` | Artisan mobile app — React + Vite + Capacitor, JavaScript not TypeScript | app dev |
+| `web/api/` | FastAPI backend + channel adapters | web dev |
+| `ai/` | The three PS features, deployed as its own service on port 8001 | AI/ML |
+| `images/` | Calibration fixtures for the image thresholds. Pixels gitignored | AI/ML |
+
+`web/` calls `ai/` over HTTP and never imports across that line — separate deploy units.
+
+# Read before any image work
+
+**`docs/Abhay/PIPELINE-RECONCILIATION.md`.** It decides between two competing designs for
+the image pipeline and says which parts of each survive.
+
+⚠️ `docs/Abhay/IMAGE_PIPELINE_SPEC_WEB.md` and `CLAUDE_CODE_PLAYBOOK_WEB.md` are **partly
+superseded**. They were written before this repo existed and assume the image processing
+runs on the device. It does not. Both carry a banner saying so. Do not follow the
+`CLAUDE.md` draft in the playbook's §0.1 — this file replaces it.
+
+`docs/app/Camera-Pipeline.md` is the current, accurate description of the photo path.
+
+# The architecture, settled
+
+- **Online-first.** No offline queue, no local database, no sync engine (`docs/decisions.md`).
+- **The phone coaches the shot; the server does the processing.** `app/src/camera/gate.js`
+  measures the live frame and gates the shutter. Everything else runs in `ai/enhance/`.
+- **Thresholds live in `ai/thresholds.json` and are fetched at runtime.** Never bundle them
+  into the app, never keep a second copy, never hardcode one. Both gates read the same file.
+
+# Non-negotiable rules
+
+1. **Never fabricate product detail.** No super-resolution, no generative backgrounds, no
+   diffusion relighting, no saturation boost beyond +10%. If the delivered item looks
+   different from the photo, the artisan takes the bad review and the return.
+2. **Never destroy the original.** Store a recipe, render on demand.
+3. **Every failure degrades and speaks.** No silent spinner. Losing the enhancement costs a
+   prettier photo; it must never cost the artisan the listing.
+4. **Nothing publishes without `colour_confirmed`.** White balance moves colour, and only
+   the person holding the object can say whether it is still true.
+5. **`stripExif` runs on every upload path, unconditionally.** An artisan's home GPS
+   coordinates on a public listing cannot be undone.
+6. **One problem at a time in the camera UI, light before everything else.**
+
+If a task conflicts with these, stop and flag it. Do not silently resolve.
+
+# Rejected — do not propose these
+
+| Rejected | Why |
+|---|---|
+| OpenCV.js / ONNX Runtime Web in the WebView | Server does it better. Withdrawn from the old spec |
+| On-device segmentation (U²-Netp) | Same. One model, server-side |
+| Offline-first, IndexedDB, local sync engine | Settled against. Resumable chunked upload instead |
+| Swapping to `@capacitor-community/camera-preview` | The gate is built and tested on `getUserMedia` |
+| Raising the gate's 240×180 sample size "for accuracy" | `getImageData` readback is the cost. This kills the feature |
+| Super-resolution, generative backgrounds, diffusion relighting | Fabrication |
+| SAM 2 / EdgeSAM | Not MVP. The tier system covers the failure case |
+| Web Speech API for Indic TTS | Voice availability unreliable. Pre-generated audio instead |
+| AccessibilityService overlay on marketplace apps | Play Store suspension risk |
+
+# Testing
+
+```bash
+node app/src/camera/gate.js      # camera gate, 19 assertions, no device or framework
+cd web/api && python3 test_uploads.py   # chunk assembly, no database or server
+cd ai && .venv/bin/pytest        # pricing — needs a venv; ai/.venv does not exist yet
+```
+
+# Current state
+
+Everything in `ai/` is `NotImplementedError` — that is the work in progress, and the app's
+`enhance.failed` degrade path is the **common path in development**, not a bug you caused.
+See `docs/Abhay/CHANGELOG.md` for what moved most recently and what is still blocked.

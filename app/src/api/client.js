@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { useSession } from '../store.js';
+import { cache, cacheable } from './cache.js';
 
 /*
  * Where the API lives.
@@ -40,11 +41,15 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', body, signal, form } = {}) {
+async function request(path, { method = 'GET', body, signal, form, etag } = {}) {
   const { token } = useSession.getState();
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body) headers['Content-Type'] = 'application/json';
+  // A conditional GET. The server answers 304 with no body when nothing changed, which on
+  // a metered connection is the difference between a few hundred bytes of headers and the
+  // artisan's whole catalogue, re-sent to say "still the same".
+  if (etag) headers['If-None-Match'] = etag;
 
   let res;
   try {
@@ -56,26 +61,103 @@ async function request(path, { method = 'GET', body, signal, form } = {}) {
     });
   } catch (e) {
     if (e.name === 'AbortError') throw e;
+    // The artisan hears "no network". Whoever is debugging needs the other half: a DNS
+    // failure, a CORS rejection, cleartext blocked by network_security_config, and an
+    // actually-offline phone are indistinguishable to `fetch` and identical on screen.
+    // chrome://inspect is the only place this difference is visible on a device.
+    console.warn('[api] request failed', BASE + path, e);
     // Distinguish "no network" from "server said no" — they get different spoken
     // messages and only one of them is worth retrying.
     throw new ApiError(0, { message_key: 'net.offline' });
   }
 
   if (res.status === 401) {
+    // signOut() drops the response cache itself — see store.js. It used to be cleared here
+    // as well, and only here, which is how the deliberate sign-out in Settings ended up
+    // being the one path that left the previous artisan's data behind.
     useSession.getState().signOut();
     throw new ApiError(401, { message_key: 'auth.expired' });
   }
+  // 304 carries no body by definition. The caller holds the copy this validated.
+  if (res.status === 304) return { notModified: true, etag };
+
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, data);
-  return data;
+  return method === 'GET' ? { data, etag: res.headers.get('ETag') } : data;
 }
 
+/**
+ * GET, answered from the cache when we have one, corrected from the server after.
+ *
+ * Three outcomes, and the middle one is the reason this exists:
+ *   fresh cache      resolve immediately, no request at all
+ *   stale cache      resolve immediately with what we have, revalidate in the background,
+ *                    and call `onUpdate` only if the server actually returned something new
+ *   nothing cached   ordinary fetch
+ *
+ * `onUpdate` rather than a second promise because the screen has already rendered by then.
+ * It is called with fresh data or not at all — never with an unchanged copy, so a component
+ * that setStates in it does not re-render every screen visit for nothing.
+ */
+export async function cachedGet(path, { onUpdate, signal } = {}) {
+  if (!cacheable(path)) return (await request(path, { signal })).data;
+
+  const entry = cache.read(path);
+  const revalidate = async () => {
+    try {
+      const res = await request(path, { signal, etag: entry?.etag });
+      if (res?.notModified) return null;
+      cache.write(path, res.data, res.etag);
+      return res.data;
+    } catch (e) {
+      // A failed revalidation must never take the screen down: the artisan is looking at
+      // data that was correct minutes ago, which is the entire premise of this file.
+      if (e.name !== 'AbortError') console.warn('[api] revalidate failed', path, e);
+      return null;
+    }
+  };
+
+  if (entry && cache.fresh(path, entry)) return entry.data;
+  if (entry) {
+    revalidate().then((fresh) => {
+      // Compared, not just presence-checked. A 200 that happens to be identical (a server
+      // without ETags, say) must not flash the list for no reason.
+      if (fresh && JSON.stringify(fresh) !== JSON.stringify(entry.data)) onUpdate?.(fresh);
+    });
+    return entry.data;
+  }
+  return (await revalidate()) ?? [];
+}
+
+/*
+ * Mutations drop what they invalidated, here rather than at each call site.
+ *
+ * A PATCH /me that leaves a cached /me behind is worse than having no cache: the artisan
+ * fixes their name, is told it worked, and finds the old one waiting on the next screen.
+ * One place, so no future caller has to remember.
+ */
+const mutate = (method) => (p, body, o) => {
+  const done = request(p, { ...o, method, body });
+  cache.invalidate(p);
+  return done;
+};
+
 export const api = {
-  get: (p, o) => request(p, o),
-  post: (p, body, o) => request(p, { ...o, method: 'POST', body }),
-  patch: (p, body, o) => request(p, { ...o, method: 'PATCH', body }),
-  del: (p, o) => request(p, { ...o, method: 'DELETE' }),
-  form: (p, form, o) => request(p, { ...o, method: 'POST', form }),
+  // `.get` stays a plain fetch: some callers need the authoritative answer right now
+  // (a poll, a status check). Screens that render a list should use cachedGet.
+  get: async (p, o) => (await request(p, o)).data,
+  post: mutate('POST'),
+  patch: mutate('PATCH'),
+  del: (p, o) => {
+    const done = request(p, { ...o, method: 'DELETE' });
+    cache.invalidate(p);
+    return done;
+  },
+  form: (p, form, o) => {
+    const done = request(p, { ...o, method: 'POST', form });
+    cache.invalidate(p);
+    return done;
+  },
 };
 
 /**

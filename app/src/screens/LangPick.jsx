@@ -5,6 +5,7 @@ import { speak, unlockAudio, isUnlocked, onUnlock } from '../voice/speak.js';
 import { useSession } from '../store.js';
 import { Screen, Grid, Tile } from '../ui/kit.jsx';
 import { IconLanguage, IconReplay } from '../ui/icons.jsx';
+import { ThreeScripts } from '../ui/illustrations.jsx';
 
 /**
  * /lang — the first screen anyone ever sees.
@@ -104,9 +105,20 @@ export default function LangPick() {
 
   return (
     <Screen>
+      {/* Three scripts radiating from one point, which is literally the choice being made.
+          Not a globe: "international" means nothing to someone who has never left the
+          district, and the question here is only which script the app will speak in. */}
+      <ThreeScripts className="illus illus--sm" />
+
+      {/* Still English, still deliberate: this is the one heading nobody can be expected to
+          read, so it is the tiles below that do the work. See the note on lang.title. */}
       <h1 className="lang__title">{t('en', 'lang.title')}</h1>
+
       <Grid>
         {LANGUAGES.map((l) => (
+          /* The tile shows the language in its OWN script, at display size — that is the
+             only thing on this screen an artisan can identify without help. The icon is
+             decoration beside it, not the label. */
           <Tile key={l.code} icon={IconLanguage} label={l.label} onClick={() => choose(l.code)} />
         ))}
       </Grid>

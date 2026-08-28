@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { api, cachedGet } from '../api/client.js';
 import { useDraft } from '../store.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
@@ -85,8 +85,21 @@ export default function Publish() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
+  // This is the last screen of the create flow and the artisan has already waited through a
+  // capture, an upload and a voice interview to reach it. The channel list has not changed
+  // in that time — serve it, and let the revalidation correct it behind them.
+  //
+  // The `/publish/{jobId}` poll further down stays a plain `api.get`: a job status is the
+  // one thing in this app that must never be answered from a copy.
   useEffect(() => {
-    api.get('/channels').then(setChannels, (e) => setError(e.messageKey ?? 'error.unknown'));
+    let alive = true;
+    cachedGet('/channels', { onUpdate: (d) => alive && setChannels(d) }).then(
+      (d) => alive && setChannels(d),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
+    );
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const inTier = (tier) => channels?.filter((c) => c.tier === tier) ?? [];

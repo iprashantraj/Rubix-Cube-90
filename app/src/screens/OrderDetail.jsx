@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { api, cachedGet } from '../api/client.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
 import { Screen, BigButton, Card, Chip, Spinner, YesNo, HelpButton } from '../ui/kit.jsx';
@@ -43,11 +43,22 @@ export default function OrderDetail() {
 
   // No GET /orders/{id} exists — the inbox payload already carries every field this screen
   // renders, so we filter it rather than ask for a second endpoint that would repeat it.
+  // The same cached `/orders` list the inbox rendered, so opening an order from it is free.
+  //
+  // ⚠️ `onUpdate` deliberately does NOT overwrite `order`. `advance()` and `confirmPayment()`
+  // below write optimistically into this state, and a revalidation that landed a second
+  // later would stamp the server's pre-mutation copy back over the change the artisan was
+  // just told had worked. The mutation already invalidated the entry, so the next visit is
+  // authoritative — that is the right place to correct this screen, not mid-tap.
   useEffect(() => {
-    api.get('/orders').then(
-      (list) => setOrder(list.find((o) => o.id === id) ?? false),
-      (e) => setError(e.messageKey ?? 'error.unknown'),
+    let alive = true;
+    cachedGet('/orders').then(
+      (list) => alive && setOrder(list.find((o) => o.id === id) ?? false),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
     );
+    return () => {
+      alive = false;
+    };
   }, [id]);
 
   function fail(e) {

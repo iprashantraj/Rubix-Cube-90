@@ -36,11 +36,32 @@ class Settings(BaseSettings):
     # separate deploy units and the AI box has a GPU that this one does not.
     ai_base_url: str = "http://localhost:8001"
 
+    # Where uploaded chunks are assembled and kept.
+    #
+    # Local filesystem, not S3, and deliberately so for now: `ai/` has to be able to open
+    # the URL that `POST /uploads/{id}/complete` hands back, and in dev both services run
+    # on one machine. The url is a `file://` URI. Swapping this for S3 is a change to
+    # `routers/uploads.py::_store` and nothing else — every caller only ever sees the url.
+    #
+    # Anchored to this file rather than the working directory, for the same reason ENV_FILE
+    # is: a relative default silently resolves against wherever the process was started.
+    storage_dir: str = str(Path(__file__).resolve().parent / ".storage")
+
     # Object storage for raw and enhanced images.
     s3_endpoint: str = "http://localhost:9000"
+    # Two buckets, because "public" is a property of a BUCKET, not of a key prefix. A public
+    # bucket serves every object in it to anyone with the URL, so raw originals cannot live
+    # in the same one as the marketplace variants no matter how the keys are named.
     s3_bucket: str = "kaarigar"
+    s3_raw_bucket: str = "kaarigar-raw"
+    # Supabase ignores the value but the S3 signature requires one.
+    s3_region: str = "us-east-1"
     s3_access_key: str = ""
     s3_secret_key: str = ""
+    # Supabase's second S3 auth mode: access key = project ref, secret = anon key, and this
+    # JWT carries the actual authority. Empty for MinIO and for a generated S3 key pair,
+    # which authenticate on the pair alone.
+    s3_session_token: str = ""
 
     # Bhashini (MeitY) — ASR, translation, TTS for Indian languages.
     bhashini_user_id: str = ""

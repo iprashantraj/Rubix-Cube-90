@@ -15,9 +15,10 @@ faking it is a question we cannot survive.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
+from ..caching import conditional
 from ..db import get_db
 from ..models import Artisan, Order, OrderState
 from ..security import current_artisan
@@ -27,16 +28,37 @@ router = APIRouter()
 
 @router.get("/orders")
 def inbox(
+    request: Request,
     db: Session = Depends(get_db),
     artisan: Artisan = Depends(current_artisan),
-) -> list[dict]:
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> Response:
+    """The inbox: seven named columns, newest first, one page at a time.
+
+    Unbounded before this — every order the artisan had ever received, in full, on every
+    visit to /home and to /orders. That set only grows, so the app got slower for precisely
+    the artisans doing best on it. Whole Order entities also carried the raw channel payload
+    each row was built from, which this response has never included.
+    """
     rows = (
-        db.query(Order)
-        .filter_by(artisan_id=artisan.id)
-        .order_by(Order.created_at.desc())
+        db.query(
+            Order.id,
+            Order.channel,
+            Order.state,
+            Order.amount,
+            Order.quantity,
+            Order.expected_settlement_date,
+            Order.artisan_confirmed_payment,
+        )
+        .filter(Order.artisan_id == artisan.id)
+        # The id tiebreak keeps paging stable when two orders share a timestamp.
+        .order_by(Order.created_at.desc(), Order.id)
+        .limit(limit)
+        .offset(offset)
         .all()
     )
-    return [
+    payload = [
         {
             "id": o.id,
             "channel": o.channel.value,
@@ -48,6 +70,9 @@ def inbox(
         }
         for o in rows
     ]
+    # 15s, not 30: an order that has just arrived is money somebody is waiting on, and this
+    # is the screen they refresh when they are waiting.
+    return conditional(request, payload, max_age=15)
 
 
 @router.post("/orders/{order_id}/state")

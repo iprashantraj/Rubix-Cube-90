@@ -64,21 +64,20 @@ export default function CaptureReview() {
       // The product row is created here rather than at publish time because everything
       // downstream — enhance, prefill, the colour lock, the price — is keyed on a product
       // id. The catalog is ours whether or not this listing ever reaches a channel (§2).
-      //
-      // Note the upload is not linked to the product: web/api has no endpoint that does
-      // that yet, so POST /enhance below currently answers "no raw image". That is caught,
-      // not fatal — /catalog/prefill falls back to the photo we already hold locally.
       const { id } = await api.post('/products', {});
       useDraft.getState().setListing({ ...draft.listing, product_id: id, image_url: url });
 
       // Fire and forget. Enhancement takes ~20s (ai/contracts.md) and the artisan has
       // nothing to decide while it runs, so they walk to the next screen and it polls.
       try {
+        // Link the upload to the product first. POST /enhance looks for exactly this
+        // size_variant and answers "no raw image" without it.
+        await api.post(`/products/${id}/images`, { url, size_variant: 'raw', is_primary: true });
         const job = await api.post(`/products/${id}/enhance`, {});
         useDraft.getState().setEnhance(job.job_id ?? null);
       } catch {
-        // AI service down, or no raw image linked yet. Losing the enhancement costs us a
-        // prettier photo; it must never cost the artisan the listing.
+        // AI service down, or the link failed. Losing the enhancement costs us a prettier
+        // photo; it must never cost the artisan the listing.
         useDraft.getState().setEnhance(null);
       }
 
