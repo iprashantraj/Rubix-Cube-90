@@ -91,6 +91,27 @@ export default function CaptureReview() {
       // screen and it polls.
       try {
         const job = await api.post(`/products/${id}/enhance`, {});
+
+        /*
+         * 🐞 A gate REJECTION is not a failure, and it must not be spoken as one.
+         *
+         * `POST /enhance` answers 200 with `{status:'rejected', message_key}` when the
+         * server refuses the photograph — too small, too dark, too blurry. There is no
+         * `job_id` in that body, so this line used to store null, /catalog/prefill found
+         * nothing to poll, and it degraded to `enhance.failed`: "we could not improve the
+         * photo." The artisan was told the app had a problem, when what they had was a
+         * fixable photograph and no idea which way to fix it.
+         *
+         * The reason is a message key precisely so it can be spoken — "the photo is too
+         * small, take it closer" is an instruction; "we could not improve the photo" is an
+         * apology. So we stay on THIS screen, where the shot is still on screen and the
+         * retake button is already under their thumb, and say the real thing.
+         */
+        if (job.status === 'rejected') {
+          setFailed(job.message_key ?? 'enhance.failed');
+          return;
+        }
+
         useDraft.getState().setEnhance(job.job_id ?? null);
       } catch {
         // AI service down. THIS is the failure that costs a prettier photo and nothing

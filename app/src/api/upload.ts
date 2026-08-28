@@ -24,10 +24,18 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * photo is a cost they pay, per product, to use us. It is also the difference between an
  * upload that finishes and one that times out twice and gets abandoned.
  *
- * Why 1600 and not less: the server derives its display variant at 1200px (see
- * web/api/routers/uploads.py) and marketplace listings want a little headroom above that
- * for a zoom crop. Below ~1400 the largest variant starts being an upscale, which no
- * amount of server-side sharpening recovers.
+ * Why 2000 and not less: it is the listing canvas size (`listing_canvas_px` in
+ * ai/thresholds.json), so the master the pipeline works from is never an upscale.
+ *
+ * ⚠️ It was 1600, and combined with a 16:9 capture that made EVERY photograph
+ * unprocessable: 1600 on the long edge is 900 on the short edge at 16:9, and the server
+ * gate refuses anything under 1000 there. The capture is 4:3 now (camera/useCameraGate.ts),
+ * so 2000 on the long edge is 1500 on the short — clear of the floor with room for a phone
+ * that hands back a slightly different aspect than it was asked for.
+ *
+ * This costs the artisan data: roughly 350KB -> 550KB per photo. That is a real cost on a
+ * metered prepaid pack and it is being paid deliberately, because the alternative is an
+ * upload that completes, charges them for it, and is then refused by the server.
  *
  * Why 0.82 and not 0.92: on photographs of textiles and pottery the two are visually
  * indistinguishable at any size a phone displays, and 0.82 is about 40% of the bytes.
@@ -36,7 +44,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * detail the product is being sold on, and precisely what the camera gate spent all that
  * effort capturing sharply.
  */
-const MAX_EDGE_PX = 1600;
+const MAX_EDGE_PX = 2000;
 const JPEG_QUALITY = 0.82;
 
 /**

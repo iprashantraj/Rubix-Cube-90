@@ -94,8 +94,23 @@ export function useCameraGate({
       .getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          /*
+           * 4:3, not 16:9 — and this is a correctness fix, not a preference.
+           *
+           * 1920x1080 is a VIDEO default and it was making every photograph unprocessable.
+           * Held portrait it captures 1080x1920; api/upload.ts then scales the long edge to
+           * its budget, so the SHORT edge lands at long x 9/16. At the old 1600px cap that
+           * is 900px, and ai/enhance/pipeline.py gate() refuses anything under
+           * `resolution_min_px` = 1000 on the short side. Every single photo this app took
+           * was rejected as `photo.too_small` before the model ever ran.
+           *
+           * 4:3 is also simply the right shape here: the listing canvas is SQUARE (2000px,
+           * ai/thresholds.json), so the extra width 16:9 buys is cropped away again. The
+           * pixels were being spent on parts of the frame nothing keeps.
+           */
+          width: { ideal: 1600 },
+          height: { ideal: 1200 },
+          aspectRatio: { ideal: 4 / 3 },
         },
         audio: false,
       })
