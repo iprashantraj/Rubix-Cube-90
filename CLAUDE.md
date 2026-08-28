@@ -70,7 +70,9 @@ If a task conflicts with these, stop and flag it. Do not silently resolve.
 # Testing
 
 ```bash
+cd app && npm test               # gate, mic lifecycle, query policy, /home's todo counts
 node app/src/camera/gate.js      # camera gate, 19 assertions, no device or framework
+node app/src/screens/homeTodos.js  # /home "waiting for you" counts vs the tabs they link to
 cd web/api && python3 test_uploads.py   # chunk assembly, no database or server
 cd ai && .venv/bin/pytest        # pricing, 15 tests. ai/.venv exists as of 2026-08-28
 cd ai && python3 test_gate.py    # server quality gate, 10 assertions, no venv or fixtures

@@ -118,21 +118,30 @@ Request
 }
 ```
 
-Response
+Response — these numbers come from actually calling the endpoint, not from arithmetic by hand.
 ```json
 {
-  "floor": 2156,
-  "suggested_price": 2600,
-  "mrp": 2889,
+  "floor": 2576,
+  "suggested_price": 3150,
+  "mrp": 3500,
   "market_range": { "low": 1800, "high": 4500, "sample_size": 23 },
   "below_floor_warning": false,
   "breakdown": {
-    "material": 800, "labour": 1440, "margin": 216,
-    "note": "mrp is set so the price still clears the floor after GeM's 10% mandated discount"
+    "material": 800, "labour": 1440, "margin": 336,
+    "note": "mrp is set so the price still clears the floor after GEM's 10% mandated discount"
   },
-  "breakdown_voice_hi": "800 rupaye dhaaga, 12 ghante kaam. 2600 sahi hai."
+  "breakdown_voice_hi": "800 रुपये का सामान, 12 घंटे का काम। 3150 रुपये सही रहेगा।"
 }
 ```
+
+`assumed_missing` is present ONLY when an input was absent — `["material_cost"]` when the artisan
+skipped the sixth cataloger question. The floor is then built on labour alone and is too low; the app
+should say what was not counted rather than present the figure as complete.
+
+⚠️ With **neither** `material_cost` nor `labour_hours` the endpoint returns **422**, not a quote. There
+is no floor to compute, and a floor of ₹0 clamps nothing while looking authoritative — the app would
+speak "लागत 0 रुपये है" to someone who cannot read the screen to check it. `/price` failing costs a
+suggestion; a fake floor costs the artisan money.
 
 `below_floor_warning: true` means the market will not pay what it cost to make.
 **The app must speak this warning.** Under-pricing is the problem we exist to fix.

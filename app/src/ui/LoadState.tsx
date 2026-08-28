@@ -62,16 +62,34 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
   );
 }
 
-/** /home: the summary panel, then two groups of rows. */
+/**
+ * /home: the "needs you" rows, then the 2×2 shelf of the artisan's own work.
+ *
+ * It follows the redesigned body exactly — two ListSkeletons no longer would, because the
+ * bottom half of that screen is a grid of squares and not a list, and a skeleton that
+ * promises rows and delivers tiles makes the page jump on the frame the data lands, which
+ * is the one thing this file exists to prevent.
+ *
+ * The three facts are absent on purpose: they live in the hero, which renders outside the
+ * loading swap and is never blank.
+ */
 export function HomeSkeleton() {
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border border-line bg-surface-1 p-3 shadow-e1">
-        <Skel className="h-[13px] w-24 rounded-sm" />
-        <Skel className="mt-2 h-[55px] w-44 rounded-md" />
-      </div>
+      <Skel className="h-[13px] w-20 rounded-sm" />
       <ListSkeleton rows={2} />
-      <ListSkeleton rows={3} />
+      <Skel className="h-[13px] w-24 rounded-sm" />
+      <div className="grid grid-cols-2 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="overflow-hidden rounded-md border border-line bg-surface-1">
+            <Skel className="block aspect-square w-full rounded-none" />
+            <div className="flex flex-col gap-1 p-2">
+              <Skel className="h-[13px] w-4/5 rounded-sm" />
+              <Skel className="h-[13px] w-2/5 rounded-sm" />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

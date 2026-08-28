@@ -29,6 +29,7 @@
   "onboard.has_artisan_card": "Do you have an artisan card?",
   "catalog.q_what": "What is this?",
   "catalog.q_material": "What is it made of?",
+  "catalog.q_cost": "What did the materials cost?",
   "catalog.q_time": "How long did it take?",
   "catalog.q_special": "What is special about it?",
   "catalog.q_size": "How big is it?",

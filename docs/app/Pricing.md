@@ -92,27 +92,84 @@ The four layers map exactly onto Master ref §7.2 ①–④, and ⑤ onto §7.3.
 | Field | Type | Where the app gets it | Notes |
 |---|---|---|---|
 | `product_id` | str | `draft.listing.product_id` | Created at `/capture/review` |
-| `material_cost` | number | `draft.listing.cost_material` | **`null` today** — see below |
-| `labour_hours` | number | `hoursFrom(draft.answers.time)` | Parsed out of a spoken answer |
+| `material_cost` | number | `draft.listing.cost_material` | From the sixth voice question. Null only if skipped |
+| `labour_hours` | number | `draft.listing.labour_hours ?? hoursFrom(draft.answers.time)` | Unit-aware — see below |
 | `cluster_id` | str | `useSession.getState().artisan?.cluster_id` | Selects the wage rate |
 | `category` | str | `draft.listing.category` | For comparables only |
 | `channel` | str | Hardcoded `'gem'` (`Price.jsx:84`) | Deliberate — see §5 |
 
-### `material_cost` is null today, and it is the wrong kind of wrong
+### `material_cost` — captured since the sixth question landed
 
-The five voice questions (`app/src/screens/CatalogVoice.jsx:49-55`) are: what · material · time ·
-special · size. `catalog.q_material` asks *"What is it made of?"* — the material's **identity**, not
-its **cost**. Nothing in the flow asks what the thread cost.
+**Resolved.** This section used to say nothing in the flow asked what the materials cost, and that the
+service therefore priced on labour alone — a floor too low, in the one direction that costs the artisan
+money.
 
-`Price.jsx:75-78` flags this in a comment, and the direction matters:
+`app/src/screens/CatalogVoice.jsx` now asks six questions: what · material · **cost** · time · special
+· size. `catalog.q_cost` is *"सामान कितने का आया?"* (hi) / *"What did the materials cost?"* (en) /
+*"କଞ୍ଚାମାଲ କେତେ ଟଙ୍କାର ଆସିଲା?"* (or), placed immediately after `q_material` so that "what is it made
+of" and "what did that cost" read as one conversational beat rather than a question bolted to the end.
 
-> "the service prices on labour alone. That understates the floor, which is the wrong direction —
-> worth a sixth question."
+`CatalogReview.accept()` parses both pricing figures and PATCHes them onto the product:
 
-A floor that is too low is the exact failure this feature exists to prevent. Master ref §7.2 ① already
-names the fix: ask by voice — *"dhaaga kitne ka aaya?"*. **Adding that sixth question is the single
-highest-value pricing change available**, and it is a one-entry addition to the `QUESTIONS` array plus
-a number parse.
+```js
+cost_material: rupeesFrom(draft.answers?.cost),
+labour_hours: hoursFrom(draft.answers?.time),
+```
+
+Both columns already existed in `models.py` and nothing had ever written to either. Persisting them —
+rather than only handing them to `/price` — is what lets a listing be re-priced later from
+`/products/:id` without asking the questions again, which is why `Price.jsx` now reads
+`d.listing?.labour_hours` first and only falls back to re-parsing the draft.
+
+🔒 **`cost` never reaches a buyer.** It is the artisan's own input cost, not a line in a public
+listing. `compose()` builds the description from a named field list and `cost` is deliberately absent
+from it — safe by construction, and commented at both ends so a later tidy-up does not "helpfully"
+add it.
+
+`material_cost` is still nullable and must stay that way: the question is skippable, and a fabricated
+material cost moves the floor. The floor is the one number in this feature that is never guessed.
+
+### The units parser · `app/src/voice/numbers.js`
+
+**Also resolved, and it was the larger of the two errors.** `hoursFrom()` used to live inline in
+`Price.jsx` and took the first number in the answer as hours, ignoring the unit word sitting next to
+it. A weaver saying *"बीस दिन लगे"* — twenty days — produced 20 hours:
+
+```
+parsed  20 hours   ->  floor = (800 + 20×120)  × 1.15 = ₹3,680
+real   160 hours   ->  floor = (800 + 160×120) × 1.15 = ₹23,000
+```
+
+**Six times too low.** Genuine Sambalpuri ikat sarees sell for ₹8,000–₹25,000, so ₹23,000 is the
+honest figure and ₹3,680 is the app handing a weaver to the middleman with a receipt.
+
+The parser now lives in its own module, imports nothing, and covers three things:
+
+| | Example | Result |
+|---|---|---|
+| **Unit words** in hi/en/or, matched as stems | `"3 हफ्ते"` | 144 hours |
+| **Indic digits** — Devanagari and Odia | `"२० दिन"`, `"୨୦ ଦିନ"` | 160 hours |
+| **Scale words** on the rupee side | `"2 हज़ार"` | ₹2,000, not ₹2 |
+
+The scale words matter more than the units: reading `"2 हज़ार"` as 2 understates the material cost by
+a thousandfold. A scale word only multiplies when it *follows* the number, so *"hazaar rupaye ka 2
+metre kapda"* stays 2.
+
+Working hours per unit are a **calibration, not a fact** — `HOURS_PER` treats a day as 8 hours, a week
+as 48 and a month as 200 (working days, not calendar ones). Tune per craft if field testing says
+artisans mean something else; both directions move the floor.
+
+Unit selection takes the unit that **follows** the number, with a whole-sentence fallback for the
+`"din bees, 20"` word order. Mixed units undercount — `"एक हफ्ते और 2 दिन"` resolves as two days and
+loses the week — which is an acceptable crudeness only because the sixfold error is gone.
+
+⚠️ **Known ceiling, deliberately left:** spelled-out numbers. `"बीस दिन"` still returns `null`, because
+a number-word table across three languages is ~80 entries of data whose value depends entirely on
+whether Bhashini returns numerals or words — an open question in `research/RESULTS.md`. `null` is the
+safe failure: the floor falls back to what it does have. A wrong number is worse than no number.
+
+**Self-check:** `cd app && npm test` runs `node src/voice/numbers.js` alongside the camera gate. 21
+cases, every one a sentence somebody would actually say into the microphone.
 
 ⚠️ Note also that `floor_price()` does not accept `None`. Verified:
 `floor_price(None, 12, 'sambalpur')` raises `TypeError: unsupported operand type(s) for +: 'NoneType'
@@ -200,6 +257,16 @@ explicitly.
 }
 ```
 
+> **How an artisan gets a cluster.** `OnboardPlace` asks for a pincode; `PATCH /me` resolves it
+> to a cluster by longest matching `pincode_prefix` and stores `cluster_id`. Before 2026-08-28
+> nothing set that field and the clusters table was empty, so **every artisan in the country fell
+> through to `default_wage_per_hour` and the four rates below were unreachable** — a Varanasi
+> weaver's floor was quietly 20% short. Clusters are now seeded from this file (migration
+> `e7a1c2b83d55`), and the prefixes in it still want field confirmation: a district postal range
+> is not the same thing as a cluster's catchment. An unmatched pincode leaves `cluster_id` NULL
+> and prices on the default, so the link can only ever add a correct rate, never substitute a
+> wrong one.
+
 | Key | Provenance | How to recalibrate |
 |---|---|---|
 | `clusters.*` | Rupees per hour. The file's own `_comment` says **"Sourced per cluster, not guessed. Update as clusters onboard."** Master ref §7.2 ② defines the input as `hours × cluster wage rate` | Per cluster, against local minimum-wage notifications and what the cluster coordinator reports the going rate to be. This is a field question, not a code question. Add the key when a cluster onboards; until then it silently gets the default, which is a floor that may be too low for a high-wage cluster like Varanasi |
@@ -229,10 +296,15 @@ not before.**
 So the MRP is set high enough that the post-discount price is still the price we meant:
 
 ```
-mrp = round(price / (1 - 0.10))
+mrp = ceil(price / (1 - 0.10))
 ```
 
-Verified with the shipped numbers: `price = 4000` → `mrp = 4444` → `round(4444 × 0.90) = 4000`.
+⚠️ **Ceiling, not round.** `round` goes down below .5, which puts the post-discount price
+fractionally *under* the floor: price 2576 → `round(2862.22) = 2862` → `2862 × 0.9 = 2575.8`.
+`channels/gem.py` asserts exactly that property at publish time and refused a correctly priced
+saree the day it first ran. One rupee of MRP is invisible to a buyer; a blocked listing is not.
+
+Verified with the shipped numbers: `price = 4000` → `mrp = 4445` → `4445 × 0.90 = 4000.5`, which clears.
 `test_price.py:15-17` asserts exactly that round-trip.
 
 Two places this is preserved that look like they could be dropped:
@@ -263,9 +335,23 @@ Tier B channel is connected), and GeM rate contracts, which are published.
 
 | Function | Line | State | What it must do |
 |---|---|---|---|
-| `fetch(source, category, material, size)` | `:14` | ⛔ `NotImplementedError` | One source → a list of prices. **Returns `[]` on failure, never raises** |
-| `normalize(listings)` | `:19` | ⛔ `NotImplementedError` | LLM: messy titles → `{material, size, technique}`, so we compare like with like |
-| `market_range(category, material, size)` | `:24` | ✅ implemented | Aggregates, trims, returns `{low, high, sample_size}` or `None` |
+| `fetch("market", …)` | ✅ | Our own catalogue over `/api/shop/products` — unauthenticated, so no key and no DB credentials in `ai/`. **Returns `[]` on failure, never raises** |
+| `fetch("indiahandmade" / "amazon" / "flipkart" / "gem", …)` | ✅ | Read `comps_seed.json`, the dated hand-collected snapshot. Per-source lists, so a price seen twice is not counted twice |
+| `normalize(listings)` | ⛔ unused | LLM: messy titles → `{material, size, technique}`. Nothing calls it — our own rows and the snapshot are already structured. It becomes real when a scraped source does |
+| `market_range(category, material, size)` | ✅ | Aggregates every source, trims, returns `{low, high, sample_size}` or `None` |
+
+### The five sources, and why only two of them are live code
+
+| Source | How |
+|---|---|
+| `market` | Live HTTP to our own marketplace. Empty until artisans list |
+| `indiahandmade` | Snapshot. The Ministry of Textiles' own D2C marketplace for verified weavers — a real comparison class, public, no seller account needed. **144 listings collected 2026-08-28** |
+| `amazon`, `flipkart` | Snapshot. Their APIs authenticate *as one shop*; there is no open price search, and our artisans have no seller account to authenticate with |
+| `gem` | Snapshot. No API of any kind; rate contracts are published as documents |
+
+The snapshot is built by `research/pricing/pricing.py build` from observations carrying a URL and a
+date. Category lookup **walks up the taxonomy** — `textiles.saree.sambalpuri` → `textiles.saree` →
+`textiles` — because a snapshot holds the broad key long before every weave, and most-specific wins.
 
 ### Weighting: there isn't any, and that is deliberate
 
@@ -273,24 +359,29 @@ Tier B channel is connected), and GeM rate contracts, which are published.
 trims the tails:
 
 ```python
-trim = len(prices) // 10
+trim = max(1, len(prices) // 10) if len(prices) >= 4 else 0
 kept = prices[trim:len(prices) - trim] or prices
 return {"low": kept[0], "high": kept[-1], "sample_size": len(prices)}
 ```
 
-10% off each end, so one mispriced listing cannot set the range. `or prices` guards the small-sample
-case where the trim would empty the list. `sample_size` reports the **pre-trim** count — it is
-surfaced in `ai/contracts.md` so a range built from 3 listings can be told apart from one built from 23.
+10% off each end, so one mispriced listing cannot set the range. `sample_size` reports the
+**pre-trim** count — surfaced in `ai/contracts.md` so a range built from 3 listings can be told from
+one built from 23.
+
+⚠️ The `max(1, …)` is not cosmetic. `len(prices) // 10` **alone is zero for every sample under ten**,
+which is exactly when one outlier does the most damage — and small samples are the normal case for a
+marketplace still filling up. Six real listings once produced a ₹24,000 suggestion for a ₹2,576
+saree because a miscategorised silk piece at ₹45,000 was never trimmed.
 
 Per-source weighting is **genuinely undecided.** Nothing in the repo specifies it, and the file's own
 header argues against reaching for machinery early: *"A for-loop with retries is deliberate. Nothing
 here loops or re-decides enough to need an agent framework; revisit only if source selection becomes
 genuinely adaptive."* If you add weighting, make it a number in `rates.json`, not a constant in the code.
 
-**A dead source must never kill the price suggestion** (`:29-30`): each `fetch` is individually wrapped
-in `try/except … continue`. Combined with the empty-list contract, this is a double guard, and it is
-why the whole function currently returns `None` rather than exploding — verified by calling it: with
-`fetch` raising `NotImplementedError` for all four sources, `market_range(...)` returns `None`.
+**A dead source must never kill the price suggestion**: each `fetch` is individually wrapped in
+`try/except … continue`, and `fetch` itself promises `[]` rather than raising. The redundancy is
+deliberate. Verified by pointing `API_BASE_URL` at a dead port: `market_range` returns `None` and the
+price still computes from cost alone.
 
 When `market_range` is `None`, `suggest()` falls back to `price = floor`. The floor is always
 computable, which is the property that makes cost-up the right base layer: **the market is an
@@ -343,11 +434,8 @@ Supporting details:
 
 - `stepFor(p) = max(10, round(p × 0.1 / 10) × 10)` (`:39`) — 10% steps rounded to the nearest ₹10.
   Fine-grained control is not the ask; three big buttons are.
-- `hoursFrom(text)` (`:47-50`) takes the first number out of a spoken answer. It carries its own
-  `ponytail:` comment naming the ceiling: *"eleven days" spelled out yields nothing and the service
-  falls back to its own default. Upgrade to a spoken-number/unit parser when the answers from real
-  users say it is worth it — a wrong number here is worse than no number.* Note it also does not
-  convert units: "11 din" yields `11`, which the service will read as eleven **hours**.
+- `hoursFrom(text)` no longer lives here. It moved to `app/src/voice/numbers.js` when it learned
+  units — see §2. `Price.jsx` imports it, and prefers the value already saved on the product.
 - The visible warning (`:190-195`) shows while `atFloor || below_floor_warning`, and it is the **only**
   warning this screen can show (rule 4, one problem at a time).
 - The breakdown chips (`:198-200`) render `material` / `labour` / `margin` from `breakdown`, and the
@@ -372,36 +460,58 @@ never the artisan's listing.
 |---|---|---|
 | `ai/price/compute.py` — `wage_rate`, `floor_price`, `mrp_for_channel`, `suggest` | ✅ **Fully implemented** | Read the file; ran it |
 | `ai/price/rates.json` | ✅ Real values for 4 clusters | Read the file |
-| `ai/test_price.py` — 5 tests | ✅ **Passing** | Ran them |
-| `ai/price/comps.py` — `market_range` | 🟡 Implemented, but useless today | Returns `None` because both its inputs are stubbed |
-| `ai/price/comps.py` — `fetch`, `normalize` | ⛔ **`raise NotImplementedError`** | `comps.py:16`, `:22` |
-| `ai/service.py` — `POST /price` | ⛔ **`raise NotImplementedError`** | `service.py:38` |
-| `web/api` — a `/price` route | ⛔ **Does not exist** | Grepped every `@router.` in `web/api/routers/`. There is no `/price` anywhere |
-| No `ai/.venv`, nothing on port 8001 | ⛔ | `ls -a ai/`; `ss -ltn` shows only :8000 |
-| `breakdown_voice_hi` | ⛔ Not generated anywhere | Grepped. It is in `ai/contracts.md` and consumed at `Price.jsx:105`; nothing produces it |
+| `ai/test_price.py` — 30 tests | ✅ **Passing** | Ran them |
+| `ai/price/comps.py` — `market_range` | ✅ **Working** | Trims outliers; returns `None` when no source answers |
+| `ai/price/comps.py` — `fetch("market")` | ✅ **Implemented** | Reads our own `/api/shop/products` |
+| `ai/price/comps.py` — `fetch` for the snapshot sources | ✅ Read `comps_seed.json` | No price-search API exists for any of them. **144 listings collected 2026-08-28** — see `research/RESULTS.md` |
+| `ai/price/comps.py` — `normalize` | ⛔ Unused | Nothing calls it: our own rows are structured, so there are no messy titles to normalise yet |
+| `ai/service.py` — `POST /price` | ✅ **Implemented** | Smoke-tested over real HTTP; 30 tests in `test_price.py` |
+| `web/api` — a `/price` route | ✅ **Exists** | `web/api/routers/price.py`, registered in `main.py`. Proxies to the AI service; returns 503, never a fabricated price |
+| `ai/.venv` + the service on 8001 | 🟡 Runs, but must be started | `.venv/bin/uvicorn service:app --port 8001` |
+| `app/src/voice/numbers.js` — unit-aware parsing | ✅ **Implemented + self-checked** | `cd app && npm test` |
+| The sixth question (`catalog.q_cost`) | ✅ **Asked, parsed, persisted** | `CatalogVoice.jsx`, `CatalogReview.jsx`, all three string bundles |
+| `breakdown_voice_hi` | ✅ **Generated** | `compute.voice_line_hi()` — a template, never an LLM |
 
-**What the artisan experiences today.** `Price.jsx:73` posts to `/price`, which resolves to
-`/api/price`, which no router serves. The 404 becomes an `ApiError`, `:91` sets `failed =
-'price.unavailable'` — hi: *"अभी दाम नहीं निकल पाया"* — and the screen offers retry or skip. **The
-listing still publishes.** So the floor guard, the most important feature in the problem statement,
-is fully written, fully tested, and never runs in the app.
+**What the artisan experiences today.** With the AI service running, a real quote. `Price.jsx` posts
+to `/api/price`, `routers/price.py` proxies to port 8001, `ai/service.py` validates, asks
+`comps.market_range()`,
+and returns the contract shape including the spoken Hindi sentence.
+
+With the service **not** running the old behaviour is intact and still correct: 503 → `failed =
+'price.unavailable'` → retry or "set the price later", and the listing still publishes. An AI outage
+costs a suggestion, never a listing.
 
 ### What to implement, in order
 
-1. **`POST /price` in `ai/service.py`.** Validate the request (`material_cost` and `labour_hours` are
-   `None` today and `compute.py` will `TypeError` on both), call `comps.market_range(...)`, pass the
-   result into `suggest(...)`, return the `ai/contracts.md` shape. `suggest()` already returns almost
-   exactly that shape — the missing field is `breakdown_voice_hi`.
-2. **Add a `/price` route to `web/api`.** `web/api/routers/products.py:119-123` already has the `_ai()`
-   helper for exactly this hop, and the file header states the rule: `web/` calls `ai/` over HTTP and
-   never imports across the line. This is a handful of lines and it turns the whole feature on.
-3. **`breakdown_voice_hi`.** A template, not an LLM — money math stays deterministic and the LLM never
-   touches a price (`docs/decisions.md`). `ai/contracts.md` gives the target register: *"800 rupaye
-   dhaaga, 12 ghante kaam. 2600 sahi hai."*
-4. **The sixth voice question** for material cost (§2). Highest value per line in this document.
-5. **`comps.fetch` and `comps.normalize`.** Start with our own marketplace — it is our database and
-   needs no API key. Amazon and Flipkart where a Tier B channel is connected, GeM rate contracts last.
-   Honour the contract: `fetch` returns `[]` on failure and never raises.
+1. ~~**`POST /price` in `ai/service.py`.**~~ ✅ **Done.** Nulls are coerced and reported via
+   `assumed_missing`; with neither cost input it returns 422 rather than a ₹0 floor. Response
+   assembly lives in `compute.quote()` so the whole shape is testable without FastAPI.
+2. ~~**Add a `/price` route to `web/api`.**~~ ✅ **Done** — `web/api/routers/price.py`. `web/` calls
+   `ai/` over HTTP and never imports across the line.
+3. ~~**`breakdown_voice_hi`.**~~ ✅ **Done** — `compute.voice_line_hi()`, a template. Clauses drop when
+   an input is missing rather than speaking it as zero: *"0 रुपये का सामान"* states a falsehood about
+   what the thing cost.
+4. ~~**The sixth voice question** for material cost.~~ ✅ **Done** — see §2, along with the units
+   parser it depended on to be worth anything.
+5. ~~**`comps.fetch`** for our own marketplace.~~ ✅ **Done** — `fetch("market", …)` calls
+   `/api/shop/products`, which is unauthenticated because those pages must be indexable, so it needs
+   no key and no database credentials in `ai/`. Amazon/Flipkart/GeM return `[]`; see §6 for why that
+   is a design decision and not a gap.
+
+### ⚠️ The trim only worked on large samples — fixed
+
+`market_range` trimmed `len(prices) // 10` from each end, which is **zero for every sample under
+ten** — precisely when a single outlier does the most damage, and small samples are the normal case
+for a marketplace still filling up.
+
+Found by running it against six real listings: one miscategorised silk piece at ₹45,000 beside five
+cotton sarees around ₹4,000, nothing trimmed, and the endpoint suggested **₹24,000 for a saree that
+cost ₹2,576 to make**. The unit test missed it because it used twenty prices, where the arithmetic
+happens to work.
+
+Now at least one is dropped from each end once there are four prices — the smallest sample where
+trimming still leaves a range. Below four nothing is trimmed and `sample_size` is the honest signal.
+Same six listings now yield `3500–5000` and a ₹4,250 suggestion.
 
 ### Running the tests
 
@@ -428,7 +538,7 @@ PS. It gets a test."* No `ai/.venv` is needed — `compute.py` is stdlib only. `
 |---|---|---|
 | `test_floor_covers_material_and_labour` | `:6` | The exact arithmetic: `800 + 12×120 = 2240`, +15% → **2576** |
 | `test_unknown_cluster_uses_default_wage` | `:11` | An unknown cluster silently gets the default rate |
-| `test_gem_mrp_survives_the_mandated_discount` | `:15` | `round(mrp × 0.90) >= price` — §5 |
+| `test_gem_mrp_survives_the_mandated_discount` | | `mrp × 0.90 >= price`, **unrounded**, across six prices — §5 |
 | `test_market_never_prices_below_the_floor` | `:20` | Market under cost → price stays at the floor **and** `below_floor_warning is True` |
 | `test_market_can_price_above_the_floor` | `:26` | Market above cost → price rises to the mid, warning stays `False` |
 
@@ -478,15 +588,16 @@ Breakdown as returned, and as the three chips on screen:
 
 ### Step 4 — the market, three ways
 
-**(a) No comparables — today's real behaviour, since `comps.market_range()` returns `None`:**
+**(a) No comparables** — every source empty or unreachable:
 
 ```json
-{ "floor": 2576, "suggested_price": 2576, "mrp": 2862,
+{ "floor": 2576, "suggested_price": 2576, "mrp": 2863,
   "market_range": null, "below_floor_warning": false,
   "breakdown": { "material": 800, "labour": 1440, "margin": 336 } }
 ```
 
-Suggestion sits exactly on the floor. Honest, and never harmful.
+Suggestion sits exactly on the floor. Honest, and never harmful. This is what a fresh clone with no
+snapshot and an empty marketplace produces, and it is a supported state rather than a failure.
 
 **(b) Market above cost — `{low: 3000, high: 5000}`:**
 
@@ -496,7 +607,7 @@ price = max(2576, 4000)   = ₹4,000        ← market moved us UP
 below_floor_warning       = 5000 < 2576 → false
 ```
 ```json
-{ "floor": 2576, "suggested_price": 4000, "mrp": 4444,
+{ "floor": 2576, "suggested_price": 4000, "mrp": 4445,
   "market_range": { "low": 3000, "high": 5000, "sample_size": 9 },
   "below_floor_warning": false,
   "breakdown": { "material": 800, "labour": 1440, "margin": 336 } }
@@ -514,7 +625,7 @@ price = max(2576, 1000)   = ₹2,576        ← market did NOT move us down
 below_floor_warning       = 1100 < 2576 → TRUE
 ```
 ```json
-{ "floor": 2576, "suggested_price": 2576, "mrp": 2862,
+{ "floor": 2576, "suggested_price": 2576, "mrp": 2863,
   "market_range": { "low": 900, "high": 1100, "sample_size": 5 },
   "below_floor_warning": true, … }
 ```
@@ -528,12 +639,13 @@ This is the case the feature was built for. The artisan hears, on entry, without
 Taking case (b), `price = 4000`:
 
 ```
-mrp = round(4000 / (1 − 0.10)) = round(4444.44) = ₹4,444
-check: round(4444 × 0.90) = 4000  ✓  clears the price we meant
+mrp = ceil(4000 / (1 − 0.10)) = ceil(4444.44) = ₹4,445
+check: 4445 × 0.90 = 4000.5  ✓  clears the price we meant, unrounded
 ```
 
-For cases (a) and (c), `price = 2576` → `mrp = round(2576 / 0.9) = ₹2,862`, and
-`round(2862 × 0.9) = 2576` ✓ — the post-discount price lands exactly on the floor, not under it.
+For cases (a) and (c), `price = 2576` → `mrp = ceil(2576 / 0.9) = ₹2,863`, and
+`2863 × 0.9 = 2576.7` ✓ — the post-discount price clears the floor rather than landing a fraction
+under it, which is precisely what `round` used to do here.
 
 ### Step 6 — the artisan presses "less"
 
@@ -552,7 +664,7 @@ Press it again and it speaks again. The button never goes dead and the price nev
 On **accept**, the MRP ratio is preserved (`Price.jsx:142-144`):
 
 ```
-mrp = round(2576 × 4444 / 4000) = round(2861.9) = ₹2,862
+mrp = round(2576 × 4445 / 4000) = round(2862.6) = ₹2,863
 ```
 
 — which is exactly the MRP the service would have computed for ₹2,576. The GeM discount still clears
@@ -614,3 +726,44 @@ codes against — it is only the example values that drifted.
 - **Failing to price must never cost a listing.** `price.skip` exists; keep an equivalent.
 - `compute.py` is stdlib-only and imports nothing but `json` and `pathlib`. Import it directly for any
   server-side price maths — do not reimplement the floor.
+
+---
+
+## 12. Live behaviour with the collected snapshot · 2026-08-28
+
+The worked example in §9 is the arithmetic in isolation. This is what the running stack returns now
+that `comps_seed.json` holds 144 real listings — same request, two different `labour_hours`, and the
+whole point of the feature sits in the difference between them.
+
+**Twelve hours of work.** The market is above cost, so it lifts the suggestion off the floor:
+
+```
+floor 2576 · market_range {low: 1200, high: 5000, sample_size: 39} · suggested 3100
+"800 रुपये का सामान, 12 घंटे का काम। 3100 रुपये सही रहेगा।"
+```
+
+**One hundred and sixty hours — twenty days of weaving.** The floor rises past the entire observed
+market, and the app says so:
+
+```
+floor 23000 · market_range {low: 1200, high: 5000, sample_size: 39} · suggested 23000
+below_floor_warning: true
+```
+
+The suggestion does **not** follow the market down to ₹3,100. It stays at ₹23,000 and the artisan
+hears the warning. That behaviour is the whole reason `max(floor, mid)` is written the way it is.
+
+### What the numbers say about the sector
+
+At the median observed price of ₹2,140 for a handloom cotton saree, minus ₹800 of materials, ₹1,340
+is left for labour — **₹8/hour if the saree took twenty days.** To clear the Sambalpur cluster rate
+of ₹120/hour it would have to be woven in 11.2 hours.
+
+Full verdict, method and caveats: `research/RESULTS.md`. Three of those caveats matter when quoting
+the number: these are **listed** prices not sold prices, `textiles.saree` is too broad a comparison
+class (a plain Santipuri and a Sambalpuri bandha ikat differ perhaps tenfold in labour), and the
+₹120/hour rate is itself unsourced and is the denominator of every figure above.
+
+> ⚠️ The verdict flips entirely on `labour_hours`, which is the input this feature captures least
+> reliably — a spoken answer through a first-number-wins parser that still cannot read *"बीस दिन"*
+> spelled out. The arithmetic is sound; the number it multiplies is the weak link.
