@@ -18,7 +18,13 @@ import httpx
 
 log = logging.getLogger(__name__)
 
-SOURCES = ["market", "amazon", "flipkart", "gem"]
+# `indiahandmade` is the Ministry of Textiles' own D2C marketplace for verified weavers and
+# GI-tagged products. It is the closest thing that exists to a comparable for our sellers —
+# same artisans, same crafts, same handmade claim — and unlike Amazon or Flipkart its
+# catalogue is public and browsable, so a person can collect real prices from it without a
+# seller account. For a MoSJE problem statement it is also better evidence than a consumer
+# marketplace: nobody has to be persuaded that it is the right comparison class.
+SOURCES = ["market", "indiahandmade", "amazon", "flipkart", "gem"]
 
 # Our own marketplace, over its public catalogue endpoint. Not an import: web/ and ai/ are
 # separate deploy units and ai/ holds no database credentials. /api/shop/products is

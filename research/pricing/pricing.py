@@ -34,7 +34,7 @@ REPO = HERE.parent.parent
 OBSERVED = HERE / "observed.csv"
 SEED = REPO / "ai" / "price" / "comps_seed.json"
 
-SOURCES = {"amazon", "flipkart", "gem"}  # `market` is queried live, never seeded
+SOURCES = {"indiahandmade", "amazon", "flipkart", "gem"}  # `market` is queried live, never seeded
 COLUMNS = ["category", "source", "price", "url_or_note", "seen_on"]
 
 

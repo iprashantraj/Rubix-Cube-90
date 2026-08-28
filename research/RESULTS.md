@@ -10,7 +10,7 @@ Nothing goes on a slide until it has a verdict here.
 | camera-thresholds | blur/light cutoffs that don't false-reject plain fabric | **framing and blur settled, light still open** | 2026-08-27 |
 | asr-bhashini | access terms, rate limits, does our use case qualify | open | |
 | description-llm | prompt that reliably yields EN+HI + structured fields | open | |
-| pricing | does cost-up land near real listing prices | **open — tooling ready, awaiting collection** | |
+| pricing | does cost-up land near real listing prices | **first evidence — depends entirely on labour hours; see below** | 2026-08-28 |
 
 Rules: benchmark on our own test photos, not blog rankings. Record the date — a verdict
 from three months ago on a model that shipped a new version is not a verdict.
@@ -170,39 +170,75 @@ a courtyard at six in the evening.
 
 ---
 
-## pricing — the experiment is now one afternoon of browsing away, 2026-08-28
+## pricing — 144 real listings, 2026-08-28
 
-Not a verdict. Recorded because the blocker changed: it used to be "nobody has built this",
-and it is now "nobody has collected the data", which is a different task with a different
-owner.
+**Collected:** 144 listings from **indiahandmade.com**, the Ministry of Textiles' own D2C
+marketplace for verified weavers and GI-tagged products. Every row carries a resolvable
+product URL and the date seen — `research/pricing/observed.csv` (gitignored; the derived
+`ai/price/comps_seed.json` is committed).
 
-**Everything except the numbers is written.** `research/pricing/pricing.py` has two
-subcommands — `build` turns collected observations into `ai/price/comps_seed.json`, which
-`comps.fetch()` reads for the three sources with no API; `check` runs the actual experiment
-and prints, per category, whether our cost-up floor sits inside the observed price spread,
-above all of it, or below it.
+Chosen over Amazon or Flipkart deliberately: same artisans, same crafts, same handmade claim,
+a public catalogue that needs no seller account — and for a government problem statement,
+nobody has to be persuaded it is the right comparison class.
 
-**What is missing is real listing prices, and they cannot be generated.** A plausible-looking
-guess here is worse than an empty file: the empty file prices honestly on cost alone and the
-app says so, a guess silently becomes both the price an artisan is shown and the evidence we
-use to claim the floor is calibrated. `pricing.py` therefore refuses any row without a
-`seen_on` date and a `url_or_note`, and the committed seed ships empty with a test asserting
-it stayed that way.
+| Category | n | min | median | max |
+|---|---|---|---|---|
+| `textiles.saree` (cotton/handloom) | 39 | ₹750 | **₹2,140** | ₹10,999 |
+| `textiles.saree.silk` (molakalmuru) | 9 | ₹15,000 | ₹30,000 | ₹43,500 |
+| `textiles.dhurrie` | 48 | ₹250 | ₹3,230 | ₹18,499 |
+| `painting.madhubani` | 30 | ₹499 | ₹3,225 | ₹15,500 |
+| `painting` (other) | 18 | ₹650 | ₹4,122 | ₹100,000 |
 
-Protocol, including how many per category and which cheap listings to deliberately keep:
-`research/pricing/README.md`.
+### The verdict flips on one input, and it is our least reliable one
 
-### Why this one matters more than it looks
+`pricing.py check`, same materials (₹800), same cluster (Sambalpur, ₹120/h):
 
-The camera thresholds were calibrated against 591 fixtures on 2026-08-27. The pricing floor
-has been validated against **zero** real transactions. Both feed a number an artisan acts on,
-and only one of them has evidence behind it.
+| Labour hours | Floor | vs `textiles.saree` |
+|---|---|---|
+| 12 h | ₹2,576 | **inside** the observed spread |
+| 160 h (20 days) | ₹23,000 | **above** the entire spread (p90 ₹5,000) |
 
-All three outcomes of `check` are publishable:
+So the formula is not wrong or right on its own — **it is a lever on `labour_hours`, which is
+the input we trust least.** It arrives as a spoken answer through a first-number-wins parser
+that cannot read *"बीस दिन"* spelled out. The arithmetic is sound; the accuracy of the whole
+feature rests on the number we are worst at capturing.
 
-| Outcome | Reading |
+### The finding worth putting on a slide
+
+At the **median listed price of ₹2,140**, minus ₹800 of materials, ₹1,340 is left for labour:
+
+| Time taken | Implied wage |
 |---|---|
-| Floor inside the observed spread | The model is calibrated — say so with the number |
-| Floor above everything observed | Either the cluster wage rate is too high, or **the market genuinely pays below what these things cost to make** — which is the finding this whole feature exists to expose, and a better slide than a working algorithm |
-| Floor below everything observed | We are under-protecting; revisit `default_margin_pct` in `ai/price/rates.json` |
+| 1 day (8 h) | ₹167/hour |
+| 2 days (16 h) | ₹84/hour |
+| 3 days (24 h) | ₹56/hour |
+| 5 days (40 h) | ₹34/hour |
+| 20 days (160 h) | **₹8/hour** |
 
+> **To clear the Sambalpur cluster wage of ₹120/hour, a handloom cotton saree would have to
+> be woven in 11.2 hours.**
+
+That is on the government's own artisan marketplace, not a discount consumer platform. It is
+direct evidence for the premise the floor guard is built on — under-pricing, not over-pricing,
+is the problem in this sector (Master ref §7.2 ④).
+
+### Three caveats, none of which are hidden
+
+1. **Listed ≠ sold.** These are asking prices. A listing at ₹2,140 that never sells is not a
+   clearing price. Sold data would need marketplace cooperation.
+2. **`textiles.saree` is too broad a comparison class.** A plain Santipuri and a Sambalpuri
+   bandha ikat are both "handloom cotton saree" and differ perhaps tenfold in labour. Some of
+   the 160 h "floor above market" result is that mismatch, not exploitation. The taxonomy
+   walk-up exists for this; the fix is collecting at the weave-specific level.
+3. **`default_wage_per_hour = 120` is unsourced** (`ai/price/rates.json` says so). It is the
+   denominator of every number above. Sourcing it per cluster is a field question and it
+   moves this whole result.
+
+### What this does not settle
+
+Whether ₹120/h is the right rate, and whether 160 h is realistic for the sarees actually
+observed. Both are field questions. **What it does settle is that the pipeline works on real
+data end to end**, and that the gap between listed prices and any plausible fair wage is large
+enough to be the story rather than a rounding error.
+
+Reproduce: `python3 research/pricing/pricing.py check --material-cost 800 --labour-hours 160`.
