@@ -181,18 +181,39 @@ export function findProblem(metrics, t, { mode = 'standing', relaxed = false } =
   const s = relaxed ? t.hysteresis_slack : 1;
   const { exposure: exp, blur, frame, tilt } = metrics;
 
-  // 1. Light first — every other check is meaningless in the dark.
+  /*
+   * 1. Light first — every other check is meaningless in the dark.
+   *
+   * Order within this rung is mean-low, mean-high, blown, crushed, and it is not arbitrary.
+   * The crushed-shadow test used to run second, so a frame that was BLOWN OUT but happened
+   * to carry deep shadows somewhere was announced as `photo.too_dark` — and the artisan,
+   * who cannot read the screen and has only that sentence, added light to an already
+   * over-exposed photograph. Verified on `pottery-earthen-sharp-01.png`: mean 173, 50.6%
+   * blown highlights, announced as too dark (docs/Abhay/CHANGELOG.md, 2026-08-27).
+   *
+   * The verdict was never wrong — the photo does get refused either way. The INSTRUCTION
+   * was wrong, and on this app the instruction is the entire interface.
+   */
   if (exp.mean < t.brightness_mean_min / s) return 'photo.too_dark';
-  if (exp.crushedFraction > t.crushed_pixel_fraction_max * s) return 'photo.too_dark';
   if (exp.mean > t.brightness_mean_max * s) return 'photo.too_bright';
   if (exp.blownFraction > t.blown_pixel_fraction_max * s) return 'photo.too_bright';
+  if (exp.crushedFraction > t.crushed_pixel_fraction_max * s) return 'photo.too_dark';
 
-  // 2. Blur. Content-dependent — a plain white cloth scores blurry while being sharp —
-  //    so this is surfaced as a suggestion and never hard-blocks the shutter.
-  if (blur < t.blur_laplacian_variance_min / s) return 'photo.blurry';
-
-  // 3. Framing.
-  if (!frame.found || frame.fraction < t.fill_fraction_min / s) return 'photo.too_far';
+  /*
+   * 2. Framing, BEFORE blur.
+   *
+   * Blur used to sit here, and a photograph taken from too far away scores blurry at full
+   * resolution — the product is small in the frame, so there is little edge energy anywhere.
+   * The artisan was told to hold still when the fix was to step closer. Framing is the
+   * cause, blur is its symptom, and the rung that names the cause has to run first.
+   *
+   * ⚠️ Only when a product was actually FOUND. `frame.found === false` means no busy region
+   * at all, and that is not the same fact as "the product is small": a frame with no texture
+   * anywhere is out of focus, or pointed at a blank wall. Calling that "too far" sends the
+   * artisan walking towards something the camera never saw. It falls through to the blur
+   * rung below, and the not-found case is answered after it.
+   */
+  if (frame.found && frame.fraction < t.fill_fraction_min / s) return 'photo.too_far';
   if (frame.fraction > Math.min(t.fill_fraction_max * s, 1)) return 'photo.too_close';
   if (
     frame.offsetX > t.center_offset_max * s ||
@@ -200,6 +221,16 @@ export function findProblem(metrics, t, { mode = 'standing', relaxed = false } =
   ) {
     return 'photo.off_centre';
   }
+
+  // 3. Blur. Content-dependent — a plain white cloth scores blurry while being sharp — so
+  //    this is surfaced as a suggestion and never hard-blocks the shutter. The server
+  //    hard-rejects separately at blur_laplacian_variance_reject_min, which is measured at
+  //    full resolution where the number means something (591-image fixture set).
+  if (blur < t.blur_laplacian_variance_min / s) return 'photo.blurry';
+
+  // Sharp, well lit, and still nothing that looks like a product. "Move closer" is the only
+  // instruction that can help — the frame is in focus, so there is genuinely nothing there.
+  if (!frame.found) return 'photo.too_far';
 
   // 4. Tilt, against whatever the product type wants.
   if (tilt) {
@@ -348,6 +379,36 @@ function demo() {
 
   const flat = analyse(frame(128, 0), W, H, t);
   assert(findProblem(flat, t) === 'photo.blurry', 'no texture -> blurry');
+
+  /*
+   * A blown frame that ALSO has deep shadows must say too_bright.
+   *
+   * This is pottery-earthen-sharp-01.png from the fixture set: mean 173, 50.6% blown, and
+   * the old rung order announced it as too_dark because the crushed-shadow test ran second.
+   * The artisan adds light to an over-exposed photograph and it gets worse. A wrong verdict
+   * and a wrong instruction are different bugs; this was the second kind, which is the one
+   * that matters to someone who cannot read the screen.
+   */
+  const blownWithShadows = {
+    exposure: { mean: 173, blownFraction: 0.506, crushedFraction: 0.2 },
+    blur: 999,
+    frame: { found: true, fraction: 0.6, offsetX: 0, offsetY: 0 },
+    tilt: null,
+  };
+  assert(
+    findProblem(blownWithShadows, t) === 'photo.too_bright',
+    'blown highlights beat crushed shadows — add light to that and it gets worse',
+  );
+
+  // Too far at full resolution also scores blurry, because a small product leaves little
+  // edge energy anywhere. The instruction has to be the cause, not the symptom.
+  const farAndSoft = {
+    exposure: { mean: 128, blownFraction: 0, crushedFraction: 0 },
+    blur: 0,
+    frame: { found: true, fraction: 0.05, offsetX: 0, offsetY: 0 },
+    tilt: null,
+  };
+  assert(findProblem(farAndSoft, t) === 'photo.too_far', 'framing is the cause, blur the symptom');
 
   const far = analyse(frame(128, 0.3), W, H, t);
   assert(findProblem(far, t) === 'photo.too_far', 'small product -> too_far');

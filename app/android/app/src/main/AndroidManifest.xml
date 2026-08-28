@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        android:networkSecurityConfig="@xml/network_security_config">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Package visibility (Android 11+).
+
+         Not a permission — it grants nothing. Since API 30 an app cannot see other
+         installed packages unless it declares which ones it is looking for, and the TTS
+         plugin resolves the system speech engine by intent. Without this block the
+         resolve returns nothing and the plugin fails in exactly the silent way that made
+         this bug survive: no error, no sound, blank screen for a user who cannot read.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
+    <!-- Permissions
+
+         Deliberately short. Every permission is a consent prompt the artisan has to
+         understand, and one they decline is a feature that silently never works.
+
+         NOT requested, and never to be added:
+           * ACCESS_FINE_LOCATION / COARSE — we strip EXIF GPS before upload precisely so
+             an artisan's home coordinates cannot reach a public listing. Asking for
+             location would undo that.
+           * BIND_ACCESSIBILITY_SERVICE — Play Store permits the accessibility API only
+             for genuine disability tools, enforcement tightened 28 Jan 2026, and
+             Android 17 blocks non-accessibility apps outright. Adding it is
+             suspension-level risk. See docs/Application-Architecture.md §6.3.
+    -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- getUserMedia in the WebView: the live quality gate and the voice cataloger. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <!-- Accelerometer drives the tilt check. Not required: without it the tilt check is
+         skipped and the other three still gate the shutter. -->
+    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+</manifest>

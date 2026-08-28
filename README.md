@@ -9,6 +9,10 @@ SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Margina
 | `docs/decisions.md` | What's settled and why |
 | `docs/app/Camera-Pipeline.md` | Photo path end to end — gate, thresholds, EXIF strip, enhance, colour lock |
 | `docs/app/Pricing.md` | Cost-up formula, rates, comparables, and the price floor |
+| `docs/app/Questions-Asked.md` | Every question the app asks, categorized |
+| `docs/app/AI-Data-Flow.md` | **What reaches a third-party model, when, and what never does** |
+| `docs/app/Future-Implementations.md` | Vision, remaining questions, known gaps |
+| `docs/Abhay/PIPELINE-RECONCILIATION.md` | Image pipeline — what runs on device vs. server, and why. Read before the other files in `docs/Abhay/` |
 | `docs/Prashant/` | Change notes — what landed, when, and what it left open |
 
 ## Layout
@@ -21,6 +25,7 @@ SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Margina
 | `ai/` | The three PS features — deployed as its own service | AI/ML | `ai/README.md` |
 | `research/` | Experiments that decide what `ai/` ships. Never imported | AI/ML | `research/README.md` |
 | `docs/` | Spec and decisions | everyone | |
+| `images/` | Calibration fixtures for the image thresholds. Pixels gitignored, manifest committed | AI/ML | `images/README.md` |
 
 `web/` calls `ai/` over HTTP. Do not import across that line — they are separate deploy units.
 

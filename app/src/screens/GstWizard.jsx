@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api/client.js';
+import { cachedGet } from '../api/client.js';
 import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
 import { Screen, BigButton, Card, Chip, Spinner, HelpButton } from '../ui/kit.jsx';
@@ -60,8 +60,18 @@ export default function GstWizard() {
   const [route, setRoute] = useState(null);
   const [error, setError] = useState(null);
 
+  // Under `/me`, so it inherits the 30-minute TTL and — more importantly — a `PATCH /me`
+  // clears this too: `invalidate()` matches on the first path segment, so a readiness answer
+  // that changes the artisan's GST route cannot leave the old route on screen.
   useEffect(() => {
-    api.get('/me/gst-route').then(setRoute, (e) => setError(e.messageKey ?? 'error.unknown'));
+    let alive = true;
+    cachedGet('/me/gst-route', { onUpdate: (d) => alive && setRoute(d) }).then(
+      (d) => alive && setRoute(d),
+      (e) => alive && setError(e.messageKey ?? 'error.unknown'),
+    );
+    return () => {
+      alive = false;
+    };
   }, []);
 
   /*

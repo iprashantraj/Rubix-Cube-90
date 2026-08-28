@@ -1041,6 +1041,86 @@ input {
   color: var(--ink);
 }
 
+/*
+ * A screen's illustration (ui/illustrations.jsx).
+ *
+ * Sized in vh, not px, so it keeps its share of a 4-inch phone and a tablet alike, and
+ * capped so it can never push the text it explains off the first screenful.
+ *
+ * The generous margin is the point rather than padding by accident: these screens had one
+ * paragraph floating in the middle of an empty page, and that emptiness reads as
+ * "unfinished" instead of as calm. A drawing anchored at the top and the actions anchored
+ * at the bottom give the blank space a job — separating the two.
+ */
+.illus {
+  display: block;
+  width: min(38vh, 200px);
+  height: min(38vh, 200px);
+  margin: clamp(8px, 3vh, 28px) auto clamp(12px, 3vh, 32px);
+  color: var(--accent, var(--ink));
+  flex: 0 0 auto;
+}
+
+/*
+ * The two numeric fields on /auth — the only typing in the app.
+ *
+ * Was an inline style object in the component. Here instead so the focus ring, the filled
+ * state and the disabled state can be expressed at all: a phone number being entered by
+ * someone who reads slowly needs to look obviously active, and `:disabled` has to look
+ * finished rather than broken once the OTP field appears below it.
+ */
+.field {
+  width: 100%;
+  min-height: 64px;
+  padding: 0 16px;
+  font-size: 26px;
+  letter-spacing: 2px;
+  text-align: center;
+  color: var(--ink);
+  background: var(--surface-0);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  margin-bottom: 14px;
+}
+
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  /* Doubling the border rather than adding a glow: on the low-contrast panels these phones
+     ship with, a soft shadow is invisible in daylight. */
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.field:disabled {
+  color: var(--ink-dim, var(--ink));
+  background: var(--surface-1, var(--surface-0));
+  opacity: 0.75;
+}
+
+/* Smaller variant, for a screen whose content (a grid of tiles) is itself the illustration. */
+.illus--sm {
+  width: min(24vh, 132px);
+  height: min(24vh, 132px);
+  margin-bottom: clamp(8px, 2vh, 18px);
+}
+
+/* The notice reads as prose, not as a caption: measure capped, centred under the drawing. */
+.said--notice {
+  max-width: 34ch;
+  margin-inline: auto;
+  text-align: center;
+}
+
+/*
+ * Stacked actions in a footer need to breathe. A control in the middle of the page is where
+ * the eye lands first, which puts "I agree" in front of the artisan before the thing they
+ * are agreeing to; at the bottom it is also under the thumb of somebody holding a phone
+ * one-handed in a workshop.
+ */
+.screen__foot > * + * {
+  margin-top: 10px;
+}
+
 /* --- /home ---------------------------------------------------------------- */
 
 /*

@@ -60,73 +60,32 @@ export function useVoice() {
  * Unmount cleanup matters more than it looks: without it, navigating away leaves the old
  * screen's prompt talking over the new one's, and two voices at once is worse than silence.
  */
-/**
- * What each route has already said aloud this session. `pathname -> Set of keys`.
- *
- * Module-level and deliberately never persisted: it means "what the person holding this
- * phone has already heard", which is meaningless after a restart. It is also a record of
- * screens somebody visited, so it stays in memory and goes nowhere near the server or
- * storage — same reasoning as the privacy rules in the app README.
- */
-const alreadySaid = new Map();
-
-function isNews(pathname, keys) {
-  const said = alreadySaid.get(pathname) ?? new Set();
-  alreadySaid.set(pathname, said);
-  // Fresh if ANY part has not been heard on this route before — tested before recording,
-  // because the recording is what makes the second visit quiet.
-  const fresh = keys.some((k) => !said.has(k));
-  for (const k of keys) said.add(k);
-  return fresh;
-}
-
-/**
- * Forget what has been said, so the app speaks like a first run again.
- *
- * Called on erasure. The next person to pick up this phone is a different person as far as
- * we are concerned, and a screen that stays silent because someone ELSE already heard it
- * has failed them completely.
- */
-export function resetSpokenHistory() {
-  alreadySaid.clear();
-}
-
 /*
- * ── News, not repetition ──────────────────────────────────────────────────────
+ * ── A question is spoken. A title is not. ─────────────────────────────────────
  *
- * Design law 2 is "every screen speaks on entry", and taken literally it made the app
- * exhausting to use. The tab bar has five buttons: pressing three of them in ten seconds
- * meant hearing "Products", then "one moment", then "you have no orders" read aloud —
- * again — every single time. A voice that repeats what you already know, every time you
- * touch the phone, is a voice people learn to talk over. This app has nothing else with
- * which to reach someone who cannot read, so that is not a small loss.
+ * Design law 2 says "every screen speaks on entry". Taken literally it meant the app read
+ * its own navigation aloud: open Products, hear "Products". Open Orders, hear "Orders".
+ * The artisan pressed that button — they know where they are, and being told anyway is a
+ * voice people learn to talk over. This app has nothing else with which to reach someone
+ * who cannot read, so a voice they tune out is the whole interface lost.
  *
- * So a key is spoken the FIRST time a given route says it, and stays silent after that.
- * Nothing real is lost:
+ * (An earlier attempt spoke each title only the FIRST time per route. Still wrong, just
+ * less often: the problem was never the repetition, it was announcing a label nobody
+ * asked for.)
  *
- *   - a key that CHANGES is news, and is spoken. Returning to /orders after an order lands
- *     still says "you have a new order" — the one sentence on that screen that is worth
- *     interrupting somebody for.
- *   - the replay button is on every screen, in the same place, and always speaks.
- *   - genuinely repeating instructions (the camera gate) go through useSpeakOnChange and
- *     are untouched by any of this.
+ * The distinction is LABEL vs INSTRUCTION:
  *
- * Memory is per route AND per key, so /orders going quiet cannot make /earnings go quiet.
+ *   destination  the prompt names the screen you chose to open. Silent. The replay button
+ *                is on every screen, in the same place, and speaks it on demand — which is
+ *                what "say the contents if the user wants it" means.
+ *   chain        the prompt IS the interface. Onboarding and the create flow (ui/
+ *                onboarding.js) ask live questions expecting an answer right now, and they
+ *                are new every time somebody starts a new listing however often they have
+ *                heard the words. Always spoken.
+ *   force        a destination whose content is the point rather than its name — /consent,
+ *                where a notice nobody heard is not consent. Opt in explicitly.
  *
- * ⚠️ CHAINS ARE EXEMPT, and forgetting that broke the app badly enough to be worth naming.
- *
- * Onboarding and the create flow (ui/onboarding.js) are walked start to finish, and the
- * create flow is walked again for every single product. The five cataloger questions live
- * on one route, /catalog/voice, so after the first product every one of those keys was in
- * the "already said" set — and the second product was catalogued in total silence. Five
- * questions, none of them asked, on the screen whose entire interface is being asked
- * questions.
- *
- * The distinction that matters is not route-vs-route, it is LABEL vs INSTRUCTION. On a
- * destination the prompt names the screen you just chose to open, and repeating it is
- * noise. In a chain the prompt IS the interface — it is a live question expecting an answer
- * right now, and it is new every time somebody starts a new listing, however many times
- * they have heard the words before.
+ * Repeating instructions (the camera gate) go through useSpeakOnChange and are untouched.
  */
 /**
  * @param onSpoken called once the prompt has finished, and NOT if the screen was left
@@ -134,7 +93,7 @@ export function resetSpokenHistory() {
  *   see /catalog/voice, which opens the microphone there so the artisan only has to speak.
  *   Held in a ref so an inline arrow does not restart the speech on every parent render.
  */
-export function useSpeakOnEnter(key, vars, also, onSpoken) {
+export function useSpeakOnEnter(key, vars, also, onSpoken, force = false) {
   const { say } = useVoice();
   const varsRef = useRef(vars);
   varsRef.current = vars;
@@ -147,7 +106,6 @@ export function useSpeakOnEnter(key, vars, also, onSpoken) {
   useEffect(() => {
     if (!key && !alsoKey) return undefined;
 
-    const parts = [key, ...(alsoKey ? alsoKey.split(' ') : [])].filter(Boolean);
     // window.location, not useLocation: this hook is used by the UI kit, which has no
     // business importing the router, and by the time an effect runs the router has already
     // committed the new pathname.
@@ -155,7 +113,7 @@ export function useSpeakOnEnter(key, vars, also, onSpoken) {
     // A suppressed key still reports "spoken": the caller's follow-on action is about the
     // question having been PUT, and one the artisan already heard has been put. Bailing out
     // here would silently disable the auto-microphone on a repeat visit.
-    const silent = !stepOf(here) && !isNews(here, parts);
+    const silent = !force && !stepOf(here);
 
     let cancelled = false;
     (async () => {

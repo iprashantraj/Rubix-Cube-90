@@ -1,12 +1,19 @@
 {
-  "_comment": "Calibrated in research/camera-thresholds/ on our own artisan photos. Read by BOTH the app camera gate and the server quality gate. Blur is content-dependent — a plain white cloth scores blurry while being sharp — so it is a suggestion, never a hard block.",
+  "_comment": "Calibrated 2026-08-27 against the 221-fixture set in images/ — see research/RESULTS.md, camera-thresholds. Read by BOTH the app camera gate and the server quality gate. Every number here is answerable: images/check.py measures the set, images/calibrate.py scores these numbers against it. Do not move one without a named fixture and a RESULTS.md row.",
+
+  "_blur": "Two numbers, because there are two gates and they see different pixels. The capture gate measures a 240x180 downscale, which destroys the very defect it is looking for: it misses 14 of 43 known-blurred fixtures. It is an advisory only. The hard reject happens server-side at full resolution, where the same 43 are all caught.",
   "blur_laplacian_variance_min": 100,
+  "blur_laplacian_variance_reject_min": 20,
+
   "brightness_mean_min": 60,
   "brightness_mean_max": 200,
   "blown_pixel_fraction_max": 0.05,
-  "crushed_pixel_fraction_max": 0.05,
-  "fill_fraction_min": 0.40,
-  "fill_fraction_max": 0.90,
+  "crushed_pixel_fraction_max": 0.08,
+
+  "_fill": "fill_fraction_max is deliberately 1.0, i.e. off. The busy box spanning the frame is what a product photograph looks like — at 0.90 this refused 44 of 93 good fixtures as 'too close', including every patterned-background one. Nothing needs it: all 21 too-far fixtures sit at fill 0.11, far below fill_fraction_min.",
+  "fill_fraction_min": 0.25,
+  "fill_fraction_max": 1.00,
+
   "tilt_degrees_max": 8,
   "resolution_min_px": 1000,
   "state_hold_seconds": 0.5,

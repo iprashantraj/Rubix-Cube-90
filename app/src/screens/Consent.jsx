@@ -4,6 +4,7 @@ import { useVoice } from '../voice/useVoice.js';
 import { t } from '../i18n/index.js';
 import { Screen, BigButton } from '../ui/kit.jsx';
 import { IconYes, IconReplay } from '../ui/icons.jsx';
+import { ArtShield } from '../ui/illustrations.jsx';
 
 /**
  * /consent — DPDP notice, spoken.
@@ -44,21 +45,37 @@ export default function Consent() {
       the tiles are in scripts the artisan may not read — and this is the first screen where
       they would notice.
     */
-    <Screen prompt="consent.title" speakAlso="consent.body" back="/lang">
+    <Screen
+      prompt="consent.title"
+      speak="consent.body"
+      speakOnEnter
+      back="/lang"
+      footer={
+        <>
+          <BigButton icon={IconYes} labelKey="consent.ok" onClick={accept} tone="yes" />
+          <BigButton
+            icon={IconReplay}
+            labelKey="consent.again"
+            tone="no"
+            onClick={() => say('consent.body')}
+          />
+        </>
+      }
+    >
+      {/*
+        The drawing carries the sentence before the sentence is read or heard. On a slow
+        connection the voice takes a second to arrive and the artisan is looking at the
+        screen during it — a shield holding a spool is the only thing on this page that
+        works in that second.
+      */}
+      <ArtShield className="illus" />
+
       {/*
         The notice itself. Short on purpose — it is short because we genuinely collect
         very little. Readiness is stored as booleans, so there is no PAN, no Aadhaar, no
         bank number and no document photo to disclose here.
       */}
-      <p className="said">{t(lang, 'consent.body')}</p>
-
-      <BigButton icon={IconYes} labelKey="consent.ok" onClick={accept} tone="yes" />
-      <BigButton
-        icon={IconReplay}
-        labelKey="consent.again"
-        tone="no"
-        onClick={() => say('consent.body')}
-      />
+      <p className="said said--notice">{t(lang, 'consent.body')}</p>
     </Screen>
   );
 }
