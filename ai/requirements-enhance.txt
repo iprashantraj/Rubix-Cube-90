@@ -28,3 +28,11 @@ transformers==5.16.1
 timm==1.0.28
 einops==0.8.2
 safetensors==0.8.0
+# kornia is the third of these, and it was missing until 2026-08-28. BiRefNet's remote
+# modeling file imports it for the refinement blocks, so without it the model loads far
+# enough to look fine and then dies inside the worker with
+# `ImportError: ... requires the following packages that were not found: kornia`.
+# The job reports {"status":"failed"} and the app degrades to "we could not improve the
+# photo" — the same sentence it says when the AI box is unreachable, so the missing package
+# is invisible from the phone. Found by running the pipeline end to end, not by a test.
+kornia==0.8.2
