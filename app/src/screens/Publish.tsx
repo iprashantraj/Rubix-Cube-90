@@ -83,6 +83,24 @@ export default function Publish() {
   const { lang, say } = useVoice();
   const draft = useDraft();
   const { data: channels, isPending, error } = useApiQuery<Channel[]>('/channels');
+
+  /*
+   * 🐞 The colour lock has to be read from the SERVER, not from the draft.
+   *
+   * `draft.colourConfirmed` lives in memory and store.ts deliberately does not persist it.
+   * So a reload, or reaching this screen for a product catalogued earlier, produced
+   * `false` — and the send button rendered `disabled`, which meant tapping it did nothing,
+   * forever, while the database said colour_confirmed = true. There was no way out of that
+   * screen and nothing on it said why.
+   *
+   * `/products` already carries the flag, so this costs a cached list read and no new
+   * endpoint. The draft still wins when it is set, because it is fresher than the list.
+   */
+  const { data: products } = useApiQuery<{ id: string; colour_confirmed: boolean }[]>('/products');
+  const productId = draft.listing?.product_id as string | undefined;
+  const colourOk =
+    draft.colourConfirmed ||
+    Boolean(products?.find((p) => p.id === productId)?.colour_confirmed);
   const [results, setResults] = useState<Record<string, PublishResult>>({});
   const [stage, setStage] = useState(0); // index into TIERS
   const [busy, setBusy] = useState(false);
@@ -100,6 +118,13 @@ export default function Publish() {
    */
   const copyFor = (id: string) =>
     ((draft.listing?.copy_blocks as Record<string, CopyItem[]> | undefined) ?? {})[id] ?? [];
+
+  // The shared listing, shown at the top. Hindi first when that is the artisan's language:
+  // the description they will be read back and the one a buyer sees should be the same one.
+  const listingTitle = (draft.listing?.title as string | undefined) ?? '';
+  const listingDesc =
+    ((lang === 'hi' ? draft.listing?.desc_hi : draft.listing?.desc_en) as string | undefined) ||
+    ((draft.listing?.desc_en as string | undefined) ?? '');
   // Query failures and publish failures are different facts — see the note in Earnings.
   const [mutError, setError] = useState<string | null>(null);
   const errKey =
@@ -179,7 +204,21 @@ export default function Publish() {
 
   /** A channel row. Tappable only when there is genuinely somewhere for it to go. */
   function row(c: Channel) {
-    const state = RESULT_STATE[results[c.id]?.status as keyof typeof RESULT_STATE] ?? pending(c);
+    const result = results[c.id];
+    const generic = RESULT_STATE[result?.status as keyof typeof RESULT_STATE] ?? pending(c);
+    /*
+     * ⚠️ A failure has to say WHICH failure.
+     *
+     * Every refusal in ChannelAdapter.preflight carries a message_key — `photo.missing`,
+     * `colour.confirm` — and this row was throwing all of them away and rendering the same
+     * "publish.failed" for every one. So the two most common problems in the system, both
+     * of them fixable by the artisan in about ten seconds, looked identical and looked
+     * permanent. Nine rows in the database say exactly this happened.
+     */
+    const state =
+      result?.status === 'failed' && result.message_key
+        ? { ...generic, key: result.message_key }
+        : generic;
     const goesToSetup =
       (c.tier === 'B' && !c.connected) ||
       (c.tier === 'C' && results[c.id]?.status === 'file_ready') ||
@@ -209,7 +248,35 @@ export default function Publish() {
         Colour lock (spec §5.6). Publishing before the artisan has confirmed the colour is
         how a maroon saree ships as orange, gets returned, and takes their rating with it.
       */}
-      {!draft.colourConfirmed && <p className="warn">{t(lang, 'colour.confirm')}</p>}
+      {!colourOk && <p className="warn">{t(lang, 'colour.confirm')}</p>}
+
+      {/*
+        ⚠️ The listing itself, which this screen did not show at all.
+
+        The artisan was being asked to press "send" on a page of channel names and status
+        dots, with no sight of the words about to go out under their name. /catalog/review
+        read the listing aloud several screens earlier, and between there and here they
+        answered a pricing question — so as far as they could tell, the last page before
+        publishing had nothing in it.
+
+        Shown once, because it is the same text everywhere. What differs per channel is
+        folded into each block below, for whoever wants to check it.
+      */}
+      {(listingTitle || listingDesc) && (
+        <Card>
+          <p style={{ margin: '0 0 6px' }}>
+            <Chip tone="done">{t(lang, 'publish.general')}</Chip>
+          </p>
+          {listingTitle && (
+            <p style={{ margin: '0 0 6px' }}>
+              <strong>{listingTitle}</strong>
+            </p>
+          )}
+          {listingDesc && (
+            <p style={{ margin: 0, color: 'var(--muted)', userSelect: 'text' }}>{listingDesc}</p>
+          )}
+        </Card>
+      )}
 
       {TIERS.slice(0, stage + 1).map((tr) => {
         const group = inTier(tr);
@@ -261,11 +328,28 @@ export default function Publish() {
             {active && (
               <>
                 {canSend && (
+                  /*
+                   * Disabled ONLY while a send is in flight. Never for the colour lock.
+                   *
+                   * Design law rule 3: every failure degrades and speaks. A greyed-out
+                   * primary button is the most silent failure a screen can have — it looks
+                   * identical to a broken app, and someone who cannot read the warning
+                   * above it has no way to discover what it wants. So it stays pressable
+                   * and, when the colour is not confirmed, says so and takes them to the
+                   * one screen that can fix it.
+                   */
                   <BigButton
                     icon={IconPublish}
                     labelKey={SECTION[tr as keyof typeof SECTION].sendKey ?? undefined}
-                    onClick={() => send(tr)}
-                    disabled={busy || !draft.colourConfirmed}
+                    onClick={() => {
+                      if (!colourOk) {
+                        say('colour.confirm');
+                        nav('/catalog/prefill');
+                        return;
+                      }
+                      send(tr);
+                    }}
+                    disabled={busy}
                   />
                 )}
                 {last ? (

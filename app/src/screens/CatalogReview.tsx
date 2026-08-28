@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { useDraft } from '../store';
+import { useDraft, useSession } from '../store';
 import { useVoice } from '../voice/useVoice';
 import { record, transcribe, type RecHandle } from '../voice/listen';
 import { hoursFrom, rupeesFrom } from '../voice/numbers';
@@ -70,6 +70,10 @@ export default function CatalogReview() {
   const nav = useNavigate();
   const { say, sayRaw, shutUp, lang } = useVoice();
   const draft = useDraft();
+  // Their name and craft, for the listing copy. The name is used to STRIP identity from
+  // GeM's version, not to add it — GeM rejects listings carrying seller information, which
+  // is the exact opposite of every consumer marketplace.
+  const artisan = useSession((s) => s.artisan);
   const [listing, setLocal] = useState(() => compose(draft.prefill, draft.answers));
   const [step, setStep] = useState('read');
   const [field, setField] = useState<string | null>(null);
@@ -121,7 +125,62 @@ export default function CatalogReview() {
         labour_hours: hoursFrom(draft.answers?.time),
       };
       await api.patch(`/products/${productId}`, body);
-      useDraft.getState().setListing({ ...draft.listing, ...body });
+
+      /*
+       * Write the listing properly, once, for every marketplace at the same time.
+       *
+       * ⚠️ Without this call /publish had nothing to show. The per-channel blocks read
+       * `copy_blocks` off the draft, POST /catalog is the only thing that produces them,
+       * and nothing was calling it — so the last screen before "send" showed the artisan
+       * empty fields and asked them to approve it.
+       *
+       * `answers` rather than `body`: /catalog wants the facts they gave, not the prose we
+       * already composed from them. Its own allowlist drops anything that is not a product
+       * fact, and no price goes, ever.
+       *
+       * Non-fatal on purpose. The listing is already saved by the PATCH above, so an
+       * unreachable model costs a better description and nothing else. Blocking here would
+       * mean an OpenRouter outage stops an artisan publishing, and F2 degrading must never
+       * cost them the listing.
+       */
+      let extra: Record<string, unknown> = {};
+      try {
+        const seo = await api.post('/catalog', {
+          fields: {
+            what: draft.answers?.what,
+            material: listing.material || draft.answers?.material,
+            size: draft.answers?.size,
+            special: draft.answers?.special,
+            time: draft.answers?.time,
+            technique: draft.prefill?.technique ?? null,
+            category: listing.category || null,
+            craft: artisan?.craft ?? null,
+          },
+          language: lang,
+          artisan_name: artisan?.display_name ?? null,
+        });
+        extra = {
+          title: seo.title || body.title,
+          desc_en: seo.desc_en || body.desc_en,
+          desc_hi: seo.desc_hi || body.desc_hi,
+          keywords: seo.keywords ?? [],
+          channels: seo.channels ?? {},
+          copy_blocks: seo.copy_blocks ?? {},
+        };
+        // The improved copy is the listing now, so persist it rather than leaving the
+        // database holding the rougher version.
+        if (seo.title) {
+          await api.patch(`/products/${productId}`, {
+            title: extra.title,
+            desc_en: extra.desc_en,
+            desc_hi: extra.desc_hi,
+          });
+        }
+      } catch {
+        // Model down, no key, no network. The composed listing stands and publishing works.
+      }
+
+      useDraft.getState().setListing({ ...draft.listing, ...body, ...extra });
       nav('/price');
     } catch (e) {
       say((e as ApiError).messageKey ?? 'net.offline');

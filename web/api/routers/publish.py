@@ -83,7 +83,13 @@ async def publish(
         listing.status = r.status
         listing.external_id = r.external_id
         listing.artifact_url = r.artifact_url
-        listing.error = r.error
+        # 🐞 `error` used to take only `r.error`, and every preflight refusal carries a
+        # `message_key` with `error` left None. So the most common failure in the whole
+        # system — no image attached, colour not confirmed — was written to the database as
+        # status='failed', error=NULL, and there was no way to tell from the data which of
+        # the two it had been. Nine rows of that is what "publishing does not work and
+        # nothing says why" looked like from the inside.
+        listing.error = r.error or r.message_key
     db.commit()
 
     job_id = uuid.uuid4().hex
