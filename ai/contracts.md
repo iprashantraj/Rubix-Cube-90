@@ -39,6 +39,38 @@ Rejected at the gate (no GPU spent):
 { "status": "rejected", "reason": "resolution_below_1000px", "message_key": "photo.too_small" }
 ```
 
+`recipe` is also present on a `done` body. **Store it on `Product.recipe`** (migration
+`c3a71f0d5e42`) — it is what makes the endpoint below cheap, and what lets a better mask
+re-render this product later without discarding the artisan's choices.
+
+---
+
+## POST /enhance/rerender — re-apply a stored recipe
+
+Synchronous, and **no GPU while the mask is cached** — tens of milliseconds against ~20s for
+a fresh `/enhance`. This is what the tier picker calls when the artisan says "leave my
+background alone".
+
+Request
+```json
+{ "product_id": "p_123", "image_url": "s3://raw/abc.jpg",
+  "recipe": { "...": "the recipe stored on the product row" },
+  "tier": "C", "targets": ["amazon"] }
+```
+
+`tier` is optional. Sending it changes the tier **and marks the recipe
+`tier_source: "user"`** — once a person has overruled the confidence score, nothing
+automatic may quietly overrule them back.
+
+200 OK — same shape as a `done` poll, plus the updated `recipe`. Store it back on the row.
+
+`stages` says how the render was served: `mask_cached` means no model ran; `segment` means
+the stored mask was gone and it was rebuilt (rare, and the only slow case).
+
+Errors: **400** missing `image_url` or `recipe`, or a tier that is not A/B/C. **422** the
+recipe is well-formed JSON that `render()` cannot honour — re-run `POST /enhance`. **502**
+the source image could not be read.
+
 ---
 
 ## POST /catalog  — F2 voice to listing

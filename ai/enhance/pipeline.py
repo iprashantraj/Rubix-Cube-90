@@ -312,16 +312,19 @@ def apply_tier(image, alpha):
     if name == "C":
         return image.convert("RGB"), name, score, signals
 
-    a = alpha
-    if name == "B":
-        import numpy as np
-        from PIL import Image as _Image, ImageFilter
-
-        soft = _Image.fromarray((np.asarray(a, np.float32) * 255).astype(np.uint8))
-        soft = soft.filter(ImageFilter.BoxBlur(FEATHER_PX))
-        a = np.asarray(soft, np.float32) / 255.0
-
+    a = feather(alpha) if name == "B" else alpha
     return composite(image, a), name, score, signals
+
+
+def feather(alpha):
+    """Widen the alpha transition. Tier B's whole treatment, and `renderer.py` uses the
+    same function so a re-render cannot drift from the first render."""
+    import numpy as np
+    from PIL import Image as _Image, ImageFilter
+
+    soft = _Image.fromarray((np.asarray(alpha, np.float32) * 255).astype(np.uint8))
+    soft = soft.filter(ImageFilter.BoxBlur(FEATHER_PX))
+    return np.asarray(soft, np.float32) / 255.0
 
 
 def white_balance(image):
@@ -552,65 +555,131 @@ def export(image, targets, product_id):
     return out
 
 
+def master_for(image):
+    """The 2000px master every recipe's coordinates are in. Both `run()` and `rerender()`
+    go through this, because a recipe rendered against a different master crops the wrong
+    region and looks almost right."""
+    from . import segmenter
+
+    return segmenter.to_master(image)
+
+
+def _warnings_for(tier_name, plan):
+    """What the app speaks to the artisan. Their words, not our measurements — they may not
+    be able to read the screen, and "mask confidence 0.7" helps nobody holding a pot."""
+    out = []
+    if tier_name == "B":
+        out.append("the background could not be removed cleanly, so less of it was changed")
+    elif tier_name == "C":
+        out.append("the background was left as it is — the photo could not be separated from it")
+    if plan and plan["upscale"] > 2.0:
+        out.append("the product is small in the frame, so the listing image is soft — "
+                   "retake it closer for a sharper result")
+    if plan and plan["degraded"]:
+        out.append("no product could be found in the photo — it was cropped to the centre")
+    return out
+
+
 def run(image, targets, product_id="unknown"):
-    """The whole sequence, gate to files. Returns the `GET /enhance/{job_id}` body.
+    """First pass over a photograph. Returns the `GET /enhance/{job_id}` body.
 
     Order, and why it is this order:
 
-        gate      refuse before spending GPU on a photograph nothing can rescue
-        master    2000px — the model's mask is stretched to fit, so this sets edge quality
-        segment   BiRefNet
-        matte     currently a no-op, see its docstring
-        apply_tier  confidence decides how much of the mask we are willing to use
-        crop      square the frame; must follow the composite that apply_tier does
-        export    per-channel JPEGs
+        gate       refuse before spending GPU on a photograph nothing can rescue
+        master     2000px — the model's mask is stretched to fit, so this sets edge quality
+        segment    BiRefNet, the only GPU work
+        matte      currently a no-op, see its docstring
+        tier       confidence decides how much of the mask we are willing to use
+        crop_plan  geometry as numbers
+        recipe     everything above, written down
+        render     the one call that produces pixels
+        export     per-channel JPEGs
+
+    **The stages no longer hand images to each other.** They compute parameters into a
+    recipe, and `renderer.render()` is the only thing that touches pixels — which is what
+    makes rule 2 hold by construction rather than by care, and what makes `rerender()`
+    below cost no GPU.
+
+    The alpha is written to storage under the recipe's `mask_version`, because a re-render
+    that had to segment again would buy nothing.
 
     **`white_balance()`, `tone()` and `denoise_sharpen()` are not called, because they are
-    not written.** They are skipped explicitly rather than left out quietly, and every
-    response says which stages actually ran. Colour is the significant absence: a maroon
-    saree under a tungsten bulb still leaves here photographing orange, and rule 4 means
-    nothing publishes without the artisan confirming colour anyway.
-
-    `stages` is also the beginning of step 5's recipe. Rule 2 says store what was done and
-    render on demand rather than overwriting the original; this records what was done.
+    not written.** Their recipe fields are null, which is why an old recipe keeps rendering
+    once they land. Colour is the significant absence: a maroon saree under a tungsten bulb
+    still leaves here photographing orange.
     """
-    from . import segmenter
+    from . import recipe as recipe_mod, renderer, storage
 
-    warnings = []
     rejection = gate(image)
     if rejection:
         return {"status": "rejected", **rejection}
 
-    master = segmenter.to_master(image)
+    master = master_for(image)
     alpha = matte(master, segment(master))
+    tier_name, score, signals = tier(alpha)
     plan = crop_plan(alpha)
-    composited, tier_name, score, signals = apply_tier(master, alpha)
-    squared = crop(composited, alpha)
-    images = export(squared, targets, product_id)
+    t = metrics.thresholds()
 
-    if tier_name != "A":
-        # The app speaks warnings to the artisan, so this says what they would see rather
-        # than what we measured.
-        warnings.append(
-            "the background could not be removed cleanly, so less of it was changed"
-            if tier_name == "B" else
-            "the background was left as it is — the photo could not be separated from it"
-        )
-    if plan["upscale"] > 2.0:
-        warnings.append(
-            "the product is small in the frame, so the listing image is soft — "
-            "retake it closer for a sharper result"
-        )
-    if plan["degraded"]:
-        warnings.append("no product could be found in the photo — it was cropped to the centre")
+    rec = recipe_mod.new(
+        tier=tier_name, confidence=score, mask_signals=signals,
+        crop_box=plan["source_box"], canvas=t["listing_canvas_px"],
+        fill=t["crop_fill_target"],
+    )
+    storage.write_mask(alpha, product_id, rec["mask_version"])
+
+    squared = renderer.render(master, alpha, rec)
+    images = export(squared, targets, product_id)
 
     return {
         "status": "done",
         "images": images,
-        "warnings": warnings,
+        "warnings": _warnings_for(tier_name, plan),
         "tier": tier_name,
         "confidence": round(score, 2),
         "mask": signals,
-        "stages": ["gate", "master", "segment", "matte", f"tier_{tier_name}", "crop", "export"],
+        "recipe": rec,
+        "stages": ["gate", "master", "segment", "matte", f"tier_{tier_name}", "render", "export"],
+        "skipped": ["white_balance", "tone", "denoise_sharpen"],
+    }
+
+
+def rerender(image, targets, product_id, rec):
+    """Re-apply a stored recipe. **No segmentation, no GPU** when the mask is still there.
+
+    This is what the recipe was built for. "The artisan tapped a different tier" is
+    `recipe.with_tier()` then this — tens of milliseconds instead of a model pass, and
+    every other choice they made is preserved because nothing else in the recipe moved.
+
+    Falls back to re-segmenting when the stored mask is gone. Masks are derived data and
+    can be evicted; losing one should cost time, never the listing.
+    """
+    from . import recipe as recipe_mod, renderer, storage
+
+    recipe_mod.validate(rec)
+    master = master_for(image)
+
+    resegmented = False
+    try:
+        alpha = storage.read_mask(product_id, rec["mask_version"])
+        if alpha.shape[:2] != (master.height, master.width):
+            raise storage.SourceError("stored mask is a different size than this master")
+    except storage.SourceError:
+        alpha = matte(master, segment(master))
+        rec = dict(rec, mask_version=recipe_mod.mask_version())
+        storage.write_mask(alpha, product_id, rec["mask_version"])
+        resegmented = True
+
+    squared = renderer.render(master, alpha, rec)
+    images = export(squared, targets, product_id)
+
+    return {
+        "status": "done",
+        "images": images,
+        "warnings": _warnings_for(rec["tier"], None),
+        "tier": rec["tier"],
+        "confidence": rec.get("confidence", 0.0),
+        "recipe": rec,
+        "stages": (["master", "segment"] if resegmented else ["master", "mask_cached"])
+                  + [f"tier_{rec['tier']}", "render", "export"],
         "skipped": ["white_balance", "tone", "denoise_sharpen"],
     }

@@ -77,6 +77,7 @@ cd web/api && python3 test_uploads.py   # chunk assembly, no database or server
 cd ai && .venv/bin/pytest        # pricing, 15 tests. ai/.venv exists as of 2026-08-28
 cd ai && python3 test_gate.py    # server quality gate, 10 assertions, no venv or fixtures
 cd ai && python3 test_segment.py # master downscale; skips the model half without a venv
+cd ai && python3 test_recipe.py  # recipe + renderer, 18 assertions, no venv
 cd ai && .venv/bin/pytest test_service.py  # the /enhance contract end to end; needs fastapi
 python3 images/check.py --resume && python3 images/calibrate.py   # thresholds vs the fixture set
 ```

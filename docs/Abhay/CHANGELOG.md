@@ -828,3 +828,64 @@ half skips separately. Suite: **59 passed**.
 **Not touched.** Still nothing in `app/` or `web/`. The two open requests from earlier stand:
 `fill_fraction` sent with the upload (would likely close the tier system's blind spot), and
 the five mislabelled fixtures in `images/MANIFEST.md`.
+
+---
+
+## 2026-08-29 — Step 5: the recipe system. All ten steps are done
+
+`ai/enhance/recipe.py` and `ai/enhance/renderer.py`. Stages now compute **parameters**;
+`render(original, mask, recipe)` is the only thing in the pipeline that produces pixels.
+`PIPELINE-RECONCILIATION.md` §4 asked for this and your migration `c3a71f0d5e42` is what it
+stores into — thank you for leaving the recipe's shape to this side, it is defined in
+`recipe.py` and documented in `contracts.md`.
+
+**What it buys, measured on a real fixture:**
+
+    POST /enhance            8848 ms   segment + tier + render + export
+    POST /enhance/rerender    131 ms   tier A -> C, stages ["master", "mask_cached"]
+                              348 ms   -> B
+                              295 ms   -> A again
+
+Switching tier is ~40x faster and never touches the GPU. That is the artisan tapping "leave
+my background alone" and getting an answer immediately instead of waiting twenty seconds.
+
+**New endpoint: `POST /enhance/rerender`.** Synchronous, because with the mask cached a job
+id would be slower than the work. Full shapes in `contracts.md`. **Please store the `recipe`
+returned on every `done` body onto `Product.recipe`** — without it stored, re-render has
+nothing to replay and the whole thing degrades to re-running `/enhance`.
+
+**`tier_source` is the field to respect.** It is `"auto"` until a person changes the tier,
+then `"user"`. Once the artisan has overruled the confidence score, nothing automatic may
+quietly overrule them back — if a re-render ever runs on their behalf, keep the field.
+
+**Masks are now persisted** beside the outputs as lossless greyscale PNG, keyed by
+`mask_version` (`birefnet@e2bf8e44` — model plus pinned revision, because BiRefNet ships
+`trust_remote_code` and a different revision is a different network). PNG not JPEG
+deliberately: JPEG ringing lands hardest on exactly the high-frequency edges a mask exists
+to describe.
+
+Masks are derived data and may be evicted. Verified: deleting one makes the next re-render
+re-segment (1123 ms, `stages: ["master", "segment"]`) and store it again. **Losing a mask
+costs time, never the listing.**
+
+**Rule 2 now holds by construction.** Nothing writes over the original, because nothing but
+`render()` writes pixels at all. There is a test asserting `render()` does not modify its
+input, and another asserting two renders of one recipe are byte-identical — without that,
+"undo" and "switch back" would quietly produce a slightly different listing image.
+
+The crop box is **replayed, not recomputed**. After an artisan has approved a listing image,
+a later re-render moving the product is a change they never asked for.
+
+**Tests** — new `ai/test_recipe.py`, 18 assertions, runs on plain `python3`. Whole suite:
+**102 passed**.
+
+**Thanks for the three fixes while I was away** — the missing `https` scheme in
+`storage.py`, `kornia` missing from `requirements-enhance.txt`, and the resolution path that
+refused every real upload. All three were mine, and all three were only findable by running
+against real infrastructure with a real phone. The square-fixture blind spot in my
+`test_gate.py` is a fair hit.
+
+**Still unwritten:** `white_balance()`, `tone()`, `denoise_sharpen()`. Their recipe fields
+are null rather than absent, so recipes written today keep rendering once they land. Colour
+remains the largest quality gap, and §9.2's `white_ref` rect is still the open question that
+decides whether white balance can be anything better than gray-world.
