@@ -1,0 +1,33 @@
+{
+  "_note": "Strings for the computed cataloguer questions — see app/src/catalog/slots.js and docs/Utsav/Product_Questions.md. `catalog.q_what` is deliberately re-worded over the copy in en.json/hi.json: it is now the one broad question the others are harvested from, so it has to invite a sentence rather than a noun. The _new_*.json files are folded in after the base bundles, so this override is the intended mechanism, not a collision. Odia is absent on purpose — an unreviewed Odia draft spoken to someone who cannot read it is worse than the English fallback resolve() already gives. Add `or` only after a native speaker has checked it.",
+
+  "en": {
+    "catalog.q_what": "Tell me about this. What is it?",
+
+    "catalog.q_weight": "How much does it weigh?",
+    "catalog.q_stock": "How many of these do you have?",
+    "catalog.q_lead_time": "How many days do you need to get it ready?",
+
+    "catalog.confirm": "Is it {value}?",
+    "catalog.confirm_same": "Last time you said {value}. Same this time?",
+    "catalog.confirm_no": "No, it is different",
+
+    "catalog.weight_hint": "Put it on a scale if you have one. A guess is fine.",
+    "catalog.stock_hint": "If you make each one to order, say one."
+  },
+
+  "hi": {
+    "catalog.q_what": "इसके बारे में बताइए। यह क्या है?",
+
+    "catalog.q_weight": "इसका वज़न कितना है?",
+    "catalog.q_stock": "आपके पास ऐसे कितने हैं?",
+    "catalog.q_lead_time": "तैयार करने में कितने दिन लगेंगे?",
+
+    "catalog.confirm": "क्या यह {value} है?",
+    "catalog.confirm_same": "पिछली बार आपने {value} कहा था। इस बार भी वही?",
+    "catalog.confirm_no": "नहीं, यह अलग है",
+
+    "catalog.weight_hint": "तराज़ू हो तो तौल लीजिए। अंदाज़ा भी चलेगा।",
+    "catalog.stock_hint": "अगर ऑर्डर पर बनाते हैं तो एक कहिए।"
+  }
+}
