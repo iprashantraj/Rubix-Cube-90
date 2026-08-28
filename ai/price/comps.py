@@ -8,9 +8,15 @@ A for-loop with retries is deliberate. Nothing here loops or re-decides enough t
 need an agent framework; revisit only if source selection becomes genuinely adaptive.
 """
 
+import datetime as dt
+import json
+import logging
 import os
+from pathlib import Path
 
 import httpx
+
+log = logging.getLogger(__name__)
 
 SOURCES = ["market", "amazon", "flipkart", "gem"]
 
@@ -22,6 +28,66 @@ API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000")
 # The artisan is waiting on a screen. The floor never depends on this call, so a slow
 # marketplace must cost us a market range and not a price.
 TIMEOUT_SECONDS = 3
+
+# Amazon, Flipkart and GeM have no queryable price search (see fetch). Their prices come
+# from a snapshot somebody collected by hand and dated — research/pricing/README.md.
+SEED_PATH = Path(__file__).parent / "comps_seed.json"
+
+# A handicraft price does not move much in a quarter, but a year-old snapshot presented as
+# "the market" is a lie with a decimal point in it. Past this we still use it and say so
+# loudly: returning nothing would silently drop the price back to the floor, which looks
+# identical to everything working.
+STALE_AFTER_DAYS = 180
+
+
+def _seed():
+    """The hand-collected snapshot, or None. Never raises — a malformed file must not cost
+    an artisan their price suggestion."""
+    try:
+        data = json.loads(SEED_PATH.read_text())
+    except FileNotFoundError:
+        return None
+    except Exception as e:
+        log.warning("comps seed unreadable, pricing on cost alone: %s", e)
+        return None
+
+    # Nothing collected yet is the state this file ships in, and it is expected rather than
+    # wrong — the app prices honestly on cost alone. Saying so on every single price request
+    # would be noise that trains everyone to ignore this logger.
+    if not data.get("categories"):
+        return None
+
+    collected = data.get("collected")
+    try:
+        age = (dt.date.today() - dt.date.fromisoformat(collected)).days
+    except (TypeError, ValueError):
+        # Prices WITH no date, though, is a real problem: an undated price is not evidence,
+        # and this one is about to be shown to an artisan as the market rate.
+        log.warning("comps seed has prices but no usable `collected` date — refusing to use it")
+        return None
+    if age > STALE_AFTER_DAYS:
+        log.warning(
+            "comps seed is %d days old (collected %s). Prices from it are being used but "
+            "should be re-collected — see research/pricing/README.md",
+            age, collected,
+        )
+    return data
+
+
+def _seed_prices(data, source, category):
+    """Walk up the taxonomy for the most specific match we actually have.
+
+    "textiles.saree.sambalpuri" -> "textiles.saree" -> "textiles". A snapshot will realistically
+    hold "textiles.saree" long before it holds every weave, and comparing a Sambalpuri saree
+    against sarees generally is far better than comparing it against nothing. Most specific
+    wins, so adding the narrower key later takes precedence with no code change.
+    """
+    parts = category.split(".")
+    for depth in range(len(parts), 0, -1):
+        entry = data.get("categories", {}).get(".".join(parts[:depth]))
+        if entry and entry.get(source):
+            return [float(p) for p in entry[source] if p]
+    return []
 
 
 def fetch(source, category, material, size):
@@ -36,8 +102,9 @@ def fetch(source, category, material, size):
       gem                No API of any kind. Rate contracts are published as documents.
 
     Scraping search pages would work until it did not — against both sites' terms, broken
-    by a CSS rename, and IP-blocked halfway through a demo. The honest source for those
-    three is a dated snapshot collected by hand (research/pricing/), read from a file.
+    by a CSS rename, and IP-blocked halfway through a demo. So those three read a dated
+    snapshot collected by hand instead: comps_seed.json, per research/pricing/README.md.
+    Per-source lists, so a price seen on two platforms is not counted twice.
 
     `material` and `size` are accepted but unused for this source: /api/shop/products
     filters by category and does not return material, so there is nothing to compare on.
@@ -45,8 +112,13 @@ def fetch(source, category, material, size):
     is already a tight comparison class. If it proves too tight, the fix is to query the
     parent path rather than to widen this signature.
     """
-    if source != "market" or not category:
+    if not category:
         return []
+
+    if source != "market":
+        data = _seed()
+        return _seed_prices(data, source, category) if data else []
+
     try:
         res = httpx.get(
             f"{API_BASE_URL}/api/shop/products",

@@ -10,7 +10,7 @@ Nothing goes on a slide until it has a verdict here.
 | camera-thresholds | blur/light cutoffs that don't false-reject plain fabric | **framing and blur settled, light still open** | 2026-08-27 |
 | asr-bhashini | access terms, rate limits, does our use case qualify | open | |
 | description-llm | prompt that reliably yields EN+HI + structured fields | open | |
-| pricing | does cost-up land near real listing prices | open | |
+| pricing | does cost-up land near real listing prices | **open — tooling ready, awaiting collection** | |
 
 Rules: benchmark on our own test photos, not blog rankings. Record the date — a verdict
 from three months ago on a model that shipped a new version is not a verdict.
@@ -167,3 +167,42 @@ Every fixture is web-sourced or synthesised from one. Valid for the four luma st
 gate measures — `degrade.py` argues this in its header. Not valid for `denoise_sharpen()`,
 not valid for the light thresholds above, and no substitute for a mid-range Android phone in
 a courtyard at six in the evening.
+
+---
+
+## pricing — the experiment is now one afternoon of browsing away, 2026-08-28
+
+Not a verdict. Recorded because the blocker changed: it used to be "nobody has built this",
+and it is now "nobody has collected the data", which is a different task with a different
+owner.
+
+**Everything except the numbers is written.** `research/pricing/pricing.py` has two
+subcommands — `build` turns collected observations into `ai/price/comps_seed.json`, which
+`comps.fetch()` reads for the three sources with no API; `check` runs the actual experiment
+and prints, per category, whether our cost-up floor sits inside the observed price spread,
+above all of it, or below it.
+
+**What is missing is real listing prices, and they cannot be generated.** A plausible-looking
+guess here is worse than an empty file: the empty file prices honestly on cost alone and the
+app says so, a guess silently becomes both the price an artisan is shown and the evidence we
+use to claim the floor is calibrated. `pricing.py` therefore refuses any row without a
+`seen_on` date and a `url_or_note`, and the committed seed ships empty with a test asserting
+it stayed that way.
+
+Protocol, including how many per category and which cheap listings to deliberately keep:
+`research/pricing/README.md`.
+
+### Why this one matters more than it looks
+
+The camera thresholds were calibrated against 591 fixtures on 2026-08-27. The pricing floor
+has been validated against **zero** real transactions. Both feed a number an artisan acts on,
+and only one of them has evidence behind it.
+
+All three outcomes of `check` are publishable:
+
+| Outcome | Reading |
+|---|---|
+| Floor inside the observed spread | The model is calibrated — say so with the number |
+| Floor above everything observed | Either the cluster wage rate is too high, or **the market genuinely pays below what these things cost to make** — which is the finding this whole feature exists to expose, and a better slide than a working algorithm |
+| Floor below everything observed | We are under-protecting; revisit `default_margin_pct` in `ai/price/rates.json` |
+

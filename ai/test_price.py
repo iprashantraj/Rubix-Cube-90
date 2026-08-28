@@ -184,3 +184,114 @@ def test_a_sample_too_small_to_trim_is_reported_not_mangled():
     # Trimming three prices leaves nothing to report a range from. Keep them and let
     # sample_size say the range is thin.
     assert (r["low"], r["high"], r["sample_size"]) == (3000, 5000, 3)
+
+
+# -- the hand-collected snapshot · comps_seed.json ----------------------------
+
+
+@contextlib.contextmanager
+def _seed_file(payload):
+    import json as _json
+    import tempfile
+    from pathlib import Path as _Path
+
+    real = comps.SEED_PATH
+    with tempfile.TemporaryDirectory() as d:
+        p = _Path(d) / "seed.json"
+        if payload is not None:
+            p.write_text(_json.dumps(payload))
+        comps.SEED_PATH = p
+        try:
+            yield
+        finally:
+            comps.SEED_PATH = real
+
+
+def _dated(days_ago, categories):
+    import datetime as _dt
+    return {
+        "collected": (_dt.date.today() - _dt.timedelta(days=days_ago)).isoformat(),
+        "categories": categories,
+    }
+
+
+def test_seeded_sources_read_the_snapshot():
+    seed = _dated(1, {"textiles.saree": {"amazon": [3000, 3500], "gem": [2800]}})
+    with _seed_file(seed):
+        assert comps.fetch("amazon", "textiles.saree", None, None) == [3000.0, 3500.0]
+        assert comps.fetch("gem", "textiles.saree", None, None) == [2800.0]
+        # Per-source lists, so a price seen on two platforms is not counted twice.
+        assert comps.fetch("flipkart", "textiles.saree", None, None) == []
+
+
+def test_the_snapshot_walks_up_the_taxonomy():
+    """A snapshot will hold "textiles.saree" long before it holds every weave."""
+    seed = _dated(1, {"textiles.saree": {"amazon": [3000]}})
+    with _seed_file(seed):
+        assert comps.fetch("amazon", "textiles.saree.baluchari", None, None) == [3000.0]
+        assert comps.fetch("amazon", "pottery.matka", None, None) == []
+
+
+def test_the_most_specific_key_wins():
+    seed = _dated(1, {
+        "textiles": {"amazon": [100]},
+        "textiles.saree": {"amazon": [3000]},
+        "textiles.saree.sambalpuri": {"amazon": [4000]},
+    })
+    with _seed_file(seed):
+        assert comps.fetch("amazon", "textiles.saree.sambalpuri", None, None) == [4000.0]
+
+
+def test_an_undated_snapshot_is_refused():
+    """An undated price is not evidence — and a price shown to an artisan needs to be."""
+    with _seed_file({"categories": {"textiles.saree": {"amazon": [3000]}}}):
+        assert comps.fetch("amazon", "textiles.saree", None, None) == []
+
+
+def test_a_stale_snapshot_is_still_used_and_warned_about():
+    """Returning [] on staleness would silently drop the price back to the floor, which
+    looks identical to everything working. Warn loudly, keep pricing."""
+    seed = _dated(comps.STALE_AFTER_DAYS + 30, {"textiles.saree": {"amazon": [3000]}})
+    with _seed_file(seed):
+        assert comps.fetch("amazon", "textiles.saree", None, None) == [3000.0]
+
+
+def test_a_missing_or_broken_snapshot_costs_nothing():
+    with _seed_file(None):  # no file at all — the committed state until somebody collects
+        assert comps.fetch("amazon", "textiles.saree", None, None) == []
+    with _seed_file({"categories": "this is not a dict of categories"}):
+        assert comps.fetch("amazon", "textiles.saree", None, None) == []
+
+
+def test_the_committed_seed_contains_no_invented_prices():
+    """The seed ships empty on purpose. If this fails, somebody committed numbers —
+    check they came from real listings with provenance, per research/pricing/README.md."""
+    import json as _json
+    data = _json.loads(comps.SEED_PATH.read_text())
+    if data["collected"] is None:
+        assert data["categories"] == {}, "dated as uncollected but has prices in it"
+
+
+def test_an_uncollected_seed_is_silent_not_noisy():
+    """The shipped state. Warning on every price request would train everyone to ignore
+    this logger, and there is nothing wrong: the app prices on cost alone and says so."""
+    import logging
+    records = []
+
+    class _Catch(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    handler = _Catch()
+    comps.log.addHandler(handler)
+    try:
+        with _seed_file({"collected": None, "categories": {}}):
+            assert comps.fetch("amazon", "textiles.saree", None, None) == []
+        assert records == [], f"uncollected seed logged: {[r.getMessage() for r in records]}"
+
+        # But prices with no date must still be refused loudly.
+        with _seed_file({"categories": {"textiles.saree": {"amazon": [3000]}}}):
+            assert comps.fetch("amazon", "textiles.saree", None, None) == []
+        assert len(records) == 1
+    finally:
+        comps.log.removeHandler(handler)

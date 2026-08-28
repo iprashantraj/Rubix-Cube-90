@@ -429,7 +429,7 @@ never the artisan's listing.
 | `ai/test_price.py` — 12 tests | ✅ **Passing** | Ran them |
 | `ai/price/comps.py` — `market_range` | ✅ **Working** | Trims outliers; returns `None` when no source answers |
 | `ai/price/comps.py` — `fetch("market")` | ✅ **Implemented** | Reads our own `/api/shop/products` |
-| `ai/price/comps.py` — `fetch` for amazon/flipkart/gem | 🟡 Return `[]` by design | No usable price-search API exists — see §6 |
+| `ai/price/comps.py` — `fetch` for amazon/flipkart/gem | ✅ Read `comps_seed.json` | No price-search API exists for any of the three; the snapshot is the source. **Ships empty — awaiting collection** |
 | `ai/price/comps.py` — `normalize` | ⛔ Unused | Nothing calls it: our own rows are structured, so there are no messy titles to normalise yet |
 | `ai/service.py` — `POST /price` | ✅ **Implemented** | Smoke-tested over real HTTP; 12 tests in `test_price.py` |
 | `web/api` — a `/price` route | ✅ **Exists** | `web/api/routers/price.py`, registered in `main.py`. Proxies to the AI service; returns 503, never a fabricated price |
