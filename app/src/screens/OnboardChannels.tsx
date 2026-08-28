@@ -5,7 +5,14 @@ import { useSession } from '../store';
 import { useVoice } from '../voice/useVoice';
 import { t } from '../i18n/index';
 import { Screen, Grid, Tile, BigButton } from '../ui/kit';
-import { IconYes, IconRetry, IconChannel } from '../ui/icons';
+import {
+  IconYes,
+  IconRetry,
+  IconChannelAmazon,
+  IconChannelFlipkart,
+  IconChannelMeesho,
+  IconChannelWhatsApp,
+} from '../ui/icons';
 
 /**
  * /onboard/channels — "do you already sell anywhere else?"
@@ -29,13 +36,13 @@ import { IconYes, IconRetry, IconChannel } from '../ui/icons';
  * button rather than a quiet link. Nobody should have to work out that "select nothing,
  * then press done" is how you say "I do not sell anywhere".
  *
- * ⚠️ ── These tiles are not yet distinguishable to someone who cannot read ────────────
- * The craft grid works because eight different drawings mean eight different things. Here
- * all four tiles carry the same generic mark, so the label is doing all the work — for the
- * exact users who cannot read it. The right fix is the four brand marks, which are
- * recognised on sight by people who have never read the names, and that needs licensed
- * assets rather than four approximations drawn from memory. Until those exist this screen
- * is honest but weak, and this comment is the reason it is not quietly "fine".
+ * ── Four different shapes, not four copies of one ───────────────────────────────────
+ * The craft grid works because eight different drawings mean eight different things. This
+ * grid shipped with one generic mark repeated four times, which left the text label doing
+ * all the work for the exact users who cannot read it. Each tile now carries its own glyph
+ * — a globe, a bag, a shop, a chat bubble — chosen for what the platform IS to an artisan
+ * rather than for what its logo looks like. See the note in ui/icons.tsx about why these
+ * are not the real brand marks.
  *
  * ⚠️ This records what they SAY they have, not what we can push to. Connecting an account
  * is OAuth and lives on /channels; this only decides what to ask and what to show. Someone
@@ -43,10 +50,13 @@ import { IconYes, IconRetry, IconChannel } from '../ui/icons';
  * Someone who has never heard of Amazon is shown nothing about it at all.
  */
 const CHANNELS = [
-  { id: 'amazon', icon: IconChannel, key: 'channel.amazon' },
-  { id: 'flipkart', icon: IconChannel, key: 'channel.flipkart' },
-  { id: 'meesho', icon: IconChannel, key: 'channel.meesho' },
-  { id: 'whatsapp', icon: IconChannel, key: 'channel.whatsapp' },
+  { id: 'amazon', icon: IconChannelAmazon, key: 'channel.amazon' },
+  { id: 'flipkart', icon: IconChannelFlipkart, key: 'channel.flipkart' },
+  { id: 'meesho', icon: IconChannelMeesho, key: 'channel.meesho' },
+  // Last on purpose: it is the one most of them actually use, and a grid whose most likely
+  // answer sits in the final cell is read all the way through instead of abandoned on the
+  // first.
+  { id: 'whatsapp', icon: IconChannelWhatsApp, key: 'channel.whatsapp' },
 ];
 
 export default function OnboardChannels() {
