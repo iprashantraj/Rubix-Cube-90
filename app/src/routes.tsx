@@ -12,6 +12,7 @@ import OnboardCraft from './screens/OnboardCraft';
 import OnboardPlace from './screens/OnboardPlace';
 import OnboardReady from './screens/OnboardReady';
 import OnboardChannels from './screens/OnboardChannels';
+import ChannelListing from './screens/ChannelListing';
 import Camera from './screens/Camera';
 import CaptureReview from './screens/CaptureReview';
 import CatalogPrefill from './screens/CatalogPrefill';
@@ -112,6 +113,7 @@ export const routes = [
   { path: '/catalog/review', element: guarded(<CatalogReview />) },
   { path: '/price', element: guarded(<Price />) },
   { path: '/publish', element: guarded(<Publish />) },
+  { path: '/publish/:channelId', element: guarded(<ChannelListing />) },
 
   // Catalog.
   { path: '/products', element: guarded(<Products />) },

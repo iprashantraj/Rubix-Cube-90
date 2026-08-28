@@ -25,7 +25,10 @@
     "field.keywords": "Search words",
     "publish.nothing_yet": "Nothing written for this app yet",
     "publish.copy_failed": "Could not copy. The text is on the screen.",
-    "channels.connected": "Connected"
+    "channels.connected": "Connected",
+    "voice.mic_ask": "Please allow the microphone, then speak your answer.",
+    "publish.send_all": "Send my product",
+    "publish.send_all_note": "Goes to {count} places now. No account needed."
   },
   "hi": {
     "onboard.channels": "क्या आप इनमें से किसी पर पहले से सामान बेचते हैं?",
@@ -52,6 +55,9 @@
     "field.keywords": "खोज शब्द",
     "publish.nothing_yet": "इस ऐप के लिए अभी कुछ नहीं लिखा गया",
     "publish.copy_failed": "कॉपी नहीं हो पाया। लिखा हुआ स्क्रीन पर है।",
-    "channels.connected": "जुड़ा हुआ"
+    "channels.connected": "जुड़ा हुआ",
+    "voice.mic_ask": "माइक की अनुमति दीजिए, फिर बोलिए।",
+    "publish.send_all": "मेरा सामान भेजिए",
+    "publish.send_all_note": "अभी {count} जगह जाएगा। कोई खाता नहीं चाहिए।"
   }
 }

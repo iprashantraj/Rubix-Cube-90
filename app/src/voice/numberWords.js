@@ -18,7 +18,8 @@
  *
  * "oh" is in here because English speakers say it for zero and always will.
  */
-export const DIGIT_WORDS: Record<string, string> = {
+/** @type {Record<string, string>} */
+export const DIGIT_WORDS = {
   // English
   zero: '0', oh: '0', one: '1', two: '2', three: '3', four: '4',
   five: '5', six: '6', seven: '7', eight: '8', nine: '9',
@@ -57,7 +58,8 @@ export const DIGIT_WORDS: Record<string, string> = {
  * English is NOT in this table above 19. It composes regularly ("forty five"), so it is
  * handled by TENS_EN/UNITS_EN instead — see the note there, it was an actual bug.
  */
-export const NUMBER_WORDS: Record<string, string> = {
+/** @type {Record<string, string>} */
+export const NUMBER_WORDS = {
   // English — only the irregular 10-19. The rest composes; see TENS_EN.
   ten: '10', eleven: '11', twelve: '12', thirteen: '13', fourteen: '14', fifteen: '15',
   sixteen: '16', seventeen: '17', eighteen: '18', nineteen: '19',
@@ -154,12 +156,14 @@ export const NUMBER_WORDS: Record<string, string> = {
  * Unlike Hindi, English composes, so a lookahead is all this needs. A tens word with no unit
  * after it is the round number: "forty" alone is 40.
  */
-export const TENS_EN: Record<string, string> = {
+/** @type {Record<string, string>} */
+export const TENS_EN = {
   twenty: '2', thirty: '3', forty: '4', fourty: '4', fifty: '5',
   sixty: '6', seventy: '7', eighty: '8', ninety: '9',
 };
 
-export const UNITS_EN: Record<string, string> = {
+/** @type {Record<string, string>} */
+export const UNITS_EN = {
   one: '1', two: '2', three: '3', four: '4', five: '5',
   six: '6', seven: '7', eight: '8', nine: '9',
 };
@@ -171,19 +175,26 @@ export const UNITS_EN: Record<string, string> = {
  * Deliberately tiny and deliberately not "any unknown word": an unknown word still splits
  * the run, because that is what stops "ek minute, 753001" from becoming 175300 (see below).
  */
-export const JOINERS: ReadonlySet<string> = new Set([
+/** @type {ReadonlySet<string>} */
+export const JOINERS = new Set([
   'aur', 'and', 'phir', 'then', 'और', 'फिर', 'ଆଉ', 'ଏବଂ',
 ]);
 
+/** @type {readonly number[]} */
 /**
  * Digits arrive in whichever numeral system the ASR pipeline felt like using — ASCII,
  * Devanagari (७५३००१) or Odia (୭୫୩୦୦୧). Each block is ten consecutive codepoints starting
  * at its own zero, so one subtraction handles all three and every other Indic script we
  * might add later for free.
  */
-export const ZEROS: readonly number[] = [0x30 /* ASCII */, 0x966 /* Devanagari */, 0xb66 /* Odia */];
+/** @type {readonly number[]} */
+export const ZEROS = [0x30 /* ASCII */, 0x966 /* Devanagari */, 0xb66 /* Odia */];
 
-export function digitOf(ch: string): string {
+/**
+ * @param {string} ch
+ * @returns {string}
+ */
+export function digitOf(ch) {
   const c = ch.codePointAt(0);
   // An empty token has no codepoint. Returning '' rather than guarding at every call site:
   // the callers all treat '' as "not a digit", which is exactly what an empty string is.

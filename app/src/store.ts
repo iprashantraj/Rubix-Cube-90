@@ -57,6 +57,21 @@ type SessionState = {
   signIn: (token: string, artisan: Artisan | null) => void;
   signOut: () => void;
   patchArtisan: (patch: Partial<Artisan>) => void;
+
+  /**
+   * They reached for the keyboard, so stop making them find it again.
+   *
+   * Voice is the design and stays the default. But somebody who taps "type instead" on the
+   * name question has told us something durable — their microphone is broken, or the room
+   * is too loud, or they simply prefer keys — and asking them to rediscover the quiet
+   * escape hatch on every subsequent screen is the app arguing with them about it.
+   *
+   * Sticky for the session, not persisted: a broken mic today is usually broken now rather
+   * than forever, and a fresh launch offering voice again is the right default to return
+   * to. The mic never disappears — it stays on screen as the way back.
+   */
+  prefersTyping: boolean;
+  setPrefersTyping: (on: boolean) => void;
 };
 
 export function tokenExpiry(token: string): number {
@@ -116,6 +131,9 @@ export const useSession = create<SessionState>()(
       },
       patchArtisan: (patch) =>
         set((s) => ({ artisan: { ...s.artisan, ...patch } })),
+
+      prefersTyping: false,
+      setPrefersTyping: (prefersTyping) => set({ prefersTyping }),
     }),
     {
       name: 'kaarigar.session',

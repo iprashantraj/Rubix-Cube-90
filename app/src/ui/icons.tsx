@@ -84,6 +84,7 @@ export {
   Globe as IconChannelAmazon,
   ShoppingBag as IconChannelFlipkart,
   Store as IconChannelMeesho,
+  Landmark as IconChannelGeM, // a government marketplace, and it looks like one
   MessageCircle as IconChannelWhatsApp,
 
   // --- meta -----------------------------------------------------------------

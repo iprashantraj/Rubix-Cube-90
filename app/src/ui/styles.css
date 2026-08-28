@@ -2184,3 +2184,46 @@ input {
     background-position: -200% 0;
   }
 }
+
+/* ── /publish: the one control the screen exists for ──────────────────────────────────
+ *
+ * The send button used to be the third thing inside the first of four stacked cards, at
+ * roughly 60% of the page height, indistinguishable in weight from "connect your Amazon
+ * account". An artisan who has just spent four minutes photographing and describing a
+ * product is here to do exactly one thing, and the screen made them hunt for it.
+ *
+ * So it sits on its own, centred, above the per-channel detail — and everything else moves
+ * below the fold, reachable by scrolling for the people who want it. Nothing is removed;
+ * the order just matches what people came for.
+ */
+.pub-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 0 22px;
+  text-align: center;
+}
+
+.pub-hero > button {
+  width: 100%;
+  max-width: 420px;
+  /* Taller than an ordinary BigButton. Thumb-reachable and unmistakable as the primary. */
+  min-height: 68px;
+  font-size: 1.15rem;
+}
+
+/* What the press is going to do, under the button rather than buried in a card above it. */
+.pub-hero__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  max-width: 34ch;
+}
+
+/* The rest of the channels. Visually quieter and below, so scrolling is a choice. */
+.pub-rest {
+  margin-top: 8px;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+  padding-top: 14px;
+}
