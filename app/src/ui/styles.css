@@ -397,6 +397,14 @@ input {
 }
 .screen__headRow h1 {
   flex: 1;
+  /*
+   * 🐞 `flex: 1` without this floors the heading at its min-content width — the longest
+   * unbreakable word at 34px. On a 320px phone "Namaste Kamala" therefore pushed the replay
+   * button off the right edge, on EVERY screen with a heading, not only /home. This is the
+   * shared header rule, so one line here is the whole fix.
+   */
+  min-width: 0;
+  overflow-wrap: anywhere;
   margin: 0;
   font-size: var(--t-title);
   line-height: var(--t-title-lh);
@@ -1284,29 +1292,70 @@ input {
  * "Wi-Fi / Bluetooth / Display" — which is precisely what a home screen must not look like.
  */
 .facts {
-  display: flex;
-  gap: 8px;
+  /*
+   * Grid, not flex. `flex: 1` distributes FREE space, so a tile whose content is wider than
+   * its share keeps that width anyway and steals it from its neighbours — which is how the
+   * money tile used to push the other two off the right edge of the phone.
+   *
+   * Not three equal columns either. Two of these hold a one-or-two digit count and the
+   * third holds ₹1,24,500; giving all three a third of the screen starves the only one that
+   * needs the room and wastes it on the two that do not. `auto auto minmax(0, 1fr)` sizes
+   * the counts to their own labels — which is also what makes this survive translation,
+   * since "new orders" and "नए ऑर्डर" are not the same width — and hands everything left
+   * over to the money.
+   */
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: var(--s-1);
   margin-top: 16px;
 }
 .fact {
-  flex: 1;
   min-width: 0;
-  padding: 10px 12px;
+  /* Bounded, visibly. On the accent gradient a 14%-white wash has no edge of its own, so
+     three of them side by side read as one smear with numbers floating on it rather than as
+     three separate facts. The hairline is what makes each one a card. */
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.16);
+  /* Nothing inside a tile may paint outside it. This is the backstop for the overflow that
+     `white-space: nowrap` on .fact__n used to cause — a long value now clips at the tile
+     edge instead of running off the side of the phone. */
+  overflow: hidden;
 }
 /* A waiting order is the only thing on this screen anyone must act on, so it is the only
    thing that gets to be brighter than its neighbours. */
 .fact--live {
   background: #fff;
+  border-color: #fff;
   color: var(--accent-ink);
 }
 .fact__n {
-  display: block;
-  font-size: var(--t-title);
+  /*
+   * 🐞 Was `font-size: var(--t-title)` (34px) with `white-space: nowrap`, in a box one
+   * third of a 360px screen wide. "12000 rupees" is about 250px at that size and could not
+   * wrap, so the money fact ran straight through its neighbours and off the viewport. Both
+   * halves are fixed: the size now scales with the viewport, and the string is no longer
+   * allowed to refuse to break.
+   *
+   * The numeral stays the biggest thing in the hero — this is still the number you read
+   * from arm's length — it is just no longer bigger than its tile. 26px against a 21px
+   * body is the smallest step that still reads as "this is the headline".
+   *
+   * NOT a vw clamp, which was the first attempt: the constraint here is the width of a
+   * grid column, and a column sized `auto` does not track the viewport. A vw-scaled numeral
+   * in an auto-sized box is two rules arguing about the same number.
+   */
+  font-size: 26px;
   line-height: 1.15;
   font-weight: var(--t-title-w);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  /* Two lines maximum. A wrapped rupee value is acceptable; a five-line one that pushes the
+     label out of the hero is not. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .fact__l {
   display: block;
@@ -1314,6 +1363,55 @@ input {
   font-size: var(--t-cap);
   line-height: var(--t-cap-lh);
   opacity: 0.85;
+}
+
+/*
+ * The "needs you" list — what is waiting, above the artisan's own work.
+ *
+ * /home showed three totals and nothing else, so the screen could say "2" beside the word
+ * "new orders" and still give no way to act on it. These are the same facts as an
+ * instruction: one row, one destination, one tap. They reuse .chan (the row shape /orders
+ * and /publish already use) so there is nothing new to learn here.
+ */
+.todo__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+/* Amber, not accent, when the row is the one that costs money to ignore. */
+.todo__icon--urgent {
+  background: #fbeed6;
+  color: var(--amber-ink);
+}
+.todo__sub {
+  display: block;
+  margin-top: 1px;
+  font-size: var(--t-cap);
+  line-height: var(--t-cap-lh);
+  font-weight: 400;
+  color: var(--muted);
+}
+/*
+ * The count, in its own slot.
+ *
+ * NOT `.chan__state` — that class is 13px --muted because on /publish and /channels it
+ * carries a status word beside a name, and it is trailing metadata there. Here the numeral
+ * is the answer to the question the row asks ("how many are waiting"), and rendering the
+ * answer smaller and greyer than the question is backwards. Full --ink, body size.
+ */
+.todo__n {
+  flex: none;
+  font-size: var(--t-body);
+  line-height: 1;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .home__sec {
@@ -1330,7 +1428,9 @@ input {
   display: flex;
   align-items: center;
   gap: 2px;
-  min-height: 44px;
+  /* --tap, not 44px. DESIGN.md §3: 56px is the floor the PS requires and 44px is the WCAG
+     one we already decided to clear. This was the only control on /home below it. */
+  min-height: var(--tap);
   padding: 0 4px;
   border: 0;
   background: none;
@@ -1354,19 +1454,125 @@ input {
 }
 .shot {
   position: relative;
-  aspect-ratio: 1;
+  /* The tile is no longer the picture. It is the picture PLUS a caption, so the square
+     belongs to .shot__img and the tile sizes itself around both. Without this the caption
+     was pushing the photo out of its own aspect-ratio box. */
+  display: flex;
+  flex-direction: column;
   padding: 0;
-  border: 0;
+  /* The boundary the tiles never had. A shadow alone disappears on the light surfaces these
+     phones ship with, so two adjacent products read as one wide photograph. */
+  border: 1px solid var(--line);
   border-radius: var(--r-md);
   overflow: hidden;
   background: var(--surface-1);
   box-shadow: var(--e1);
+  text-align: left;
+}
+.shot__img {
+  position: relative;
+  aspect-ratio: 1;
+  width: 100%;
 }
 .shot img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+/*
+ * Name and price under the photograph.
+ *
+ * The picture is still what identifies the product — that argument has not changed. What
+ * changed is that /home showed a shelf of four photographs and NOTHING else about them, so
+ * the one number an artisan actually wants from their own catalogue (what is this priced
+ * at) lived two taps away on a detail screen.
+ */
+.shot__meta {
+  display: block;
+  padding: 8px 10px 10px;
+  min-width: 0;
+}
+.shot__title {
+  display: block;
+  font-size: var(--t-cap);
+  line-height: var(--t-cap-lh);
+  font-weight: var(--t-cap-w);
+  color: var(--ink);
+  /* One line, ellipsed. A three-line title makes the tiles different heights and the shelf
+     stops looking like a shelf. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/*
+ * Bigger than the title above it, deliberately. The photograph is what identifies the
+ * product — the artisan does not need the words to know which saree this is — so the title
+ * is a caption and the price is the only thing on the tile carrying information the picture
+ * cannot. They were both --t-cap, which made the caption and the fact look equally
+ * important and neither of them readable at arm's length.
+ */
+.shot__price {
+  display: block;
+  margin-top: 2px;
+  font-size: 17px;
+  line-height: var(--t-cap-lh);
+  font-weight: 700;
+  color: var(--accent-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Not a number. Drops to caption size and the muted grey so the eye skips it on the way to
+   a tile that does have a price. */
+.shot__price--none {
+  font-size: var(--t-cap);
+  font-weight: var(--t-cap-w);
+  color: var(--muted);
+}
+/*
+ * 🔒 The publish gate, on the shelf, said TWICE — once as a corner badge you can catch at a
+ * glance, once as words under the photograph.
+ *
+ * The badge alone was a design-law violation and it was mine: DESIGN.md §4 says an icon
+ * never appears alone on a control an artisan must understand, and the four exceptions are
+ * back, replay, mic and shutter. A `title` attribute is not the fix — it does not exist on
+ * touch and our user could not read it if it did. The words are the fix; the badge is now a
+ * duplicate marker rather than the only one, which is what the law asks for.
+ *
+ * It reuses `home.todo_colour`, the same string as the row in the band above, so the tile
+ * and the thing it sends you to say the same sentence.
+ */
+.shot__warn {
+  display: flex;
+  align-items: center;
+  /* Leading icon at --s-1. DESIGN.md §4: left of the label, never above it. */
+  gap: var(--s-1);
+  margin-top: 4px;
+  font-size: var(--t-cap);
+  line-height: var(--t-cap-lh);
+  font-weight: var(--t-cap-w);
+  color: var(--amber-ink);
+  min-width: 0;
+}
+.shot__warn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shot__flag {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-full);
+  background: #fbeed6;
+  color: var(--amber-ink);
+  box-shadow: var(--e1);
 }
 /*
  * No image yet. Deliberately reads as "waiting", not as a broken tile: every product
@@ -1381,7 +1587,9 @@ input {
   width: 100%;
   height: 100%;
   border: 2px dashed var(--line);
-  border-radius: var(--r-md);
+  /* Square, not rounded: the tile now owns the corners, and a second radius inside the
+     first leaves a crescent of tile colour between the two curves. */
+  border-radius: 0;
   background: var(--surface-1);
   color: var(--line);
 }

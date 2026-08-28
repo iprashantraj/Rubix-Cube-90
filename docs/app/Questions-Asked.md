@@ -67,28 +67,68 @@ named individual for no benefit whatsoever.
 
 ---
 
-## 3. The cataloger — asked once per product, every product
+## 3. The cataloger — computed per product, not a fixed list
 
-Six questions on `/catalog/voice`, one at a time, with the artisan's own photo on screen
-above them. All six are open text and all six are interpreted.
+⚠️ **This section used to list five questions and then six. It no longer lists any**, because
+the set is decided at runtime by `plan()` in `app/src/catalog/slots.js`. The table below is the
+*slots it may draw from*; which of them get asked depends on the photo, on what this artisan
+has already told us, and on which channels the product is going to.
 
-| # | key | English | Field |
-|---|---|---|---|
-| 1 | `catalog.q_what` | What is this? | `what` |
-| 2 | `catalog.q_material` | What is it made of? | `material` |
-| 3 | `catalog.q_cost` | What did the materials cost? | `cost` |
-| 4 | `catalog.q_time` | How long did it take? | `time` |
-| 5 | `catalog.q_special` | What is special about it? | `special` |
-| 6 | `catalog.q_size` | How big is it? | `size` |
+The reasoning, and the marketplace field research behind the mapping, is in
+[../Utsav/Product_Questions.md](../Utsav/Product_Questions.md). Short version: the old fixed
+list asked for `special`, which fills no field any marketplace requires, and never asked for
+weight or stock, which five of the seven make mandatory.
 
-🔒 **`cost` is the only answer here that never reaches a buyer.** It is what the artisan spent
-on materials — an input to their own price floor, not a line in a public listing. `compose()`
-in `CatalogReview` builds the description from a named field list that excludes it. It is
-parsed by `rupeesFrom()` and persisted to `products.cost_material`; see `docs/app/Pricing.md`.
+| Slot | key | English | Answer shape | Interpreted? | Needed by |
+|---|---|---|---|---|---|
+| `what` | `catalog.q_what` | Tell me about this. What is it? | voice, open | ✅ open text | all channels |
+| `material` | `catalog.q_material` | What is it made of? | voice, open | ✅ open text | all but WhatsApp |
+| `size` | `catalog.q_size` | How big is it? | voice, open | ✅ open text | GeM, Amazon, Flipkart, Meesho, ONDC |
+| `weight` | `catalog.q_weight` | How much does it weigh? | voice, number | ❌ `numberFrom()` | GeM, Amazon, Flipkart, Meesho |
+| `stock` | `catalog.q_stock` | How many of these do you have? | voice, number | ❌ `numberFrom()` | all channels |
+| `lead_time` | `catalog.q_lead_time` | How many days to get it ready? | voice, number | ❌ `numberFrom()` | ONDC, Flipkart |
+| `cost` | `catalog.q_cost` | What did the materials cost? | voice, number | ❌ `numberFrom()` | none — the price floor |
+| `time` | `catalog.q_time` | How long did it take? | voice, number | ❌ `numberFrom()` | none — the price floor |
+| `special` | `catalog.q_special` | What is special about it? | voice, open | ✅ open text | none — the craft story |
 
-Each answer may be **skipped**. Six skips still reaches `/catalog/review`, where the vision
-pre-fill carries the listing on its own — the questions improve a listing, they do not gate
-it.
+**Why the number slots are not interpreted.** `numberFrom()` in `voice/numbers.js` reads
+Devanagari, Odia and Latin digits and their word forms, offline and deterministically. Their
+question ids are deliberately **absent** from `KNOWN_QUESTIONS` in `ai/interpret.py`, so
+sending one would be refused with a 422 — that refusal is the allowlist working, not a bug.
+
+**Three ways a slot is filled without asking.** The vision pre-fill (`POST /catalog/prefill`),
+this artisan's previous products (`GET /catalog/defaults`), and the answers already given.
+A slot filled that way is still **put to the artisan as a confirmation** —
+`catalog.confirm_same`, "last time you said cotton, same this time?" — a tap rather than a
+sentence. Nothing is written silently: a default that publishes without being confirmed is a
+guess under somebody's name.
+
+**Everything derivable is never a question.** Country of origin, currency, condition, seller
+type, local content, HSN, GST rate, consumer care contact, the `@ondc/org/*` block: constants
+or lookups. Asking a human for a value we can compute is a bug, not thoroughness.
+
+### Ordering, skipping, and the two rules that did not change
+
+**Order is by consequence, not by declaration:** slots that block a publish come first, then
+the two that feed the price floor, then the craft story. `special` is always last — it is the
+only thing that makes a handmade listing different from a factory one, and it is also the only
+one no marketplace requires, so it earns a question but not a good slot on a bad network.
+
+🔒 **`cost` never reaches a buyer.** It is what the artisan spent on materials — an input to
+their own price floor, not a line in a public listing. `compose()` in `CatalogReview` builds
+the description from a named field list that excludes it. Parsed by `rupeesFrom()` and
+persisted to `products.cost_material`; see `docs/app/Pricing.md`.
+
+Each answer may still be **skipped**, including a confirmation. Skipping everything still
+reaches `/catalog/review`, where the vision pre-fill carries the listing on its own — the
+questions improve a listing, they do not gate it.
+
+### Adding or removing a question now
+
+Do not edit `CatalogVoice.tsx`. Add a slot to `SLOTS` in `app/src/catalog/slots.js`, say which
+channels need it in `CHANNEL_NEEDS`, add the string, and add a row above. `slots.js` has a
+self-check (`node src/catalog/slots.js`) that fails if a channel demands a field no slot asks
+for, so a channel and its questions cannot drift apart silently.
 
 ---
 

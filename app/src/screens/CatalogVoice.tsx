@@ -1,18 +1,34 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useDraft } from '../store';
+import { useApiQuery } from '../api/useApi';
 import { useVoice } from '../voice/useVoice';
 import { record, transcribe, type RecHandle } from '../voice/listen';
 import { interpretAnswer } from '../voice/interpret';
+import { numberFrom } from '../voice/numbers';
+import { plan } from '../catalog/slots';
 import { t } from '../i18n/index';
 import { Screen, BigButton, Card, MicButton, Heard } from '../ui/kit';
-import { IconWrite, IconNext, IconYes, IconBack, IconRetry } from '../ui/icons';
+import { IconWrite, IconNext, IconYes, IconNo, IconBack, IconRetry } from '../ui/icons';
 
 /**
  * /catalog/voice — the multilingual auto-cataloger. Spec §6.3, PS feature 2.
  *
- * Six questions, one at a time (design law rule 4). A single screen asking all six is a
+ * Questions one at a time (design law rule 4). A single screen asking all of them is a
  * form, and a form is a literacy test with extra steps.
+ *
+ * ── The list is computed, not written here ──────────────────────────────────────────
+ * This screen used to hold a hardcoded array of six questions, asked in the same order to
+ * everyone. Two things were wrong with it at once: it asked "what is special about it",
+ * which fills no field any marketplace requires, and it never asked for weight or stock,
+ * which five of the seven make mandatory — so an artisan answered six questions and still
+ * could not be listed on Meesho.
+ *
+ * `catalog/slots.js` now decides. A question is asked when the slot is empty AND a channel
+ * we are actually publishing to needs it; the research behind that mapping is in
+ * docs/Utsav/Product_Questions.md. Everything derivable — HSN, GST rate, country of origin,
+ * category, the whole `@ondc/org/*` block — is never a question, because asking a human for
+ * a value we can look up is a bug.
  *
  * ── The photo is on screen, and that is the point ───────────────────────────────────
  * This screen used to ask "yeh kya hai?" with the product nowhere to be seen. Think about
@@ -48,19 +64,23 @@ import { IconWrite, IconNext, IconYes, IconBack, IconRetry } from '../ui/icons';
  */
 
 /**
- * ⚠️ `cost` is the only answer here that never reaches a buyer. It is what the artisan
- * spent on materials — an input to their own price floor, not a line in a public listing.
- * `compose()` in CatalogReview builds the description from a named list of fields and this
- * is deliberately not among them. Keep it that way.
+ * ⚠️ `cost` never reaches a buyer. It is what the artisan spent on materials — an input to
+ * their own price floor, not a line in a public listing. `compose()` in CatalogReview builds
+ * the description from a named list of fields and this is deliberately not among them. Keep
+ * it that way.
  */
-const QUESTIONS = [
-  { field: 'what', key: 'catalog.q_what' },
-  { field: 'material', key: 'catalog.q_material' },
-  { field: 'cost', key: 'catalog.q_cost' },
-  { field: 'time', key: 'catalog.q_time' },
-  { field: 'special', key: 'catalog.q_special' },
-  { field: 'size', key: 'catalog.q_size' },
-];
+
+/**
+ * What one press of the green button on /publish actually fires, when we cannot ask.
+ *
+ * Tier A: our own marketplace and ONDC, where we are the Marketplace Seller Node and the
+ * artisan needs no GST, no registration and no paperwork. Publishing is decided two screens
+ * later, so at question time this is the honest assumption — and it is the one that asks
+ * fewest questions, which is the right way to be wrong.
+ */
+const TIER_A = ['marketplace', 'ondc'];
+
+type Channel = { id: string; tier: string; connected?: boolean };
 
 /**
  * Same rule as /catalog/prefill: the AI service returns `s3://` URLs (ai/contracts.md),
@@ -78,8 +98,21 @@ export default function CatalogVoice() {
   const photoUrl = useDraft((s) => s.photoUrl);
   const images = useDraft((s) => s.images);
   const answer = useDraft((s) => s.answer);
+  const prefill = useDraft((s) => s.prefill);
 
-  // ask -> rec -> busy -> (next question)
+  /*
+   * What this artisan already told us on earlier products, so we stop asking for it.
+   *
+   * One cheap read (web/api/routers/products.py), and it is the whole "the app gets quieter
+   * the longer you use it" claim. Failure is not handled because there is nothing to
+   * handle: no defaults means every question gets asked, which is exactly what happens
+   * today. A first-time artisan and a broken network produce the same, correct, screen.
+   */
+  const { data: defaults } = useApiQuery<Record<string, unknown>>('/catalog/defaults');
+  const { data: channels } = useApiQuery<Channel[]>('/channels');
+
+  // ask -> rec -> busy -> heard -> (next question)
+  //   ├-> confirm -> (next question)
   //   └-> type -> (next question)
   const [i, setI] = useState(0);
   const [phase, setPhase] = useState('ask');
@@ -88,9 +121,34 @@ export default function CatalogVoice() {
   const [error, setError] = useState<string | null>(null);
   const recRef = useRef<RecHandle | null>(null);
 
+  /*
+   * The plan, frozen the moment the interview starts.
+   *
+   * `/catalog/defaults` and `/channels` land asynchronously, so the plan has to be allowed
+   * to settle while the first question is still on screen. After that it must not move:
+   * answering a question removes its slot, so a live plan would shorten underneath the
+   * artisan and the progress dots would count backwards while they watched. The set of
+   * questions is a promise made when the interview begins.
+   */
+  const frozen = useRef<ReturnType<typeof plan> | null>(null);
+  const questions = useMemo(() => {
+    if (frozen.current) return frozen.current;
+    return plan({
+      prefill: prefill ?? {},
+      defaults: defaults ?? {},
+      answers: {},
+      channels: channels
+        ? channels.filter((c) => c.tier === 'A' || c.connected).map((c) => c.id)
+        : TIER_A,
+    });
+  }, [prefill, defaults, channels]);
+
   if (!productId) return <Navigate to="/camera" replace />;
 
-  const q = QUESTIONS[i];
+  const q = questions[i];
+
+  // Every slot was already filled from the photo and from history. Nothing to ask.
+  if (!q) return <Navigate to="/catalog/review" replace />;
 
   /** Errors speak, never just render (spec §6.7). */
   function fail(key: string) {
@@ -99,12 +157,25 @@ export default function CatalogVoice() {
   }
 
   function next() {
+    // The plan stops moving the moment they answer the first question — see `frozen`.
+    frozen.current = questions;
     setError(null);
     setTyped('');
     setHeard('');
     setPhase('ask');
-    if (i + 1 < QUESTIONS.length) setI(i + 1);
+    if (i + 1 < questions.length) setI(i + 1);
     else nav('/catalog/review');
+  }
+
+  /**
+   * They agreed with what we had — from the photo, or from what they said last time.
+   *
+   * Stored as a real answer, because it is one. The alternative was writing it silently at
+   * publish time, which puts a value nobody said out loud into a listing under their name.
+   */
+  function acceptConfirm() {
+    if (q.confirm) answer(q.field, q.confirm);
+    next();
   }
 
   /*
@@ -120,7 +191,9 @@ export default function CatalogVoice() {
    * or while they are typing an answer instead.
    */
   function autoListen() {
-    if (phase === 'ask' && !recRef.current) startRec();
+    // Not while a confirmation is on screen: that question wants a tap, and an open
+    // microphone under a yes/no is how "haan" becomes the product's material.
+    if (phase === 'ask' && !q.confirm && !recRef.current) startRec();
   }
 
   // MicButton swallows a second tap while this is still running, so a double press cannot
@@ -186,12 +259,19 @@ export default function CatalogVoice() {
        * Falls back to the raw sentence rather than dropping it: an un-reduced answer is
        * still the artisan's answer, and /catalog/review is a second chance to fix it.
        */
-      const { value, raw } = await interpretAnswer({
-        transcript: said,
-        question: q.key,
-        lang,
-      });
-      answer(q.field, value ?? raw);
+      /*
+       * A number question never goes to a model, and its id is deliberately absent from
+       * KNOWN_QUESTIONS in ai/interpret.py — so sending it would be refused with a 422,
+       * which is that allowlist working as designed rather than a bug to route around.
+       *
+       * "do kilo", "ढाई सौ ग्राम", "paanch hain" are arithmetic, and `voice/numbers.js`
+       * does them offline, deterministically, in three scripts. A model is slower, costs
+       * money, needs a network our users do not have, and is worse at it.
+       */
+      const { value, raw } = q.open
+        ? await interpretAnswer({ transcript: said, question: q.key, lang })
+        : { value: numberFrom(said), raw: said };
+      answer(q.field, String(value ?? raw));
       // Show the sentence they actually said, not our reduction of it — the reduction is
       // what we are asking them to trust, so the evidence has to be the original.
       setHeard(raw);
@@ -215,12 +295,36 @@ export default function CatalogVoice() {
   const image = displayable(images?.[0]?.url, photoUrl);
 
   /*
+   * A slot we believe we already know: from the photo, or from what this artisan said on an
+   * earlier product. It is still put to them — a vision guess is a guess, and last week's
+   * fibre is not this week's promise — but as one tap instead of a sentence.
+   *
+   * This is the mechanism behind the whole "the app gets quieter the longer you use it"
+   * claim, and it is why the claim is honest: nothing is skipped, the questions just get
+   * cheaper to answer.
+   */
+  const confirming = Boolean(q.confirm) && phase === 'ask';
+
+  /*
    * Actions live in the footer, pinned to the bottom of the screen. They used to sit
    * directly under the heading, which on a 6.7" phone put the primary control at roughly
    * 40% of the height with a void below it and out of comfortable thumb reach.
    */
-  const footer =
-    phase === 'type' ? (
+  const footer = confirming ? (
+    <>
+      <BigButton icon={IconYes} labelKey="common.yes" onClick={acceptConfirm} />
+      {/* "No" goes straight to an open microphone rather than to a second screen. The
+          artisan has already decided we are wrong; making them press "no" and then find a
+          mic button is two taps for one thought. */}
+      <BigButton icon={IconNo} labelKey="catalog.confirm_no" onClick={startRec} tone="no" />
+      <div className="alt">
+        <button className="help" onClick={next}>
+          <IconNext size={20} aria-hidden="true" />
+          <span>{t(lang, 'common.skip')}</span>
+        </button>
+      </div>
+    </>
+  ) : phase === 'type' ? (
       <>
         <textarea
           className="type"
@@ -282,9 +386,17 @@ export default function CatalogVoice() {
     );
 
   return (
-    <Screen prompt={q.key} footer={footer} onPromptSpoken={autoListen}>
+    <Screen
+      /* A confirmation asks a different sentence from the open question it replaces:
+         "cotton again?" rather than "what is it made of?". Same slot, and the artisan can
+         still answer it by voice — they just do not have to. */
+      prompt={confirming ? 'catalog.confirm_same' : q.key}
+      promptVars={confirming ? { value: q.confirm as string } : undefined}
+      footer={footer}
+      onPromptSpoken={autoListen}
+    >
       <div className="qdots">
-        {QUESTIONS.map((item, n) => (
+        {questions.map((item, n) => (
           <i
             key={item.field}
             className={n === i ? 'qdots--now' : n < i ? 'qdots--done' : undefined}

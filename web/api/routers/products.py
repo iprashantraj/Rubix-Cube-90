@@ -113,6 +113,67 @@ def mine(
     return conditional(request, payload, max_age=30)
 
 
+# The fields the cataloguer is allowed to answer from an artisan's own history, and the
+# Product column each one reads. Mirrors `carriesForward` in app/src/catalog/slots.js — a
+# field in one and not the other is a question asked twice or a default nobody offered.
+#
+# Deliberately short. A weaver's fibre and turnaround are properties of *them*; a stock
+# count and a material cost are properties of the object in front of them, and carrying
+# those forward would put last week's numbers under this week's photo.
+CARRY_FORWARD = {
+    "material": Product.material,
+    "lead_time": Product.lead_time_days,
+    "weight": Product.weight_grams,
+}
+
+
+@router.get("/catalog/defaults")
+def catalog_defaults(
+    db: Session = Depends(get_db),
+    artisan: Artisan = Depends(current_artisan),
+) -> dict:
+    """What this artisan has already told us, so the cataloguer stops asking for it.
+
+    This is the whole "the app gets quieter the longer you use it" claim, and it is a
+    single query — no model, no embedding, no similarity search. See
+    docs/Utsav/Product_Questions.md §6.6 for why it is deliberately not a vector store:
+    the question "what did this person last say" is a lookup, and dressing it as retrieval
+    would add a service, a per-call cost and a non-deterministic answer to a screen that
+    has to work on a rural network.
+
+    **Most recent non-null wins, per field independently.** Not the mode: a potter who has
+    moved from terracotta to stoneware means it, and the majority of their history is
+    exactly the wrong answer. Each field is resolved on its own so one product with a
+    weight but no material still contributes its weight.
+
+    Every value is offered to the artisan as a confirmation, never written silently — the
+    app turns these into "cotton again?" (`catalog.confirm_same`), which is a tap. A
+    default that publishes without being confirmed is a guess under somebody's name.
+    """
+    # Columns built FROM the map, not listed again alongside it. Writing them out twice is
+    # two orderings that have to agree, and the day they stop agreeing every artisan is
+    # asked to confirm their material and shown their weight.
+    names = list(CARRY_FORWARD)
+    rows = (
+        db.query(*(CARRY_FORWARD[n] for n in names))
+        .filter(Product.artisan_id == artisan.id)
+        .order_by(Product.created_at.desc(), Product.id)
+        # Enough history to survive a few sparse drafts, small enough to stay one cheap
+        # read on the hot path of every new product.
+        .limit(20)
+        .all()
+    )
+
+    out: dict[str, object] = {}
+    for row in rows:
+        for name, value in zip(names, row, strict=True):
+            if name not in out and value is not None:
+                out[name] = value
+        if len(out) == len(names):
+            break
+    return out
+
+
 def _own(product_id: str, db: Session, artisan: Artisan) -> Product:
     p = db.get(Product, product_id)
     if p is None or p.artisan_id != artisan.id:
