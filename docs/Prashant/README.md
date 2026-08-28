@@ -186,8 +186,9 @@ every number above.
 1. **Weave-specific collection.** The biggest weakness in the current set is breadth —
    `textiles.saree.sambalpuri` rather than `textiles.saree`. The taxonomy walk-up already
    supports it; it needs more browsing.
-2. **Source the cluster wage rates.** `ai/price/rates.json` says outright that they are a
-   field question, and they set every floor.
+2. **Confirm the cluster pincode prefixes and wage rates.** The rates are now reachable
+   (they were not until 2026-08-28 — see the change note below), but a district postal range
+   is not a cluster's catchment, and `rates.json` says outright the rates are a field question.
 3. **Spelled-out numbers** in the voice parser — *"बीस दिन"* → `null`. The verdict above makes
    this more urgent than it looked: `labour_hours` is the input the whole feature pivots on.
 4. **`material`/`size` through the app** (~4 lines); `/price` already accepts them.
@@ -203,6 +204,7 @@ every number above.
 | 2026-08-28 | [F3-comparables.md](F3-comparables.md) | Comparables from our own marketplace, and an outlier trim that did nothing below ten samples |
 | 2026-08-28 | [F3-price-snapshot.md](F3-price-snapshot.md) | Snapshot loader + collection protocol for the sources with no API — numbers deliberately left to a human |
 | 2026-08-28 | [`research/RESULTS.md`](../../research/RESULTS.md) | **The verdict** — 144 listings collected, and what they say about the floor |
+| 2026-08-28 | [F3-floor-persistence-and-clusters.md](F3-floor-persistence-and-clusters.md) | Two written safeguards that did nothing: an unsaved floor, and cluster wage rates no artisan could reach |
 | 2026-08-28 | [dev-setup-and-theme-check.md](dev-setup-and-theme-check.md) | Not F3: a self-check that failed on every page load, and the undocumented Python 3.10+ requirement |
 
 Commits: `c2c58dd` · `819aa3c` · `8633a0c` · `6e955bc` · `cb63fa2`, plus `40fb279` (a missing migration

@@ -13,8 +13,14 @@ def test_unknown_cluster_uses_default_wage():
 
 
 def test_gem_mrp_survives_the_mandated_discount():
-    mrp = mrp_for_channel(2600, "gem")
-    assert round(mrp * 0.90) >= 2600  # post-discount still clears what we meant
+    """Unrounded, because channels/gem.py compares unrounded and will reject the listing.
+
+    `round(mrp * 0.9) >= price` was the old assertion and it was too weak: it passed for
+    price 2576, where the real post-discount figure is 2575.8 and GeM's own guard refuses
+    to publish. Assert the property the guard actually checks.
+    """
+    for price in (2576, 2600, 3150, 23000, 900, 1001):
+        assert mrp_for_channel(price, "gem") * 0.90 >= price, price
 
 
 def test_market_never_prices_below_the_floor():

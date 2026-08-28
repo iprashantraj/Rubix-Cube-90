@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import Artisan
+from ..models import Artisan, Cluster
 from ..security import current_artisan
 
 router = APIRouter()
@@ -35,6 +36,10 @@ def me(artisan: Artisan = Depends(current_artisan)) -> dict:
         "craft": artisan.craft,
         "language": artisan.language,
         "pincode": artisan.pincode,
+        # Read by the app and sent back on POST /price, where it selects the cluster wage
+        # rate. Omitting it here is what kept every artisan on the default rate even after
+        # the pincode link existed.
+        "cluster_id": artisan.cluster_id,
         "readiness": {
             "has_pan": artisan.has_pan,
             "has_bank": artisan.has_bank,
@@ -45,16 +50,48 @@ def me(artisan: Artisan = Depends(current_artisan)) -> dict:
     }
 
 
+def cluster_for_pincode(pincode: str | None, db: Session) -> Cluster | None:
+    """Longest matching pincode prefix, or None.
+
+    Longest-first so a narrow cluster beats a broad one when both match — adding a more
+    specific prefix later takes precedence with no code change, the same rule the pricing
+    taxonomy walk-up follows.
+
+    None is a supported answer and the common one: most of India is not in a cluster we have
+    onboarded. It leaves `cluster_id` NULL and pricing falls back to `default_wage_per_hour`,
+    which is exactly today's behaviour — so this can only ever add a correct wage rate, never
+    substitute a wrong one for a right one.
+    """
+    if not pincode:
+        return None
+    return (
+        db.query(Cluster)
+        .filter(Cluster.pincode_prefix.isnot(None))
+        .filter(sa.literal(pincode).like(Cluster.pincode_prefix + "%"))
+        .order_by(sa.func.length(Cluster.pincode_prefix).desc())
+        .first()
+    )
+
+
 @router.patch("/me")
 def update_me(
     body: ProfileIn,
     db: Session = Depends(get_db),
     artisan: Artisan = Depends(current_artisan),
 ) -> dict:
-    for k, v in body.model_dump(exclude_unset=True).items():
+    fields = body.model_dump(exclude_unset=True)
+    for k, v in fields.items():
         setattr(artisan, k, v)
+
+    # The cluster auto-link OnboardPlace.jsx has always said it was collecting a pincode for.
+    # It decides the wage rate in the price floor, so it is worth more than serviceability:
+    # without it every artisan in the country prices their labour at one default rate.
+    if "pincode" in fields:
+        cluster = cluster_for_pincode(artisan.pincode, db)
+        artisan.cluster_id = cluster.id if cluster else None
+
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "cluster_id": artisan.cluster_id}
 
 
 @router.get("/me/gst-route")

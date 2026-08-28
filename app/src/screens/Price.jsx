@@ -136,7 +136,9 @@ export default function Price() {
       const mrp = quote.suggested_price
         ? Math.round((price * quote.mrp) / quote.suggested_price)
         : price;
-      await api.patch(`/products/${productId}`, { price, mrp });
+      // The floor goes with them. GeM's adapter re-checks it at publish time — after the
+      // mandated discount — and it reads the value off the product, not out of this screen.
+      await api.patch(`/products/${productId}`, { price, mrp, floor_price: quote.floor });
       useDraft.getState().setPricing({ ...quote, price, mrp });
       nav('/publish');
     } catch (e) {

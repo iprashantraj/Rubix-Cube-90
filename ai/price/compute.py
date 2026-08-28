@@ -8,6 +8,7 @@ Cost-up, not market-down: start from what it cost to make, then show the market.
 """
 
 import json
+import math
 from pathlib import Path
 
 RATES = json.loads((Path(__file__).parent / "rates.json").read_text())
@@ -30,9 +31,19 @@ def mrp_for_channel(price, channel):
 
     Set MRP high enough that the post-discount price is still the price we meant.
     Miss this and we recommend loss-making prices on our headline channel.
+
+    ⚠️ Ceiling, not round, and the difference is a real rejected listing. `round` goes DOWN
+    on anything under .5, which lands the post-discount price fractionally UNDER the floor:
+
+        price 2576 -> round(2862.22) = 2862 -> 2862 x 0.9 = 2575.8  <- below the floor
+        price 2576 -> ceil (2862.22) = 2863 -> 2863 x 0.9 = 2576.7  <- clears it
+
+    Found the day channels/gem.py's floor check started running: it rejected a correctly
+    priced saree, because the guard asserts exactly the property `round` had quietly given
+    up. One rupee of MRP is invisible to a buyer; a blocked listing is not.
     """
     discount = RATES["channel_min_discount_pct"].get(channel, 0.0)
-    return round(price / (1 - discount))
+    return math.ceil(price / (1 - discount))
 
 
 def voice_line_hi(material_cost, labour_hours, price):
