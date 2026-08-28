@@ -29,6 +29,7 @@
   "onboard.has_artisan_card": "क्या आपके पास आर्टिज़न कार्ड है?",
   "catalog.q_what": "यह क्या है?",
   "catalog.q_material": "किससे बना है?",
+  "catalog.q_cost": "सामान कितने का आया?",
   "catalog.q_time": "कितना समय लगा?",
   "catalog.q_special": "क्या खास है इसमें?",
   "catalog.q_size": "कितना बड़ा है?",

@@ -10,20 +10,20 @@ import { IconWrite, IconNext, IconYes, IconBack, IconRetry } from '../ui/icons.j
 /**
  * /catalog/voice — the multilingual auto-cataloger. Spec §6.3, PS feature 2.
  *
- * Five questions, one at a time (design law rule 4). A single screen asking all five is a
+ * Six questions, one at a time (design law rule 4). A single screen asking all six is a
  * form, and a form is a literacy test with extra steps.
  *
  * ── The photo is on screen, and that is the point ───────────────────────────────────
  * This screen used to ask "yeh kya hai?" with the product nowhere to be seen. Think about
- * what that actually asks of someone: hold in your head which of five questions is running,
+ * what that actually asks of someone: hold in your head which of six questions is running,
  * remember that it refers to the object you photographed two screens ago, and answer into a
  * phone that gives you no sign it is listening. The photo above the question turns a memory
  * test into a caption task — you look at the thing, you say what it is. It is the same
  * photo they framed themselves thirty seconds ago, so it needs no explaining.
  *
  * ── Progress is dots, not a sentence ────────────────────────────────────────────────
- * "सवाल 3, कुल 5" is a sentence containing two numerals, which is precisely the thing our
- * users cannot read. Five dots filling up is understood by everyone who has ever seen a
+ * "सवाल 3, कुल 6" is a sentence containing two numerals, which is precisely the thing our
+ * users cannot read. Six dots filling up is understood by everyone who has ever seen a
  * phone.
  *
  * ── Typing is an escape hatch, never the path ───────────────────────────────────────
@@ -42,13 +42,20 @@ import { IconWrite, IconNext, IconYes, IconBack, IconRetry } from '../ui/icons.j
  * /api/asr answers 503 until a Bhashini key exists (web/api/routers/voice.py), so
  * transcribe() throwing is the live path in dev, not an edge case. Every failure speaks,
  * returns to a pressable mic, and leaves both alternatives visible. Nothing here dead-ends,
- * and with five skips the artisan still reaches /catalog/review, where the vision pre-fill
+ * and with six skips the artisan still reaches /catalog/review, where the vision pre-fill
  * from the previous screen is waiting to carry the listing on its own.
  */
 
+/**
+ * ⚠️ `cost` is the only answer here that never reaches a buyer. It is what the artisan
+ * spent on materials — an input to their own price floor, not a line in a public listing.
+ * `compose()` in CatalogReview builds the description from a named list of fields and this
+ * is deliberately not among them. Keep it that way.
+ */
 const QUESTIONS = [
   { field: 'what', key: 'catalog.q_what' },
   { field: 'material', key: 'catalog.q_material' },
+  { field: 'cost', key: 'catalog.q_cost' },
   { field: 'time', key: 'catalog.q_time' },
   { field: 'special', key: 'catalog.q_special' },
   { field: 'size', key: 'catalog.q_size' },
@@ -153,7 +160,7 @@ export default function CatalogVoice() {
        * Show it back before moving on.
        *
        * This used to `answer(field, said)` and advance immediately, so the artisan never
-       * once saw what had been recorded — five questions answered into a phone that gave no
+       * once saw what had been recorded — six questions answered into a phone that gave no
        * sign of what it had understood, and the first sight of any of it was on
        * /catalog/review at the end, as a finished listing. If the recogniser misheard
        * question two, they found out four questions later with no idea which one was wrong.

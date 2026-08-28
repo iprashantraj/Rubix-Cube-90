@@ -140,7 +140,7 @@ Bottom nav, four tabs: **Banao** (create) · **Samaan** (catalog) · **Order** �
 | 9 | `/camera` | Live quality gate. Gated shutter, auto-capture on 1s stable green. One problem at a time, hysteresis 0.5s | §4 |
 | 10 | `/capture/review` | Rough local cutout instantly; server result replaces it. **Colour lock:** *"kya yeh asli rang hai?"* → publish blocked until confirmed | §5.6 |
 | 11 | `/catalog/prefill` | Vision pre-fill spoken back: *"Sambalpuri saree lag rahi hai, cotton ki. Sahi hai?"* → yes = done | §6.4 |
-| 12 | `/catalog/voice` | Five voice questions, one per sub-step. Skippable individually | §6.3 |
+| 12 | `/catalog/voice` | Six voice questions, one per sub-step. Skippable individually | §6.3 |
 | 13 | `/catalog/review` | Title + `desc_en` + `desc_hi`, both spoken. Structured fields as removable chips. Correct by voice | §6.1 |
 | 14 | `/price` | Cost-up breakdown spoken. **Floor guard warning is always spoken, never silent.** MRP set so GeM's mandated discount still clears floor | §7.2, §7.3 |
 | 15 | `/publish` | **The one-tap screen.** See below | §8 |
