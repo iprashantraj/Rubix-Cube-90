@@ -62,8 +62,29 @@ export function accentColour() {
  * It guards the one thing that is easy to get wrong and invisible when it is: an id that
  * no longer has a CSS block must land on the default, not on a document carrying an
  * attribute nothing matches.
+ *
+ * ⚠️ It must not run at module-import time, and this is not a style preference.
+ *
+ * In dev Vite injects styles.css from JavaScript, and this module is imported before that
+ * has happened. Every custom property therefore resolved to the empty string, so the
+ * distinctness loop below saw "" four times and reported each palette as a duplicate of the
+ * one before it:
+ *
+ *     palette "forest" resolves to the same accent as "terracotta"
+ *     palette "indigo" resolves to the same accent as "forest"
+ *     palette "plum"   resolves to the same accent as "indigo"
+ *
+ * All four blocks were present and correct the whole time — verified in the browser after
+ * load: #9c3d24, #1f6f43, #2f4b8f, #6b3a8f. The check was reading a document with no
+ * stylesheet in it yet.
+ *
+ * That made it worse than useless. Three red console errors on every single page load train
+ * everyone to ignore this logger, and a check that always fails cannot ever catch the real
+ * bug it exists for — a palette that genuinely lost its CSS block would look exactly like
+ * the noise. So: wait for load, and bail loudly if the stylesheet still is not there rather
+ * than blaming the palettes for it.
  */
-if (import.meta.env.DEV && typeof document !== 'undefined') {
+function selfCheck() {
   const before = document.documentElement.dataset.theme;
 
   console.assert(applyTheme('plum') === 'plum', 'a known palette must be applied as asked');
@@ -91,6 +112,15 @@ if (import.meta.env.DEV && typeof document !== 'undefined') {
   for (const th of THEMES) {
     applyTheme(th.id);
     const accent = accentColour();
+    // No stylesheet means every palette reads "" and every comparison below is meaningless.
+    // Say that, once, instead of naming three innocent palettes.
+    if (!accent) {
+      console.error(
+        '[theme] --accent resolves to nothing: styles.css is not applied to the document. ' +
+          'The palette check cannot run and is being skipped, not passed.',
+      );
+      break;
+    }
     console.assert(
       !seen.has(accent),
       `palette "${th.id}" resolves to the same accent as "${seen.get(accent)}" — its ` +
@@ -100,4 +130,10 @@ if (import.meta.env.DEV && typeof document !== 'undefined') {
   }
 
   applyTheme(before ?? DEFAULT_THEME);
+}
+
+if (import.meta.env.DEV && typeof document !== 'undefined') {
+  // `load` rather than DOMContentLoaded: the stylesheet is what this needs, not the DOM.
+  if (document.readyState === 'complete') selfCheck();
+  else window.addEventListener('load', selfCheck, { once: true });
 }

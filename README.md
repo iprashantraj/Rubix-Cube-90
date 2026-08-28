@@ -29,9 +29,36 @@ SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Margina
 
 `web/` calls `ai/` over HTTP. Do not import across that line — they are separate deploy units.
 
+## Prerequisites
+
+**Python 3.10 or newer.** `web/api/` and `ai/` both use `X | None` type annotations, which
+do not evaluate on 3.9 — pydantic raises `TypeError: unable to evaluate type annotation`
+before the first request, and `from __future__ import annotations` does not save it. macOS
+ships 3.9, so this bites a fresh clone on a Mac every time:
+
+```bash
+brew install python@3.12
+```
+
+Node 20+, and Postgres for the API:
+
+```bash
+brew install postgresql@16 && brew services start postgresql@16
+psql -d postgres -c "CREATE ROLE kaarigar LOGIN PASSWORD 'kaarigar' SUPERUSER;"
+createdb -O kaarigar kaarigar
+cd web/api && cp .env.example .env      # then fill JWT_SECRET and TOKEN_ENCRYPTION_KEY
+python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/alembic upgrade head
+```
+
+Redis is only needed for the background worker; the API starts without it.
+
 ## Run all three
 
 ```bash
+# AI service   http://localhost:8001/docs
+cd ai       && .venv/bin/uvicorn service:app --port 8001
+
 # API          http://localhost:8000/docs
 cd web/api  && .venv/bin/uvicorn api.main:app --reload --app-dir ..
 
@@ -41,6 +68,9 @@ cd web/site && npm run dev
 # Artisan app  http://localhost:5173  (open on a phone on the same LAN)
 cd app      && npm run dev
 ```
+
+`web/` calls `ai/` on port 8001, so `/price` answers 503 until the AI service is up — the
+app then offers "set the price later" rather than blocking the listing.
 
 ## The one-tap tiering
 
