@@ -23,13 +23,19 @@ The three PS features. Deployed as one service; `web/` calls it over HTTP.
 
 ## Run
 
-    pip install -r requirements.txt
-    uvicorn service:app --reload
+⚠️ **Python 3.10+.** The `X | None` annotations in `service.py` do not evaluate on 3.9 and
+pydantic fails at import, before any request. macOS ships 3.9 — use `brew install python@3.12`.
+
+    python3.12 -m venv .venv
+    .venv/bin/pip install -r requirements.txt
+    .venv/bin/uvicorn service:app --port 8001
+
+`web/api` expects this service on **8001** (`AI_BASE_URL`). `/price` needs nothing but the
+standard library underneath; the heavier requirements are for the F1/F2 pipelines.
 
 The enhancement worker needs more:
 
-    python3 -m venv .venv
-    .venv/bin/pip install -r requirements.txt -r requirements-enhance.txt \
+    .venv/bin/pip install -r requirements-enhance.txt \
       --extra-index-url https://download.pytorch.org/whl/cu128
 
 `enhance/pipeline.py` imports none of that at module scope, so the service and the fixture
@@ -57,3 +63,9 @@ things in it are conclusions, not settings — the pinned revision (the repo shi
 `trust_remote_code`, so upstream could otherwise change our pipeline silently) and the
 2000px master (**the model's mask is stretched to fit the image, so the master's size is
 the edge quality**). Both are argued in `research/segmentation/RESULTS.md`.
+
+## Tests
+
+    .venv/bin/python -m pytest test_price.py      # 30 tests, the floor guard and comparables
+    python3 test_gate.py                          # runs with no virtualenv at all
+    python3 test_segment.py                       # geometry half only without a venv

@@ -4,6 +4,7 @@ import type { Quote } from '../api/types';
 import { api, ApiError } from '../api/client';
 import { useDraft, useSession } from '../store';
 import { useVoice } from '../voice/useVoice';
+import { hoursFrom } from '../voice/numbers';
 import { t } from '../i18n/index';
 import { Screen, BigButton, Card, Chip, Spinner } from '../ui/kit';
 import { IconYes, IconRetry, IconAlert } from '../ui/icons';
@@ -39,17 +40,6 @@ import { IconYes, IconRetry, IconAlert } from '../ui/icons';
 /** 10% steps, rounded to the nearest ten rupees. Fine-grained control is not the ask. */
 const stepFor = (p: number) => Math.max(10, Math.round((p * 0.1) / 10) * 10);
 
-/**
- * Hours out of an answer like "gyarah din laga" or "12 hours".
- * ponytail: first-number-wins, so "eleven days" spelled out yields nothing and the service
- * falls back to its own default. Upgrade to a spoken-number/unit parser when the answers
- * from real users say it is worth it — a wrong number here is worse than no number.
- */
-function hoursFrom(text: string | null | undefined) {
-  const n = /(\d+(?:\.\d+)?)/.exec(text ?? '');
-  return n ? Number(n[1]) : null;
-}
-
 export default function Price() {
   const nav = useNavigate();
   const { say, sayRaw, lang } = useVoice();
@@ -73,11 +63,15 @@ export default function Price() {
       try {
         const res = await api.post('/price', {
           product_id: productId,
-          // No question in the five asks what the materials cost (§6.3), so this is null
-          // today and the service prices on labour alone. That understates the floor,
-          // which is the wrong direction — worth a sixth question.
+          // Set by the sixth cataloger question and written to the product at
+          // /catalog/review. Still nullable: the artisan can skip the question, and a
+          // fabricated material cost would move the floor — the one figure in this feature
+          // that must never be guessed.
           material_cost: d.listing?.cost_material ?? null,
-          labour_hours: hoursFrom(d.answers?.time),
+          // The product first, the draft second. /catalog/review already parsed and saved
+          // both figures, and the draft's raw answers are gone once the flow ends — so a
+          // product re-priced later from /products/:id has hours here rather than null.
+          labour_hours: d.listing?.labour_hours ?? hoursFrom(d.answers?.time),
           cluster_id: useSession.getState().artisan?.cluster_id ?? null,
           category: d.listing?.category ?? null,
           // GeM has the strictest MRP maths of any channel, so price for it and every
@@ -148,7 +142,9 @@ export default function Price() {
       const mrp = quote.suggested_price
         ? Math.round((price * quote.mrp) / quote.suggested_price)
         : price;
-      await api.patch(`/products/${productId}`, { price, mrp });
+      // The floor goes with them. GeM's adapter re-checks it at publish time — after the
+      // mandated discount — and it reads the value off the product, not out of this screen.
+      await api.patch(`/products/${productId}`, { price, mrp, floor_price: quote.floor });
       useDraft.getState().setPricing({ ...quote, price, mrp });
       nav('/publish');
     } catch (e) {

@@ -1,0 +1,37 @@
+{
+  "_note": "Strings for the /home redesign — the 'needs you' band and the captions on the product shelf. One file, every language, folded into the base bundles by i18n/index.ts. Odia is deliberately absent for the same reason as _new_ui.json: an unreviewed Odia draft spoken to someone who cannot read it is worse than honest English in an English voice, and resolve() already falls back correctly. Add `or` here only after a native speaker has checked it.",
+
+  "en": {
+    "home.todo": "Waiting for you",
+    "home.todo_orders": "New orders",
+    "home.todo_orders_sub": "Someone has bought. Pack and send",
+    "home.todo_pay": "Money to confirm",
+    "home.todo_pay_sub": "Tell us if it reached your bank",
+    "home.todo_colour": "Colour not checked",
+    "home.todo_colour_sub": "These cannot be sent to shops yet",
+    "home.todo_setup": "Finish your setup",
+    "home.todo_setup_sub": "Add your bank details to get paid",
+
+    "home.untitled": "No name yet",
+    "home.price_none": "No price yet",
+
+    "_flag_note": "Shorter than home.todo_colour on purpose — it has a 2-column tile to fit in beside an icon, where the row version has the full screen width. Same meaning, imperative rather than descriptive, because on the tile it is next to the thing you would act on.",
+    "home.flag_colour": "Check colour"
+  },
+
+  "hi": {
+    "home.todo": "आपका इंतज़ार है",
+    "home.todo_orders": "नए ऑर्डर",
+    "home.todo_orders_sub": "किसी ने खरीदा है। पैक करके भेजिए",
+    "home.todo_pay": "पैसा पक्का करें",
+    "home.todo_pay_sub": "बताइए पैसा बैंक में आया या नहीं",
+    "home.todo_colour": "रंग जाँचा नहीं",
+    "home.todo_colour_sub": "ये अभी दुकानों पर नहीं भेजे जा सकते",
+    "home.todo_setup": "सेटअप पूरा करें",
+    "home.todo_setup_sub": "पैसा पाने के लिए बैंक जोड़ें",
+
+    "home.untitled": "नाम अभी नहीं",
+    "home.price_none": "दाम अभी नहीं",
+    "home.flag_colour": "रंग जाँचें"
+  }
+}

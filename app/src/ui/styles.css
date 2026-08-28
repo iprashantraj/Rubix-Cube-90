@@ -1661,7 +1661,7 @@ input {
 /*
  * The product photo, on every question. Before this the screen asked "yeh kya hai?" with
  * the thing it was asking about nowhere on screen — the artisan had to remember which of
- * five questions was in flight and what it referred to. Now the subject of the sentence is
+ * questions was in flight and what it referred to. Now the subject of the sentence is
  * the largest object on the display.
  *
  * Capped at 30vh so the mic below it is never pushed out of the thumb zone on a short
@@ -1687,7 +1687,7 @@ input {
  * a progress bar anybody has seen before.
  *
  * Named `.qdots` and not `.steps`: `.steps` is the chain progress bar in the header
- * (kit.jsx), this is the five questions inside one screen of that chain, and the two were
+ * (kit.jsx), this is the six questions inside one screen of that chain, and the two were
  * sharing a class name with this rule sitting later in the file — so the header bar was
  * silently getting `justify-content: center` and 14px of bottom padding it never asked
  * for. They measure different things and they are allowed to appear together: the bar says

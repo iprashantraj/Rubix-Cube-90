@@ -37,6 +37,11 @@ class ProductIn(BaseModel):
     labour_hours: float | None = None
     price: float | None = None
     mrp: float | None = None
+    # Stored, not just shown. channels/gem.py refuses to publish when GeM's mandated
+    # discount would push the price under this — and that check reads it off the product,
+    # so a floor that only ever lived in the /price response left the guard permanently
+    # skipped on our headline channel.
+    floor_price: float | None = None
     is_made_to_order: bool = False
     lead_time_days: int | None = None
     quantity: int = 1

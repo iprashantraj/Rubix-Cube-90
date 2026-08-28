@@ -178,8 +178,11 @@ export default function OnboardPlace() {
     // See OnboardName.save() — 'busy' re-asks the question mid-save.
     setPhase('saving');
     try {
-      await api.patch('/me', { pincode: pin });
-      patchArtisan({ pincode: pin });
+      // The response carries the cluster the pincode resolved to (null outside the ones we
+      // have onboarded). Keep it: /price sends it back to select the wage rate, and without
+      // it in the session every artisan prices their labour at the default rate.
+      const { cluster_id } = await api.patch('/me', { pincode: pin });
+      patchArtisan({ pincode: pin, cluster_id });
       nav('/onboard/ready');
     } catch (e) {
       setPhase('confirm');

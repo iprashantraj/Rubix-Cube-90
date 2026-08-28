@@ -122,7 +122,7 @@ export default function CatalogPrefill() {
 
   /**
    * The vision pre-fill is a shortcut, never a requirement. If it is slow, down, or has
-   * nothing useful to say, the artisan simply answers the five questions unaided — which
+   * nothing useful to say, the artisan simply answers the six questions unaided — which
    * is what they would have done anyway.
    */
   async function askVision() {
@@ -182,7 +182,7 @@ export default function CatalogPrefill() {
         <YesNo onYes={confirmColour} onNo={rejectColour} disabled={busy} />
       ) : (
         // "Sahi hai?" — yes keeps the guess, no throws it away and they describe it
-        // themselves. Either way the next screen is the same five questions: vision can
+        // themselves. Either way the next screen is the same six questions: vision can
         // name a saree, but it cannot know it took eleven days or that the dye is madder.
         <YesNo
           onYes={() => nav('/catalog/voice')}

@@ -69,18 +69,24 @@ named individual for no benefit whatsoever.
 
 ## 3. The cataloger — asked once per product, every product
 
-Five questions on `/catalog/voice`, one at a time, with the artisan's own photo on screen
-above them. All five are open text and all five are interpreted.
+Six questions on `/catalog/voice`, one at a time, with the artisan's own photo on screen
+above them. All six are open text and all six are interpreted.
 
 | # | key | English | Field |
 |---|---|---|---|
 | 1 | `catalog.q_what` | What is this? | `what` |
 | 2 | `catalog.q_material` | What is it made of? | `material` |
-| 3 | `catalog.q_time` | How long did it take? | `time` |
-| 4 | `catalog.q_special` | What is special about it? | `special` |
-| 5 | `catalog.q_size` | How big is it? | `size` |
+| 3 | `catalog.q_cost` | What did the materials cost? | `cost` |
+| 4 | `catalog.q_time` | How long did it take? | `time` |
+| 5 | `catalog.q_special` | What is special about it? | `special` |
+| 6 | `catalog.q_size` | How big is it? | `size` |
 
-Each answer may be **skipped**. Five skips still reaches `/catalog/review`, where the vision
+🔒 **`cost` is the only answer here that never reaches a buyer.** It is what the artisan spent
+on materials — an input to their own price floor, not a line in a public listing. `compose()`
+in `CatalogReview` builds the description from a named field list that excludes it. It is
+parsed by `rupeesFrom()` and persisted to `products.cost_material`; see `docs/app/Pricing.md`.
+
+Each answer may be **skipped**. Six skips still reaches `/catalog/review`, where the vision
 pre-fill carries the listing on its own — the questions improve a listing, they do not gate
 it.
 

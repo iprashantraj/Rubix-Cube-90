@@ -9,8 +9,12 @@ Spec: `../docs/Master-Technical-Reference.md` · Architecture: `../docs/Applicat
 
 ## Run
 
+⚠️ **Python 3.10+.** The `X | None` annotations throughout `api/` do not evaluate on 3.9 —
+pydantic raises `TypeError: unable to evaluate type annotation` at import. macOS ships 3.9,
+so `brew install python@3.12` first.
+
 ```bash
-cd api  && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cd api  && python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cd api  && .venv/bin/uvicorn api.main:app --reload --app-dir ..     # :8000/docs
 cd site && npm install && npm run dev                              # :3000
 ```
