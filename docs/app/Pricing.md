@@ -427,8 +427,10 @@ never the artisan's listing.
 | `ai/price/compute.py` — `wage_rate`, `floor_price`, `mrp_for_channel`, `suggest` | ✅ **Fully implemented** | Read the file; ran it |
 | `ai/price/rates.json` | ✅ Real values for 4 clusters | Read the file |
 | `ai/test_price.py` — 12 tests | ✅ **Passing** | Ran them |
-| `ai/price/comps.py` — `market_range` | 🟡 Implemented, but useless today | Returns `None` because both its inputs are stubbed |
-| `ai/price/comps.py` — `fetch`, `normalize` | ⛔ **`raise NotImplementedError`** | `comps.py:16`, `:22` |
+| `ai/price/comps.py` — `market_range` | ✅ **Working** | Trims outliers; returns `None` when no source answers |
+| `ai/price/comps.py` — `fetch("market")` | ✅ **Implemented** | Reads our own `/api/shop/products` |
+| `ai/price/comps.py` — `fetch` for amazon/flipkart/gem | 🟡 Return `[]` by design | No usable price-search API exists — see §6 |
+| `ai/price/comps.py` — `normalize` | ⛔ Unused | Nothing calls it: our own rows are structured, so there are no messy titles to normalise yet |
 | `ai/service.py` — `POST /price` | ✅ **Implemented** | Smoke-tested over real HTTP; 12 tests in `test_price.py` |
 | `web/api` — a `/price` route | ✅ **Exists** | `web/api/routers/price.py`, registered in `main.py`. Proxies to the AI service; returns 503, never a fabricated price |
 | `ai/.venv` + the service on 8001 | 🟡 Runs, but must be started | `.venv/bin/uvicorn service:app --port 8001` |
@@ -457,9 +459,25 @@ costs a suggestion, never a listing.
    what the thing cost.
 4. ~~**The sixth voice question** for material cost.~~ ✅ **Done** — see §2, along with the units
    parser it depended on to be worth anything.
-5. **`comps.fetch` and `comps.normalize`.** Start with our own marketplace — it is our database and
-   needs no API key. Amazon and Flipkart where a Tier B channel is connected, GeM rate contracts last.
-   Honour the contract: `fetch` returns `[]` on failure and never raises.
+5. ~~**`comps.fetch`** for our own marketplace.~~ ✅ **Done** — `fetch("market", …)` calls
+   `/api/shop/products`, which is unauthenticated because those pages must be indexable, so it needs
+   no key and no database credentials in `ai/`. Amazon/Flipkart/GeM return `[]`; see §6 for why that
+   is a design decision and not a gap.
+
+### ⚠️ The trim only worked on large samples — fixed
+
+`market_range` trimmed `len(prices) // 10` from each end, which is **zero for every sample under
+ten** — precisely when a single outlier does the most damage, and small samples are the normal case
+for a marketplace still filling up.
+
+Found by running it against six real listings: one miscategorised silk piece at ₹45,000 beside five
+cotton sarees around ₹4,000, nothing trimmed, and the endpoint suggested **₹24,000 for a saree that
+cost ₹2,576 to make**. The unit test missed it because it used twenty prices, where the arithmetic
+happens to work.
+
+Now at least one is dropped from each end once there are four prices — the smallest sample where
+trimming still leaves a range. Below four nothing is trimmed and `sample_size` is the honest signal.
+Same six listings now yield `3500–5000` and a ₹4,250 suggestion.
 
 ### Running the tests
 

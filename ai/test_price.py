@@ -82,3 +82,105 @@ def test_voice_line_quotes_the_suggested_price_not_the_floor():
               market_range={"low": 3000, "high": 5000, "sample_size": 9})
     assert str(q["suggested_price"]) in q["breakdown_voice_hi"]
     assert q["suggested_price"] == 4000
+
+
+# -- comparables · price/comps.py --------------------------------------------
+
+import contextlib
+
+from price import comps
+
+
+@contextlib.contextmanager
+def _shop(rows_or_error):
+    """Stand in for our marketplace. No pytest fixtures — this suite runs under plain
+    `python3 test_price.py` too, and money math should not need a test framework."""
+
+    class _Res:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return rows_or_error
+
+    def _get(url, **kw):
+        if isinstance(rows_or_error, Exception):
+            raise rows_or_error
+        return _Res()
+
+    real = comps.httpx.get
+    comps.httpx.get = _get
+    try:
+        yield
+    finally:
+        comps.httpx.get = real
+
+
+def test_market_fetch_keeps_only_real_prices():
+    rows = [{"price": 2400}, {"price": None}, {"price": 0}, {"price": "3100"}]
+    with _shop(rows):
+        # None and 0 are unpriced listings, not free ones -- publishing before /price ran
+        # is a supported path ("set the price later"), and those must not enter the range.
+        assert comps.fetch("market", "textiles.saree", None, None) == [2400.0, 3100.0]
+
+
+def test_a_dead_marketplace_returns_empty_and_never_raises():
+    with _shop(RuntimeError("connection refused")):
+        assert comps.fetch("market", "textiles.saree", None, None) == []
+
+
+def test_no_category_means_nothing_to_compare_against():
+    assert comps.fetch("market", None, None, None) == []
+
+
+def test_the_unbuilt_sources_are_empty_not_broken():
+    """Amazon and Flipkart are seller APIs with no open price search; GeM has no API."""
+    for source in ("amazon", "flipkart", "gem"):
+        assert comps.fetch(source, "textiles.saree", None, None) == []
+
+
+def test_market_range_trims_the_outliers():
+    # A powerloom copy at 450 and a miscategorised silk piece at 45000 must not set the
+    # range. 20 prices -> 10% off each end -> the two lowest and two highest are dropped.
+    prices = [450, 900, 1200, 1800, 2100, 2400, 2500, 2600, 2800, 3000,
+              3200, 3400, 3600, 3800, 4000, 4200, 4500, 5000, 8000, 45000]
+    with _shop([{"price": p} for p in prices]):
+        r = comps.market_range("textiles.saree", None, None)
+    assert (r["low"], r["high"]) == (1200, 5000)
+    assert r["sample_size"] == 20  # reported PRE-trim, so a thin range is visible as thin
+
+
+def test_market_range_is_none_when_nobody_answers():
+    with _shop(RuntimeError("down")):
+        assert comps.market_range("textiles.saree", None, None) is None
+
+
+def test_a_real_market_lifts_the_price_off_the_floor():
+    """The end-to-end point of comps: cost-up sets the floor, the market raises it."""
+    with _shop([{"price": p} for p in (3000, 3500, 4000, 4500, 5000)]):
+        r = comps.market_range("textiles.saree", None, None)
+    q = quote(800, 12, "sambalpur", channel="gem", market_range=r)
+    assert q["floor"] == 2576
+    assert q["suggested_price"] > q["floor"]
+    assert q["below_floor_warning"] is False
+
+
+def test_a_single_outlier_cannot_set_a_small_range():
+    """The case `len // 10` missed: under ten prices it trimmed nothing, which is exactly
+    when one bad listing does the most damage. Six real listings produced a Rs 24,000
+    suggestion for a Rs 2,576 saree before this."""
+    with _shop([{"price": p} for p in (3000, 3500, 4000, 4500, 5000, 45000)]):
+        r = comps.market_range("textiles.saree", None, None)
+    assert (r["low"], r["high"]) == (3500, 5000)  # 3000 and 45000 both dropped
+    assert r["sample_size"] == 6
+
+    q = quote(800, 12, "sambalpur", channel="gem", market_range=r)
+    assert q["suggested_price"] == 4250  # the mid of the trimmed range, not of the outlier
+
+
+def test_a_sample_too_small_to_trim_is_reported_not_mangled():
+    with _shop([{"price": p} for p in (3000, 4000, 5000)]):
+        r = comps.market_range("textiles.saree", None, None)
+    # Trimming three prices leaves nothing to report a range from. Keep them and let
+    # sample_size say the range is thin.
+    assert (r["low"], r["high"], r["sample_size"]) == (3000, 5000, 3)
