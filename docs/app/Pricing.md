@@ -320,9 +320,23 @@ Tier B channel is connected), and GeM rate contracts, which are published.
 
 | Function | Line | State | What it must do |
 |---|---|---|---|
-| `fetch(source, category, material, size)` | `:14` | ⛔ `NotImplementedError` | One source → a list of prices. **Returns `[]` on failure, never raises** |
-| `normalize(listings)` | `:19` | ⛔ `NotImplementedError` | LLM: messy titles → `{material, size, technique}`, so we compare like with like |
-| `market_range(category, material, size)` | `:24` | ✅ implemented | Aggregates, trims, returns `{low, high, sample_size}` or `None` |
+| `fetch("market", …)` | ✅ | Our own catalogue over `/api/shop/products` — unauthenticated, so no key and no DB credentials in `ai/`. **Returns `[]` on failure, never raises** |
+| `fetch("indiahandmade" / "amazon" / "flipkart" / "gem", …)` | ✅ | Read `comps_seed.json`, the dated hand-collected snapshot. Per-source lists, so a price seen twice is not counted twice |
+| `normalize(listings)` | ⛔ unused | LLM: messy titles → `{material, size, technique}`. Nothing calls it — our own rows and the snapshot are already structured. It becomes real when a scraped source does |
+| `market_range(category, material, size)` | ✅ | Aggregates every source, trims, returns `{low, high, sample_size}` or `None` |
+
+### The five sources, and why only two of them are live code
+
+| Source | How |
+|---|---|
+| `market` | Live HTTP to our own marketplace. Empty until artisans list |
+| `indiahandmade` | Snapshot. The Ministry of Textiles' own D2C marketplace for verified weavers — a real comparison class, public, no seller account needed. **144 listings collected 2026-08-28** |
+| `amazon`, `flipkart` | Snapshot. Their APIs authenticate *as one shop*; there is no open price search, and our artisans have no seller account to authenticate with |
+| `gem` | Snapshot. No API of any kind; rate contracts are published as documents |
+
+The snapshot is built by `research/pricing/pricing.py build` from observations carrying a URL and a
+date. Category lookup **walks up the taxonomy** — `textiles.saree.sambalpuri` → `textiles.saree` →
+`textiles` — because a snapshot holds the broad key long before every weave, and most-specific wins.
 
 ### Weighting: there isn't any, and that is deliberate
 
@@ -330,24 +344,29 @@ Tier B channel is connected), and GeM rate contracts, which are published.
 trims the tails:
 
 ```python
-trim = len(prices) // 10
+trim = max(1, len(prices) // 10) if len(prices) >= 4 else 0
 kept = prices[trim:len(prices) - trim] or prices
 return {"low": kept[0], "high": kept[-1], "sample_size": len(prices)}
 ```
 
-10% off each end, so one mispriced listing cannot set the range. `or prices` guards the small-sample
-case where the trim would empty the list. `sample_size` reports the **pre-trim** count — it is
-surfaced in `ai/contracts.md` so a range built from 3 listings can be told apart from one built from 23.
+10% off each end, so one mispriced listing cannot set the range. `sample_size` reports the
+**pre-trim** count — surfaced in `ai/contracts.md` so a range built from 3 listings can be told from
+one built from 23.
+
+⚠️ The `max(1, …)` is not cosmetic. `len(prices) // 10` **alone is zero for every sample under ten**,
+which is exactly when one outlier does the most damage — and small samples are the normal case for a
+marketplace still filling up. Six real listings once produced a ₹24,000 suggestion for a ₹2,576
+saree because a miscategorised silk piece at ₹45,000 was never trimmed.
 
 Per-source weighting is **genuinely undecided.** Nothing in the repo specifies it, and the file's own
 header argues against reaching for machinery early: *"A for-loop with retries is deliberate. Nothing
 here loops or re-decides enough to need an agent framework; revisit only if source selection becomes
 genuinely adaptive."* If you add weighting, make it a number in `rates.json`, not a constant in the code.
 
-**A dead source must never kill the price suggestion** (`:29-30`): each `fetch` is individually wrapped
-in `try/except … continue`. Combined with the empty-list contract, this is a double guard, and it is
-why the whole function currently returns `None` rather than exploding — verified by calling it: with
-`fetch` raising `NotImplementedError` for all four sources, `market_range(...)` returns `None`.
+**A dead source must never kill the price suggestion**: each `fetch` is individually wrapped in
+`try/except … continue`, and `fetch` itself promises `[]` rather than raising. The redundancy is
+deliberate. Verified by pointing `API_BASE_URL` at a dead port: `market_range` returns `None` and the
+price still computes from cost alone.
 
 When `market_range` is `None`, `suggest()` falls back to `price = floor`. The floor is always
 computable, which is the property that makes cost-up the right base layer: **the market is an
@@ -426,12 +445,12 @@ never the artisan's listing.
 |---|---|---|
 | `ai/price/compute.py` — `wage_rate`, `floor_price`, `mrp_for_channel`, `suggest` | ✅ **Fully implemented** | Read the file; ran it |
 | `ai/price/rates.json` | ✅ Real values for 4 clusters | Read the file |
-| `ai/test_price.py` — 12 tests | ✅ **Passing** | Ran them |
+| `ai/test_price.py` — 30 tests | ✅ **Passing** | Ran them |
 | `ai/price/comps.py` — `market_range` | ✅ **Working** | Trims outliers; returns `None` when no source answers |
 | `ai/price/comps.py` — `fetch("market")` | ✅ **Implemented** | Reads our own `/api/shop/products` |
-| `ai/price/comps.py` — `fetch` for amazon/flipkart/gem | ✅ Read `comps_seed.json` | No price-search API exists for any of the three; the snapshot is the source. **Ships empty — awaiting collection** |
+| `ai/price/comps.py` — `fetch` for the snapshot sources | ✅ Read `comps_seed.json` | No price-search API exists for any of them. **144 listings collected 2026-08-28** — see `research/RESULTS.md` |
 | `ai/price/comps.py` — `normalize` | ⛔ Unused | Nothing calls it: our own rows are structured, so there are no messy titles to normalise yet |
-| `ai/service.py` — `POST /price` | ✅ **Implemented** | Smoke-tested over real HTTP; 12 tests in `test_price.py` |
+| `ai/service.py` — `POST /price` | ✅ **Implemented** | Smoke-tested over real HTTP; 30 tests in `test_price.py` |
 | `web/api` — a `/price` route | ✅ **Exists** | `web/api/routers/price.py`, registered in `main.py`. Proxies to the AI service; returns 503, never a fabricated price |
 | `ai/.venv` + the service on 8001 | 🟡 Runs, but must be started | `.venv/bin/uvicorn service:app --port 8001` |
 | `app/src/voice/numbers.js` — unit-aware parsing | ✅ **Implemented + self-checked** | `cd app && npm test` |
@@ -440,7 +459,7 @@ never the artisan's listing.
 
 **What the artisan experiences today.** With the AI service running, a real quote. `Price.jsx` posts
 to `/api/price`, `routers/price.py` proxies to port 8001, `ai/service.py` validates, asks
-`comps.market_range()` (which returns `None` until `fetch` is built, so the price sits on the floor),
+`comps.market_range()`,
 and returns the contract shape including the spoken Hindi sentence.
 
 With the service **not** running the old behaviour is intact and still correct: 503 → `failed =
@@ -554,7 +573,7 @@ Breakdown as returned, and as the three chips on screen:
 
 ### Step 4 — the market, three ways
 
-**(a) No comparables — today's real behaviour, since `comps.market_range()` returns `None`:**
+**(a) No comparables** — every source empty or unreachable:
 
 ```json
 { "floor": 2576, "suggested_price": 2576, "mrp": 2862,
@@ -562,7 +581,8 @@ Breakdown as returned, and as the three chips on screen:
   "breakdown": { "material": 800, "labour": 1440, "margin": 336 } }
 ```
 
-Suggestion sits exactly on the floor. Honest, and never harmful.
+Suggestion sits exactly on the floor. Honest, and never harmful. This is what a fresh clone with no
+snapshot and an empty marketplace produces, and it is a supported state rather than a failure.
 
 **(b) Market above cost — `{low: 3000, high: 5000}`:**
 
@@ -690,3 +710,44 @@ codes against — it is only the example values that drifted.
 - **Failing to price must never cost a listing.** `price.skip` exists; keep an equivalent.
 - `compute.py` is stdlib-only and imports nothing but `json` and `pathlib`. Import it directly for any
   server-side price maths — do not reimplement the floor.
+
+---
+
+## 12. Live behaviour with the collected snapshot · 2026-08-28
+
+The worked example in §9 is the arithmetic in isolation. This is what the running stack returns now
+that `comps_seed.json` holds 144 real listings — same request, two different `labour_hours`, and the
+whole point of the feature sits in the difference between them.
+
+**Twelve hours of work.** The market is above cost, so it lifts the suggestion off the floor:
+
+```
+floor 2576 · market_range {low: 1200, high: 5000, sample_size: 39} · suggested 3100
+"800 रुपये का सामान, 12 घंटे का काम। 3100 रुपये सही रहेगा।"
+```
+
+**One hundred and sixty hours — twenty days of weaving.** The floor rises past the entire observed
+market, and the app says so:
+
+```
+floor 23000 · market_range {low: 1200, high: 5000, sample_size: 39} · suggested 23000
+below_floor_warning: true
+```
+
+The suggestion does **not** follow the market down to ₹3,100. It stays at ₹23,000 and the artisan
+hears the warning. That behaviour is the whole reason `max(floor, mid)` is written the way it is.
+
+### What the numbers say about the sector
+
+At the median observed price of ₹2,140 for a handloom cotton saree, minus ₹800 of materials, ₹1,340
+is left for labour — **₹8/hour if the saree took twenty days.** To clear the Sambalpur cluster rate
+of ₹120/hour it would have to be woven in 11.2 hours.
+
+Full verdict, method and caveats: `research/RESULTS.md`. Three of those caveats matter when quoting
+the number: these are **listed** prices not sold prices, `textiles.saree` is too broad a comparison
+class (a plain Santipuri and a Sambalpuri bandha ikat differ perhaps tenfold in labour), and the
+₹120/hour rate is itself unsourced and is the denominator of every figure above.
+
+> ⚠️ The verdict flips entirely on `labour_hours`, which is the input this feature captures least
+> reliably — a spoken answer through a first-number-wins parser that still cannot read *"बीस दिन"*
+> spelled out. The arithmetic is sound; the number it multiplies is the weak link.

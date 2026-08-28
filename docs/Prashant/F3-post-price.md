@@ -107,3 +107,10 @@ requirement.** It belongs in a README, and it applies to `web/api` just as much.
 3. **Validate the floor against real sale prices** — `research/RESULTS.md` → `pricing`, still `open`.
    The formula is arithmetically sound and has never been checked against a real transaction
 4. **Spelled-out numbers** in the voice parser, if ASR sampling says it matters
+
+---
+
+**Postscript, 2026-08-28:** items 1 and 3 of "Still open" are done — `comps.fetch` reads our own
+marketplace live and a 144-listing snapshot for the sources with no API, and the `pricing` experiment
+has its first verdict. See [F3-comparables.md](F3-comparables.md), [F3-price-snapshot.md](F3-price-snapshot.md)
+and [`research/RESULTS.md`](../../research/RESULTS.md).

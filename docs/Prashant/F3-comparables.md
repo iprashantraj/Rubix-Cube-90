@@ -81,3 +81,11 @@ while `fetch` raised.
    return material, so the market source filters on category alone. Our taxonomy is granular
    ("textiles.saree.sambalpuri") so this is tighter than it sounds
 3. **Validate the floor against real sale prices** — `research/RESULTS.md` → `pricing`, still `open`
+
+---
+
+**Postscript, 2026-08-28:** the dated snapshot named in "Still open" now exists — 144 listings from
+indiahandmade.com. `test_price.py` has grown 21 → 30, and four of the tests written here turned out
+to be passing only because the committed seed was empty; they now isolate the seed as well as the
+`market` source. See [F3-price-snapshot.md](F3-price-snapshot.md) and
+[`research/RESULTS.md`](../../research/RESULTS.md).

@@ -31,4 +31,4 @@ pydantic fails at import, before any request. macOS ships 3.9 — use `brew inst
 standard library underneath; the heavier requirements are for the F1/F2 pipelines, which are
 still stubs.
 
-    .venv/bin/python -m pytest test_price.py      # 29 tests, the floor guard and comparables
+    .venv/bin/python -m pytest test_price.py      # 30 tests, the floor guard and comparables
