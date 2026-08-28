@@ -4,6 +4,7 @@ import { api } from '../api/client.js';
 import { useDraft } from '../store.js';
 import { useVoice } from '../voice/useVoice.js';
 import { record, transcribe } from '../voice/listen.js';
+import { hoursFrom, rupeesFrom } from '../voice/numbers.js';
 import { t } from '../i18n/index.js';
 import { Screen, BigButton, Card, Chip, Grid, Tile, Spinner } from '../ui/kit.jsx';
 import { IconMic, IconYes, IconBack } from '../ui/icons.jsx';
@@ -25,7 +26,7 @@ import { IconMic, IconYes, IconBack } from '../ui/icons.jsx';
  * it does not break the three-target rule.
  *
  * ── Where the prose comes from ──────────────────────────────────────────────────────
- * POST /catalog (ai/contracts.md) is what turns the five answers into real English AND
+ * POST /catalog (ai/contracts.md) is what turns the spoken answers into real English AND
  * Hindi prose. web/api does not proxy that hop yet, so until it does this screen reads the
  * artisan's own answers back verbatim. That is deliberately the safe direction to be wrong
  * in: they approve their own words, never an invention they never heard.
@@ -100,6 +101,16 @@ export default function CatalogReview() {
         technique: draft.prefill?.technique ?? null,
         dye_type: draft.prefill?.dye_type ?? null,
         dimensions: draft.prefill?.dimensions ?? null,
+        // The two pricing inputs, parsed out of what they said. Both are the artisan's own
+        // figures and neither appears in the description above — cost is theirs, not the
+        // buyer's business, and compose() builds prose from a named list that excludes it.
+        //
+        // They are written to the product rather than only handed to /price so the listing
+        // can be re-priced later from /products/:id without asking the questions again.
+        // Null when the question was skipped or the answer had no digit in it: a guessed
+        // material cost moves the floor, and the floor is the one number we never invent.
+        cost_material: rupeesFrom(draft.answers?.cost),
+        labour_hours: hoursFrom(draft.answers?.time),
       };
       await api.patch(`/products/${productId}`, body);
       useDraft.getState().setListing({ ...draft.listing, ...body });
