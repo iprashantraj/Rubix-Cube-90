@@ -156,14 +156,22 @@ class GeMAdapter(ChannelAdapter):
                 error=problem,
             )
 
-        data, warnings = self.build_workbook(product)
-        # TODO(phase 7): persist to object storage and hand back a signed URL. The artisan
-        # (or their cluster coordinator) uploads it — GeM has no API to push it for them,
-        # and pretending otherwise is a question we cannot survive.
+        # Built here only to collect the warnings — the bytes are deliberately dropped.
+        #
+        # ⚠️ This is the bug that made "GeM file generation" not work. It used to keep the
+        # bytes, throw them away anyway, and hand back `artifact_url=f"s3://gem/{id}.xlsx"`
+        # — a string composed on the spot, naming an object nobody had written, in a scheme
+        # nothing in this repo produces. The artisan was told their file was ready and there
+        # was no file at the other end of it.
+        #
+        # The sheet is a pure function of the product, so it is generated on request instead
+        # by `GET /publish/gem/{product_id}.xlsx`. One place builds it, and there is no
+        # stored copy to go stale the moment they correct a title.
+        _, warnings = self.build_workbook(product)
         return PublishResult(
             channel=self.id,
             status="file_ready",
-            artifact_url=f"s3://{self.id}/{product.id}.xlsx",
+            artifact_url=f"/api/publish/gem/{product.id}.xlsx",
             message_key="publish.file_ready",
             error="; ".join(warnings) or None,
             instructions=[{"voice_key": "gem.step.upload", "copy": product.id}],
