@@ -98,6 +98,16 @@ export type PublishResult = {
    */
   status: 'live' | 'file_ready' | 'failed' | 'pending' | 'dry_run';
   message_key?: string | null;
+  /**
+   * Where the artisan can fetch the artifact, for channels that produce a file rather than
+   * a push. Today only GeM: `/api/publish/gem/{product_id}.xlsx`, which builds the sheet on
+   * request because it is a pure function of the product and a stored copy would go stale
+   * the moment they corrected a title.
+   *
+   * ⚠️ This used to be a fabricated `s3://gem/{id}.xlsx` naming an object nobody wrote.
+   * The artisan was told their file was ready and there was nothing at the other end.
+   */
+  artifact_url?: string | null;
 };
 
 /** `POST /publish` and `GET /publish/{id}`. */

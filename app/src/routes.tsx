@@ -11,6 +11,7 @@ import OnboardName from './screens/OnboardName';
 import OnboardCraft from './screens/OnboardCraft';
 import OnboardPlace from './screens/OnboardPlace';
 import OnboardReady from './screens/OnboardReady';
+import OnboardChannels from './screens/OnboardChannels';
 import Camera from './screens/Camera';
 import CaptureReview from './screens/CaptureReview';
 import CatalogPrefill from './screens/CatalogPrefill';
@@ -99,6 +100,7 @@ export const routes = [
   { path: '/onboard/craft', element: guarded(<OnboardCraft />) },
   { path: '/onboard/place', element: guarded(<OnboardPlace />) },
   { path: '/onboard/ready', element: guarded(<OnboardReady />) },
+  { path: '/onboard/channels', element: guarded(<OnboardChannels />) },
 
   { path: '/home', element: guarded(<Home />) },
 
