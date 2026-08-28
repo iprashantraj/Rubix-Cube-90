@@ -1,14 +1,20 @@
 # research/pricing/
 
+> **Status 2026-08-28: 144 listings collected from indiahandmade.com.** First verdict is in
+> [`../RESULTS.md`](../RESULTS.md). More is still welcome — especially weave-specific keys
+> (`textiles.saree.sambalpuri` rather than `textiles.saree`), which is the biggest weakness
+> in the current set.
+
 Two open questions, one dataset answers both:
 
 1. **What does the market actually charge?** — feeds `ai/price/comps_seed.json`, which is the
    only comparables source we have for GeM, Amazon and Flipkart.
 2. **Does our cost-up floor land near real prices?** — the `pricing` row in
-   [`../RESULTS.md`](../RESULTS.md), verdict still `open`.
+   [`../RESULTS.md`](../RESULTS.md), first verdict recorded 2026-08-28.
 
-The code for both is written. **The data is not, and cannot be written by anyone who is not
-looking at real listings.**
+The code for both is written, and there is now a first dataset behind it. **Nothing here can
+be written by anyone who is not looking at real listings** — that rule does not relax now that
+the file is non-empty.
 
 ---
 
@@ -32,6 +38,14 @@ right.
 |---|---|
 | **GeM** | No seller or catalogue API of any kind. Rate contracts are published as documents |
 | **Amazon / Flipkart** | *Seller* APIs. They authenticate as one shop and return that shop's own listings. There is no open "what does a cotton saree go for" endpoint — and our artisans have no seller account to authenticate with in the first place |
+| **indiahandmade** | Public catalogue, browsable without an account. **The best source we have**, and the one the current set came from |
+
+### Prefer indiahandmade.com
+
+The Ministry of Textiles' own D2C marketplace for verified weavers and GI-tagged products.
+Same artisans, same crafts, same handmade claim — so it is a genuine comparison class rather
+than an approximate one, and on a government problem statement nobody has to be persuaded of
+that. It is also the only one of the four you can browse without a seller account.
 
 A scraper against their search pages is against both sites' terms, breaks the week somebody
 renames a CSS class, and gets the demo laptop IP-blocked halfway through a presentation. An

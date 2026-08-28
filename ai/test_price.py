@@ -92,6 +92,20 @@ from price import comps
 
 
 @contextlib.contextmanager
+def _only_shop(rows_or_error):
+    """Isolate market_range to the `market` source alone.
+
+    ⚠️ Not the same as _shop. market_range() sums EVERY source, and the seeded ones read
+    ai/price/comps_seed.json — a real file with real collected prices in it. The four tests
+    below assert exact ranges, so without silencing the seed they passed only while it
+    happened to be empty and broke the moment somebody collected data. A test that depends
+    on a committed data file being empty is a trap with a delay on it.
+    """
+    with _shop(rows_or_error), _seed_file(None):
+        yield
+
+
+@contextlib.contextmanager
 def _shop(rows_or_error):
     """Stand in for our marketplace. No pytest fixtures — this suite runs under plain
     `python3 test_price.py` too, and money math should not need a test framework."""
@@ -144,14 +158,14 @@ def test_market_range_trims_the_outliers():
     # range. 20 prices -> 10% off each end -> the two lowest and two highest are dropped.
     prices = [450, 900, 1200, 1800, 2100, 2400, 2500, 2600, 2800, 3000,
               3200, 3400, 3600, 3800, 4000, 4200, 4500, 5000, 8000, 45000]
-    with _shop([{"price": p} for p in prices]):
+    with _only_shop([{"price": p} for p in prices]):
         r = comps.market_range("textiles.saree", None, None)
     assert (r["low"], r["high"]) == (1200, 5000)
     assert r["sample_size"] == 20  # reported PRE-trim, so a thin range is visible as thin
 
 
 def test_market_range_is_none_when_nobody_answers():
-    with _shop(RuntimeError("down")):
+    with _only_shop(RuntimeError("down")):
         assert comps.market_range("textiles.saree", None, None) is None
 
 
@@ -169,7 +183,7 @@ def test_a_single_outlier_cannot_set_a_small_range():
     """The case `len // 10` missed: under ten prices it trimmed nothing, which is exactly
     when one bad listing does the most damage. Six real listings produced a Rs 24,000
     suggestion for a Rs 2,576 saree before this."""
-    with _shop([{"price": p} for p in (3000, 3500, 4000, 4500, 5000, 45000)]):
+    with _only_shop([{"price": p} for p in (3000, 3500, 4000, 4500, 5000, 45000)]):
         r = comps.market_range("textiles.saree", None, None)
     assert (r["low"], r["high"]) == (3500, 5000)  # 3000 and 45000 both dropped
     assert r["sample_size"] == 6
@@ -179,7 +193,7 @@ def test_a_single_outlier_cannot_set_a_small_range():
 
 
 def test_a_sample_too_small_to_trim_is_reported_not_mangled():
-    with _shop([{"price": p} for p in (3000, 4000, 5000)]):
+    with _only_shop([{"price": p} for p in (3000, 4000, 5000)]):
         r = comps.market_range("textiles.saree", None, None)
     # Trimming three prices leaves nothing to report a range from. Keep them and let
     # sample_size say the range is thin.
@@ -295,3 +309,16 @@ def test_an_uncollected_seed_is_silent_not_noisy():
         assert len(records) == 1
     finally:
         comps.log.removeHandler(handler)
+
+
+def test_the_committed_seed_is_usable_by_comps():
+    """The seed is real data now, so assert the thing that would silently break it: that
+    comps can actually read what pricing.py wrote, at the taxonomy depth the app queries."""
+    import json as _json
+    data = _json.loads(comps.SEED_PATH.read_text())
+    if not data.get("categories"):
+        return  # ships empty; nothing to check until somebody collects
+    assert data["collected"], "prices with no collected date — comps will refuse them"
+    # The app asks for a weave; the snapshot holds the craft. The walk-up is what joins them.
+    assert comps.fetch("indiahandmade", "textiles.saree.sambalpuri", None, None), \
+        "textiles.saree.sambalpuri finds nothing — the taxonomy walk-up is broken"
