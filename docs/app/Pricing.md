@@ -257,6 +257,16 @@ explicitly.
 }
 ```
 
+> **How an artisan gets a cluster.** `OnboardPlace` asks for a pincode; `PATCH /me` resolves it
+> to a cluster by longest matching `pincode_prefix` and stores `cluster_id`. Before 2026-08-28
+> nothing set that field and the clusters table was empty, so **every artisan in the country fell
+> through to `default_wage_per_hour` and the four rates below were unreachable** — a Varanasi
+> weaver's floor was quietly 20% short. Clusters are now seeded from this file (migration
+> `e7a1c2b83d55`), and the prefixes in it still want field confirmation: a district postal range
+> is not the same thing as a cluster's catchment. An unmatched pincode leaves `cluster_id` NULL
+> and prices on the default, so the link can only ever add a correct rate, never substitute a
+> wrong one.
+
 | Key | Provenance | How to recalibrate |
 |---|---|---|
 | `clusters.*` | Rupees per hour. The file's own `_comment` says **"Sourced per cluster, not guessed. Update as clusters onboard."** Master ref §7.2 ② defines the input as `hours × cluster wage rate` | Per cluster, against local minimum-wage notifications and what the cluster coordinator reports the going rate to be. This is a field question, not a code question. Add the key when a cluster onboards; until then it silently gets the default, which is a floor that may be too low for a high-wage cluster like Varanasi |
@@ -286,10 +296,15 @@ not before.**
 So the MRP is set high enough that the post-discount price is still the price we meant:
 
 ```
-mrp = round(price / (1 - 0.10))
+mrp = ceil(price / (1 - 0.10))
 ```
 
-Verified with the shipped numbers: `price = 4000` → `mrp = 4444` → `round(4444 × 0.90) = 4000`.
+⚠️ **Ceiling, not round.** `round` goes down below .5, which puts the post-discount price
+fractionally *under* the floor: price 2576 → `round(2862.22) = 2862` → `2862 × 0.9 = 2575.8`.
+`channels/gem.py` asserts exactly that property at publish time and refused a correctly priced
+saree the day it first ran. One rupee of MRP is invisible to a buyer; a blocked listing is not.
+
+Verified with the shipped numbers: `price = 4000` → `mrp = 4445` → `4445 × 0.90 = 4000.5`, which clears.
 `test_price.py:15-17` asserts exactly that round-trip.
 
 Two places this is preserved that look like they could be dropped:
@@ -523,7 +538,7 @@ PS. It gets a test."* No `ai/.venv` is needed — `compute.py` is stdlib only. `
 |---|---|---|
 | `test_floor_covers_material_and_labour` | `:6` | The exact arithmetic: `800 + 12×120 = 2240`, +15% → **2576** |
 | `test_unknown_cluster_uses_default_wage` | `:11` | An unknown cluster silently gets the default rate |
-| `test_gem_mrp_survives_the_mandated_discount` | `:15` | `round(mrp × 0.90) >= price` — §5 |
+| `test_gem_mrp_survives_the_mandated_discount` | | `mrp × 0.90 >= price`, **unrounded**, across six prices — §5 |
 | `test_market_never_prices_below_the_floor` | `:20` | Market under cost → price stays at the floor **and** `below_floor_warning is True` |
 | `test_market_can_price_above_the_floor` | `:26` | Market above cost → price rises to the mid, warning stays `False` |
 
@@ -576,7 +591,7 @@ Breakdown as returned, and as the three chips on screen:
 **(a) No comparables** — every source empty or unreachable:
 
 ```json
-{ "floor": 2576, "suggested_price": 2576, "mrp": 2862,
+{ "floor": 2576, "suggested_price": 2576, "mrp": 2863,
   "market_range": null, "below_floor_warning": false,
   "breakdown": { "material": 800, "labour": 1440, "margin": 336 } }
 ```
@@ -592,7 +607,7 @@ price = max(2576, 4000)   = ₹4,000        ← market moved us UP
 below_floor_warning       = 5000 < 2576 → false
 ```
 ```json
-{ "floor": 2576, "suggested_price": 4000, "mrp": 4444,
+{ "floor": 2576, "suggested_price": 4000, "mrp": 4445,
   "market_range": { "low": 3000, "high": 5000, "sample_size": 9 },
   "below_floor_warning": false,
   "breakdown": { "material": 800, "labour": 1440, "margin": 336 } }
@@ -610,7 +625,7 @@ price = max(2576, 1000)   = ₹2,576        ← market did NOT move us down
 below_floor_warning       = 1100 < 2576 → TRUE
 ```
 ```json
-{ "floor": 2576, "suggested_price": 2576, "mrp": 2862,
+{ "floor": 2576, "suggested_price": 2576, "mrp": 2863,
   "market_range": { "low": 900, "high": 1100, "sample_size": 5 },
   "below_floor_warning": true, … }
 ```
@@ -624,12 +639,13 @@ This is the case the feature was built for. The artisan hears, on entry, without
 Taking case (b), `price = 4000`:
 
 ```
-mrp = round(4000 / (1 − 0.10)) = round(4444.44) = ₹4,444
-check: round(4444 × 0.90) = 4000  ✓  clears the price we meant
+mrp = ceil(4000 / (1 − 0.10)) = ceil(4444.44) = ₹4,445
+check: 4445 × 0.90 = 4000.5  ✓  clears the price we meant, unrounded
 ```
 
-For cases (a) and (c), `price = 2576` → `mrp = round(2576 / 0.9) = ₹2,862`, and
-`round(2862 × 0.9) = 2576` ✓ — the post-discount price lands exactly on the floor, not under it.
+For cases (a) and (c), `price = 2576` → `mrp = ceil(2576 / 0.9) = ₹2,863`, and
+`2863 × 0.9 = 2576.7` ✓ — the post-discount price clears the floor rather than landing a fraction
+under it, which is precisely what `round` used to do here.
 
 ### Step 6 — the artisan presses "less"
 
@@ -648,7 +664,7 @@ Press it again and it speaks again. The button never goes dead and the price nev
 On **accept**, the MRP ratio is preserved (`Price.jsx:142-144`):
 
 ```
-mrp = round(2576 × 4444 / 4000) = round(2861.9) = ₹2,862
+mrp = round(2576 × 4445 / 4000) = round(2862.6) = ₹2,863
 ```
 
 — which is exactly the MRP the service would have computed for ₹2,576. The GeM discount still clears
