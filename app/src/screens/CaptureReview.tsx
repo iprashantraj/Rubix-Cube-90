@@ -67,17 +67,35 @@ export default function CaptureReview() {
       const { id } = await api.post('/products', {});
       useDraft.getState().setListing({ ...draft.listing, product_id: id, image_url: url });
 
-      // Fire and forget. Enhancement takes ~20s (ai/contracts.md) and the artisan has
-      // nothing to decide while it runs, so they walk to the next screen and it polls.
+      /*
+       * Link the upload to the product. NOT optional, and deliberately outside the try
+       * below.
+       *
+       * ⚠️ This call and the enhance call used to share one try/catch, whose comment said
+       * that losing the enhancement "must never cost the artisan the listing" while the
+       * code made exactly that trade. When the link failed the catch swallowed it, the
+       * screen navigated on, and the product reached /publish with no rows in
+       * product_images. `ChannelAdapter.preflight` refuses on `if not product.images`, so
+       * **all seven channels failed at once**, with `error=NULL` because preflight returns
+       * a message key rather than raising. One-click publishing was broken for every
+       * product ever catalogued and nothing anywhere said so.
+       *
+       * It throws to the outer catch now, which speaks. A photo that did not attach is a
+       * listing that cannot publish, and the artisan needs to hear that while they are
+       * still holding the object — not three screens later.
+       */
+      await api.post(`/products/${id}/images`, { url, size_variant: 'raw', is_primary: true });
+
+      // Fire and forget, and genuinely optional. Enhancement takes ~20s (ai/contracts.md)
+      // and the artisan has nothing to decide while it runs, so they walk to the next
+      // screen and it polls.
       try {
-        // Link the upload to the product first. POST /enhance looks for exactly this
-        // size_variant and answers "no raw image" without it.
-        await api.post(`/products/${id}/images`, { url, size_variant: 'raw', is_primary: true });
         const job = await api.post(`/products/${id}/enhance`, {});
         useDraft.getState().setEnhance(job.job_id ?? null);
       } catch {
-        // AI service down, or the link failed. Losing the enhancement costs us a prettier
-        // photo; it must never cost the artisan the listing.
+        // AI service down. THIS is the failure that costs a prettier photo and nothing
+        // else: /catalog/prefill degrades to the artisan's own photo and the flow carries
+        // on. The listing is already publishable, because the link above succeeded.
         useDraft.getState().setEnhance(null);
       }
 
