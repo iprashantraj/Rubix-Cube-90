@@ -6,6 +6,7 @@ import type { Channel, PublishResult, PublishJob } from '../api/types';
 import { useDraft } from '../store';
 import { useVoice } from '../voice/useVoice';
 import { t } from '../i18n/index';
+import { ChannelBlock, type CopyItem } from './ChannelBlock';
 import { Screen, Card, Chip, BigButton, StatusDot } from '../ui/kit';
 import { IconPublish, IconNext, IconForward, IconYes } from '../ui/icons';
 
@@ -85,6 +86,20 @@ export default function Publish() {
   const [results, setResults] = useState<Record<string, PublishResult>>({});
   const [stage, setStage] = useState(0); // index into TIERS
   const [busy, setBusy] = useState(false);
+  // "Not this one" is a real answer. Kept in memory rather than persisted: it is a decision
+  // about this listing today, not a standing preference, and a channel silently disabled
+  // forever by one tap months ago is worse than being asked again.
+  const [skipped, setSkipped] = useState<string[]>([]);
+
+  /*
+   * The per-channel listing text from POST /catalog, if it has arrived.
+   *
+   * Read out of the draft rather than re-fetched: /catalog/review already asked for it and
+   * the shaping is deterministic, so a second call would return the same strings and cost
+   * the artisan a wait on a rural network.
+   */
+  const copyFor = (id: string) =>
+    ((draft.listing?.copy_blocks as Record<string, CopyItem[]> | undefined) ?? {})[id] ?? [];
   // Query failures and publish failures are different facts — see the note in Earnings.
   const [mutError, setError] = useState<string | null>(null);
   const errKey =
@@ -101,7 +116,10 @@ export default function Publish() {
 
   /** The channels in this tier we can actually fire right now, which is not all of them. */
   const sendable = (tier: Channel['tier']) =>
-    inTier(tier).filter((c: Channel) => tier === 'A' || tier === 'C' || c.connected);
+    inTier(tier).filter(
+      (c: Channel) =>
+        !skipped.includes(c.id) && (tier === 'A' || tier === 'C' || c.connected),
+    );
 
   /**
    * One utterance, never two. speak() interrupts whatever is playing, so a second say()
@@ -215,7 +233,30 @@ export default function Publish() {
               <p style={{ margin: '0 0 12px' }}>{t(lang, 'publish.b_none_connected')}</p>
             )}
 
-            {group.map(row)}
+            {/*
+              The active section shows full blocks — what is going to each app, foldable,
+              with a copy button per field — because that is the section the artisan is
+              deciding about right now. Sections already dealt with collapse back to one
+              row each, so finishing tier A does not leave three cards of text above the
+              thing they are being asked to do next.
+            */}
+            {active
+              ? group.map((c) => (
+                  <ChannelBlock
+                    key={c.id}
+                    channel={{
+                      ...c,
+                      status: results[c.id]?.status,
+                      artifactUrl: results[c.id]?.artifact_url ?? null,
+                      copy: copyFor(c.id),
+                    }}
+                    lang={lang}
+                    busy={busy}
+                    onPublish={() => send(tr)}
+                    onSkip={() => setSkipped((sk) => [...sk, c.id])}
+                  />
+                ))
+              : group.map(row)}
 
             {active && (
               <>

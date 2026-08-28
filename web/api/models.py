@@ -108,6 +108,25 @@ class Artisan(Base):
     has_artisan_card: Mapped[bool] = mapped_column(Boolean, default=False)
     intra_state_only: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Which marketplaces this artisan already sells on, as stable channel ids
+    # (`amazon`, `flipkart`, `meesho`, `whatsapp`). Asked once, in onboarding.
+    #
+    # 🔑 A question-reduction field before it is anything else. `plan()` in
+    # app/src/catalog/slots.js only asks for a slot some target channel needs, so an artisan
+    # with no Amazon or Flipkart account is never asked for a shipping weight at all —
+    # several of the nine questions exist solely to satisfy channels they may never use.
+    #
+    # Deliberately NOT the same thing as `ChannelStatus.refresh_token_enc`. That records
+    # "we hold an OAuth token"; this records "they told us they have an account". They
+    # answer different questions: the first decides whether we can push, the second decides
+    # whether the channel is worth showing at all. Someone with an Amazon account they have
+    # not connected gets a Connect button; someone who has never heard of Amazon should not
+    # be offered anything.
+    #
+    # Not a readiness flag and not covered by the rule above it: a channel id is not a
+    # financial fact about a named person, and it never leaves our own services.
+    sells_on: Mapped[list] = mapped_column(JSON, default=list)
+
     # Result of the name-consistency pre-check (§6.1). A boolean, not the names — name
     # mismatch across Aadhaar/PAN/GST/bank is the top GeM rejection cause, and catching it
     # before they start is worth far more than storing what they said.
@@ -207,6 +226,44 @@ class Product(Base):
 
     artisan: Mapped[Artisan] = relationship(back_populates="products")
     images: Mapped[list[ProductImage]] = relationship(back_populates="product")
+
+
+class FieldCorrection(Base):
+    """Every time we guessed a field and the artisan changed it.
+
+    🔑 This is the half of "the app learns with you" that is worth more than the other half.
+    `GET /catalog/defaults` remembers what an artisan SAID; this remembers what we got
+    WRONG, which is a labelled example — we know the guess, we know the truth, and we know
+    which of our two guessers produced it.
+
+    Two things read it. It stops us re-offering a guess we keep having to walk back, and it
+    prefers a correction over raw history when the two disagree, because a value the artisan
+    typed over the top of ours is the strongest signal we ever get about a field.
+
+    ⚠️ `guessed` and `corrected` are product descriptions — a material, a size, a title.
+    Never a price, never a name, never anything from onboarding. The `source` column exists
+    so a systematically wrong vision model can be told apart from a stale carried-forward
+    default; they need different fixes and averaging them hides both.
+    """
+
+    __tablename__ = "field_corrections"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    artisan_id: Mapped[str] = mapped_column(ForeignKey("artisans.id"), index=True)
+    product_id: Mapped[str | None] = mapped_column(ForeignKey("products.id"))
+
+    field: Mapped[str] = mapped_column(String(40), index=True)
+    guessed: Mapped[str | None] = mapped_column(String(300))
+    corrected: Mapped[str] = mapped_column(String(300))
+    # "prefill" (the vision model read the photo) or "default" (carried forward from an
+    # earlier product). Anything else is a caller bug and is stored as given rather than
+    # silently mapped, so it shows up in the data instead of hiding in it.
+    source: Mapped[str] = mapped_column(String(20), default="default")
+    # Denormalised on purpose: a weaver's corrections should not teach a potter, and
+    # joining back through artisans to find out costs a query on every read.
+    craft: Mapped[str | None] = mapped_column(String(80))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ProductImage(Base):

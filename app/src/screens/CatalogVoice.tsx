@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { useDraft } from '../store';
+import { useDraft, useSession } from '../store';
 import { api } from '../api/client';
 import { useApiQuery } from '../api/useApi';
 import { useVoice } from '../voice/useVoice';
@@ -8,6 +8,7 @@ import { record, transcribe, type RecHandle } from '../voice/listen';
 import { interpretAnswer } from '../voice/interpret';
 import { numberFrom } from '../voice/numbers';
 import { plan, absorb, harvestTargets } from '../catalog/slots';
+import { norm, recordCorrection } from '../catalog/corrections';
 import { t } from '../i18n/index';
 import { Screen, BigButton, Card, MicButton, Heard } from '../ui/kit';
 import { IconWrite, IconNext, IconYes, IconNo, IconBack, IconRetry } from '../ui/icons';
@@ -84,6 +85,33 @@ const TIER_A = ['marketplace', 'ondc'];
 type Channel = { id: string; tier: string; connected?: boolean };
 
 /**
+ * Which channels this product is actually heading for, and therefore which questions are
+ * worth asking.
+ *
+ * Three sources, and they are not the same thing:
+ *
+ *   tier A       no account, no paperwork, always in. Our marketplace and ONDC, where we
+ *                are the Marketplace Seller Node.
+ *   connected    we hold an OAuth token, so we can genuinely push.
+ *   sells_on     what the artisan told us in onboarding. NOT the same as connected — an
+ *                Amazon account they have never linked still means Amazon's fields matter
+ *                to them, because the plan is that they will link it.
+ *
+ * The union is deliberate and errs toward asking. Missing a question means a listing that
+ * cannot publish and a second interview later; asking one extra costs eight seconds. But
+ * an artisan who has never heard of Amazon is in none of the three, so they are never
+ * asked for a shipping weight — which is the entire point, and was the behaviour for
+ * everybody before /onboard/channels existed.
+ */
+function targetChannels(channels: Channel[] | undefined, sellsOn: string[] | undefined) {
+  const out = new Set(
+    channels ? channels.filter((c) => c.tier === 'A' || c.connected).map((c) => c.id) : TIER_A,
+  );
+  for (const id of sellsOn ?? []) out.add(id);
+  return [...out];
+}
+
+/**
  * Same rule as /catalog/prefill: the AI service returns `s3://` URLs (ai/contracts.md),
  * which no <img> renders, and on a dev box there is no enhancement at all. The artisan's
  * own photo is always displayable and is always the same object.
@@ -111,6 +139,10 @@ export default function CatalogVoice() {
    */
   const { data: defaults } = useApiQuery<Record<string, unknown>>('/catalog/defaults');
   const { data: channels } = useApiQuery<Channel[]>('/channels');
+  // What they told us in onboarding. Read from the session rather than fetched: it is
+  // answered once, it changes almost never, and a network hiccup here must not silently
+  // widen the interview back to every question.
+  const sellsOn = useSession((s) => s.artisan?.sells_on);
 
   // ask -> rec -> busy -> heard -> (next question)
   //   ├-> confirm -> (next question)
@@ -138,11 +170,9 @@ export default function CatalogVoice() {
       prefill: prefill ?? {},
       defaults: defaults ?? {},
       answers: {},
-      channels: channels
-        ? channels.filter((c) => c.tier === 'A' || c.connected).map((c) => c.id)
-        : TIER_A,
+      channels: targetChannels(channels, sellsOn),
     });
-  }, [prefill, defaults, channels]);
+  }, [prefill, defaults, channels, sellsOn]);
 
   if (!productId) return <Navigate to="/camera" replace />;
 
@@ -303,7 +333,33 @@ export default function CatalogVoice() {
       const { value, raw } = q.open
         ? await interpretAnswer({ transcript: said, question: q.key, lang })
         : { value: numberFrom(said), raw: said };
-      answer(q.field, String(value ?? raw));
+      const stored = String(value ?? raw);
+      answer(q.field, stored);
+
+      /*
+       * We offered a guess and they said something else. That is the most useful thing
+       * that happens in this whole screen.
+       *
+       * A plain answer teaches us what they make. A CORRECTION teaches us that our guess
+       * was wrong and what the right one was — a labelled example, and the only one we
+       * ever get. learning.py uses it twice: to prefer this value over their history next
+       * time, and to stop offering guesses for a field we keep having to walk back.
+       *
+       * Fire and forget. They are mid-interview; a failed analytics write must never
+       * become something they have to deal with.
+       */
+      if (q.confirm && norm(q.confirm) !== norm(stored)) {
+        void recordCorrection(
+          q.field,
+          q.confirm,
+          stored,
+          q.fromPrefill ? 'prefill' : 'default',
+          // `listing` is an untyped bag, so the id arrives as `unknown`. Coerced at the
+          // boundary rather than cast, for the same reason CatalogReview coerces the
+          // prefill: an id that is somehow a number still identifies the right product.
+          productId == null ? null : String(productId),
+        );
+      }
 
       /*
        * Everything else that sentence happened to contain.

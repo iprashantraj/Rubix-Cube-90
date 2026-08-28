@@ -73,7 +73,8 @@ export default function OnboardReady() {
       patchArtisan({ readiness: all });
       // Straight into the camera. No tour, no dashboard, no "you're all set" screen — the
       // first product matters more than any summary we could show (§4).
-      nav('/home');
+      // The last onboarding question, and the only one that removes later questions.
+      nav('/onboard/channels');
     } catch (e) {
       // Every answer is still held in state, so the retry button re-sends the same four
       // booleans. Nothing is re-asked.

@@ -170,7 +170,7 @@ export function neededFields(channels) {
  * @param {Record<string, unknown>} [state.defaults]  what this artisan said on past products
  * @param {Record<string, unknown>} [state.answers]   what they have said so far this session
  * @param {string[]} [state.channels]                 channel ids we intend to publish to
- * @returns {{ field: string, key: string, open: boolean, confirm: string | null }[]}
+ * @returns {{ field: string, key: string, open: boolean, confirm: string | null, fromPrefill: boolean }[]}
  */
 export function plan({ prefill = {}, defaults = {}, answers = {}, channels = [] } = {}) {
   const needed = neededFields(channels);
@@ -186,7 +186,16 @@ export function plan({ prefill = {}, defaults = {}, answers = {}, channels = [] 
         : s.carriesForward && has(defaults, s.field)
           ? defaults[s.field]
           : null;
-      return { field: s.field, key: s.key, open: s.open, confirm: known == null ? null : String(known) };
+      // Which guesser produced it. learning.py scores the vision model and the artisan's
+      // own history separately — a model that is unreliable for this person says nothing
+      // about whether their history is, and averaging the two hides both problems.
+      return {
+        field: s.field,
+        key: s.key,
+        open: s.open,
+        confirm: known == null ? null : String(known),
+        fromPrefill: has(prefill, s.field),
+      };
     })
     .sort((a, b) => bySlot[a.field].rank - bySlot[b.field].rank);
 }
@@ -273,6 +282,15 @@ function demo() {
   assert(
     withPhoto.find((q) => q.field === 'material').confirm === 'cotton',
     'but it arrives as a confirmation rather than an open question',
+  );
+  assert(
+    withPhoto.find((q) => q.field === 'material').fromPrefill === true,
+    'and is marked as the vision model\'s guess, so a wrong one is scored against vision',
+  );
+  assert(
+    plan({ channels: A, defaults: { material: 'cotton' } }).find((q) => q.field === 'material')
+      .fromPrefill === false,
+    'a carried-forward value is scored against history, not against the photo',
   );
 
   // The second product is the whole "grows with you" claim, so it gets its own assertion.

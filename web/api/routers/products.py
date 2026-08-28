@@ -18,7 +18,15 @@ from .. import objectstore
 from ..caching import conditional
 from ..config import settings
 from ..db import get_db
-from ..models import Artisan, InventoryLedger, Product, ProductImage, Upload
+from .. import learning
+from ..models import (
+    Artisan,
+    FieldCorrection,
+    InventoryLedger,
+    Product,
+    ProductImage,
+    Upload,
+)
 from ..security import current_artisan
 
 log = logging.getLogger(__name__)
@@ -176,7 +184,85 @@ def catalog_defaults(
                 out[name] = value
         if len(out) == len(names):
             break
-    return out
+
+    # What we got WRONG, which outranks what they merely said. See learning.py: a value the
+    # artisan typed over the top of ours is the strongest signal about a field we ever get,
+    # and a field we keep having to walk back stops being offered at all — a confirmation
+    # they have learned to reject is worse than the open question it replaced.
+    corrections = [
+        {"field": r.field, "guessed": r.guessed, "corrected": r.corrected, "source": r.source}
+        for r in (
+            db.query(FieldCorrection)
+            .filter(FieldCorrection.artisan_id == artisan.id)
+            .order_by(FieldCorrection.created_at.desc(), FieldCorrection.id)
+            .limit(200)
+            .all()
+        )
+    ]
+    return learning.apply(out, corrections)
+
+
+class CorrectionIn(BaseModel):
+    field: str
+    corrected: str
+    guessed: str | None = None
+    # "prefill" (vision read the photo) or "default" (carried forward). Scored separately,
+    # because a bad vision model and stale history need different fixes.
+    source: str = "default"
+    product_id: str | None = None
+
+
+@router.post("/catalog/corrections")
+def record_correction(
+    body: CorrectionIn,
+    db: Session = Depends(get_db),
+    artisan: Artisan = Depends(current_artisan),
+) -> dict:
+    """Remember that we guessed and the artisan changed it.
+
+    🔑 The half of "the app learns with you" that is worth more than the other half.
+    /catalog/defaults remembers what they SAID; this remembers what we got WRONG, which is a
+    labelled example — guess, truth, and which guesser produced it.
+
+    Fire-and-forget from the app's side and deliberately cheap: it is called from the middle
+    of a correction the artisan is already making, and a failure here must never surface to
+    them. Losing one row costs a little learning; interrupting them to say so costs the
+    correction itself.
+
+    Only fields the cataloguer actually offers are stored. A caller naming something else is
+    either a bug or an attempt to use this as free key/value storage against an artisan's
+    row, and neither should be written.
+    """
+    field = (body.field or "").strip()
+    if field not in learning.CORRECTABLE_FIELDS:
+        raise HTTPException(422, f"not a correctable field: {field!r}")
+
+    corrected = (body.corrected or "").strip()
+    if not corrected:
+        raise HTTPException(422, "corrected value is empty")
+
+    # An unowned product id is dropped rather than refused: the correction is still true and
+    # still worth learning from, and the artisan is mid-flow. Nothing here reads the product,
+    # so a null is harmless -- but storing someone else's id on our row is not.
+    product_id = body.product_id
+    if product_id and db.query(Product.id).filter(
+        Product.id == product_id, Product.artisan_id == artisan.id
+    ).first() is None:
+        product_id = None
+
+    db.add(
+        FieldCorrection(
+            artisan_id=artisan.id,
+            product_id=product_id,
+            field=field,
+            guessed=(body.guessed or None),
+            corrected=corrected[:300],
+            source=body.source if body.source in ("prefill", "default") else "default",
+            craft=artisan.craft,
+        )
+    )
+    db.commit()
+    return {"ok": True}
 
 
 def _own(product_id: str, db: Session, artisan: Artisan) -> Product:

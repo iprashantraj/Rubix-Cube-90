@@ -31,6 +31,15 @@ export type Artisan = {
   display_name?: string | null;
   craft?: string | null;
   pincode?: string | null;
+  /**
+   * Channel ids the artisan told us they already sell on, from /onboard/channels.
+   *
+   * Typed rather than left to the index signature below because it is read on the hot path
+   * in CatalogVoice to decide which questions to ask, and `unknown` there means every
+   * caller casts — which is how a `string` ends up being spread into a channel list and
+   * producing one question per character.
+   */
+  sells_on?: string[];
   [k: string]: unknown;
 };
 

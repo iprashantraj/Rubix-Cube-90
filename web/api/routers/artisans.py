@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from ..channels import registry
 from ..db import get_db
 from ..models import Artisan, Cluster
 from ..security import current_artisan
@@ -26,6 +27,10 @@ class ProfileIn(BaseModel):
     has_gst: bool | None = None
     has_artisan_card: bool | None = None
     intra_state_only: bool | None = None
+    # Channel ids the artisan says they already sell on. Validated against the adapter
+    # registry in update_me rather than typed as an enum here, so adding a channel is
+    # still one file (channels/registry.py) and never two.
+    sells_on: list[str] | None = None
 
 
 @router.get("/me")
@@ -47,6 +52,10 @@ def me(artisan: Artisan = Depends(current_artisan)) -> dict:
             "has_artisan_card": artisan.has_artisan_card,
             "intra_state_only": artisan.intra_state_only,
         },
+        # `or []` because every artisan created before the column existed reads back NULL,
+        # and a caller that has to distinguish NULL from [] to render a list will
+        # eventually forget to. They mean the same thing: we have nothing on file.
+        "sells_on": artisan.sells_on or [],
     }
 
 
@@ -80,6 +89,16 @@ def update_me(
     artisan: Artisan = Depends(current_artisan),
 ) -> dict:
     fields = body.model_dump(exclude_unset=True)
+
+    # Only ids the registry actually knows. A channel list is written straight into a JSON
+    # column and read back later to decide which questions to ask and which rows to draw,
+    # so an unknown string here becomes a channel that can never be published to and a
+    # question nobody can answer. Dropped rather than refused: a newer app offering a
+    # channel this server has not learned yet should still save the ones it does know.
+    if "sells_on" in fields:
+        known = set(registry.ADAPTERS)
+        fields["sells_on"] = sorted({c for c in (fields["sells_on"] or []) if c in known})
+
     for k, v in fields.items():
         setattr(artisan, k, v)
 
