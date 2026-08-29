@@ -447,6 +447,85 @@ async def enhance(
     return job
 
 
+def _source_url(p: Product, artisan: Artisan, db: Session) -> str:
+    """The url the pipeline should read. Extracted so enhance and rerender cannot diverge.
+
+    See the note in `enhance()`: the row carries the 1200px DISPLAY variant, and the gate
+    refuses anything under 1000px on the short side, so processing must be handed the `full`
+    variant instead — signed, because `ai/` holds no S3 credentials and an artisan's
+    full-resolution photograph should not become publicly readable to enhance it.
+    """
+    raw = next((i.url for i in p.images if i.size_variant == "raw"), None)
+    if not raw:
+        raise HTTPException(400, "no raw image")
+    if not objectstore.available():
+        return raw
+    up = db.query(Upload).filter_by(artisan_id=artisan.id, url=raw).first()
+    if up is None:
+        return raw
+    try:
+        return objectstore.signed_url(objectstore.key_for(artisan.id, up.id, "full", public=False))
+    except objectstore.StorageError as e:
+        log.warning("could not sign full variant for %s: %s", up.id, e)
+        return raw
+
+
+class RerenderIn(BaseModel):
+    # "A" removes the background, "B" softens the edge, "C" keeps it. The artisan is the
+    # only one who can see whether the cut-out is right, which is the whole point.
+    tier: str
+
+
+@router.post("/products/{product_id}/rerender")
+async def rerender(
+    product_id: str,
+    body: RerenderIn,
+    db: Session = Depends(get_db),
+    artisan: Artisan = Depends(current_artisan),
+) -> dict:
+    """Replay a stored recipe at a different tier. Asked for in docs/Abhay/REQUEST-STEP5-WEB.md.
+
+    **Synchronous, and deliberately so.** With the mask cached the work is shorter than a
+    round trip — 131ms measured, against 8848ms for a fresh `/enhance` — so a job id and a
+    poll would cost more than they save. This is what makes a tier picker worth building at
+    all: three thumbnails, about 200ms each, instead of twenty seconds to undo one decision.
+
+    🔒 `tier_source` becomes "user" the moment somebody chooses here, and nothing automatic
+    may overrule that later. This route stores whatever the service returns and never
+    recomputes a tier — see `_store_recipe`.
+
+    A product enhanced before the recipe column was filled has `{}`, and the honest answer
+    is a fresh `/enhance` rather than a re-render of nothing.
+    """
+    p = _own(product_id, db, artisan)
+
+    tier = (body.tier or "").strip().upper()
+    if tier not in ("A", "B", "C"):
+        raise HTTPException(400, "tier must be A, B or C")
+
+    if not p.recipe:
+        # 409, not 500: nothing is broken, this product simply predates the recipe system.
+        raise HTTPException(409, "no stored recipe — run /enhance first")
+
+    job = await _ai("/enhance/rerender", {
+        "product_id": p.id,
+        "image_url": _source_url(p, artisan, db),
+        "recipe": p.recipe,
+        "tier": tier,
+        "targets": ["amazon", "gem", "whatsapp"],
+    })
+
+    recipe = job.get("recipe")
+    if isinstance(recipe, dict) and recipe.get("mask_version"):
+        p.recipe = recipe
+        p.mask_version = recipe["mask_version"]
+        db.commit()
+
+    # Same republish as the poll path: the AI service writes to its own disk, and a WebView
+    # cannot open a path on the AI box.
+    return _publish_results(job, p, artisan, db)
+
+
 @router.get("/enhance/{job_id}")
 async def enhance_status(
     job_id: str,
@@ -466,10 +545,39 @@ async def enhance_status(
     if owner is None:
         raise HTTPException(404, "unknown job")
     job = await _ai_get(f"/enhance/{job_id}")
-    return _publish_results(job, owner, artisan)
+    _store_recipe(job, owner, db)
+    return _publish_results(job, owner, artisan, db)
 
 
-def _publish_results(job: dict, product: Product, artisan: Artisan) -> dict:
+def _store_recipe(job: dict, product: Product, db: Session) -> None:
+    """Keep the recipe the pipeline just computed. Asked for in docs/Abhay/REQUEST-STEP5-WEB.md.
+
+    Every `done` body carries one, and until this existed it was computed, returned and
+    thrown away — so the `recipe` column added in migration c3a71f0d5e42 stayed empty and
+    `POST /enhance/rerender` had nothing to replay. It still worked; it just fell back to a
+    full segmentation pass, which measured 8848ms against 131ms for a replay.
+
+    🔒 `tier_source` is the one field only this side can wreck.
+
+    It reads "auto" until a person changes the tier, then "user". Once an artisan has
+    overruled the confidence score, nothing automatic may quietly overrule them back — so
+    this stores what the service returned and never recomputes a tier. Any future batch job
+    or migration that re-renders on their behalf has to carry the field through unchanged.
+
+    Silent on anything unexpected: a malformed recipe costs a fast re-render, and that is
+    not worth failing a poll the app depends on to show the artisan their photo.
+    """
+    if job.get("status") != "done":
+        return
+    recipe = job.get("recipe")
+    if not isinstance(recipe, dict) or not recipe.get("mask_version"):
+        return
+    product.recipe = recipe
+    product.mask_version = recipe["mask_version"]
+    db.commit()
+
+
+def _publish_results(job: dict, product: Product, artisan: Artisan, db: Session) -> dict:
     """Put the pipeline's output somewhere the phone can actually load it.
 
     🐞 `ai/enhance/storage.py` writes each rendered variant to local disk and returns
@@ -516,7 +624,83 @@ def _publish_results(job: dict, product: Product, artisan: Artisan) -> dict:
             # prettier picture, never the listing (rule 3).
             log.warning("could not publish %s: %s", src.name, e)
 
+    _record_variants(images, product, db)
     return job
+
+
+# What the pipeline calls a target, and what the rest of the system calls that variant.
+# `whatsapp.py` matches on `social_1080` exactly, and models.py names the other two — so
+# these strings are a contract, not a convention.
+VARIANT_FOR_TARGET = {
+    "amazon": "amazon_2000",
+    "gem": "gem",
+    "whatsapp": "social_1080",
+}
+
+# Which variant a human should be shown when several exist. Square first: it is the one cut
+# to the subject, so it reads at thumbnail size on /products where the original does not.
+PRIMARY_PREFERENCE = ("social_1080", "amazon_2000", "gem", "raw")
+
+
+def _record_variants(images: list, product: Product, db: Session) -> None:
+    """Persist the enhanced renditions as real rows, and promote one to primary.
+
+    🐞 This function is the fix for four bugs that were all the same bug.
+
+    `_publish_results` rewrote the urls INSIDE the job body and wrote nothing to the
+    database. `product_images` therefore only ever held the `raw` row that CaptureReview
+    creates, and `raw` is the artisan's untouched photograph. Consequences, none of which
+    announced themselves:
+
+      * /products showed the original on the dashboard — the uncropped, unlit photo, next
+        to a listing that claims the picture was improved.
+      * `amazon.py`, `flipkart.py` and `ondc.py` read `product.images` and published that
+        same original to the marketplaces.
+      * `whatsapp.py` matches `size_variant == "social_1080"`, which never existed, so
+        WhatsApp got an empty image list every time.
+
+    The pipeline had done all the work and then the results were dropped on the floor.
+
+    Idempotent per (product, variant): polling `/enhance/{job_id}` twice, or re-rendering at
+    a different tier, updates the row in place instead of stacking duplicates that
+    `format_images` would then send three of.
+
+    `is_generated` stays False. These are the artisan's own pixels — segmented, cropped and
+    composited, never fabricated (CLAUDE.md rule 1) — and the adapters that refuse generated
+    images are right to accept these.
+    """
+    written: list[str] = []
+    for img in images:
+        url = img.get("url") or ""
+        # A file:// url is one we failed to publish. Storing it would put a path on the AI
+        # box into a listing, so the raw photo stays primary and the artisan keeps a
+        # working screen.
+        if not url.startswith(("http://", "https://")):
+            continue
+        variant = VARIANT_FOR_TARGET.get(img.get("target") or "", img.get("target") or "out")
+        row = (
+            db.query(ProductImage)
+            .filter_by(product_id=product.id, size_variant=variant)
+            .first()
+        )
+        if row is None:
+            row = ProductImage(product_id=product.id, size_variant=variant)
+            db.add(row)
+        row.url = url
+        row.is_generated = False
+        row.is_primary = False
+        written.append(variant)
+
+    if not written:
+        return
+
+    # Exactly one primary, chosen by preference rather than by whichever row was written
+    # last. Two primaries would make `amazon.py`'s main-image pick non-deterministic.
+    best = next((v for v in PRIMARY_PREFERENCE if v in written), written[0])
+    db.flush()
+    for row in db.query(ProductImage).filter_by(product_id=product.id).all():
+        row.is_primary = row.size_variant == best
+    db.commit()
 
 
 @router.post("/products/{product_id}/prefill")
