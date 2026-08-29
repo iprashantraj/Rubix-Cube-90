@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+  <head><meta charset="UTF-8" /><title>Frame 4 — The photograph</title></head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; background: var(--cream); }
+        #root .phone { left: 1180px; top: 31px; }
+        #root .phone img { position: absolute; inset: 0; }
+        #root .stage-a, #root .stage-b { position: absolute; left: 80px; top: 0; width: 1020px; height: 1080px; }
+        #root .lbl { position: absolute; top: 200px; }
+        #root .head { position: absolute; top: 262px; width: 980px; }
+        #root .pill {
+          position: absolute; top: 520px; display: inline-flex; align-items: center; gap: 18px;
+          padding: 22px 34px; border-radius: 9999px; background: var(--coral); color: var(--cream);
+          font: 500 30px/1 var(--sans);
+        }
+        #root .pill .hi { font-family: var(--deva); font-size: 34px; }
+        #root .pill.green { background: var(--ok); }
+        #root .pair { position: absolute; top: 420px; left: 0; }
+        #root .plate { position: relative; width: 470px; }
+        #root .plate .box {
+          position: relative; width: 470px; height: 470px; overflow: hidden;
+          border: 1px solid var(--hair); border-radius: 8px; background: #fff;
+        }
+        #root .plate img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        #root .plate .cap { position: relative; margin-top: 20px; height: 34px; }
+        #root .plate .capline { position: absolute; left: 0; top: 0; white-space: nowrap; }
+        #root .wipe { position: absolute; inset: 0; background: var(--coral); transform-origin: left center; }
+        #root .after { position: absolute; inset: 0; }
+        #root .chips { position: absolute; top: 976px; left: 0; display: flex; gap: 14px; }
+      </style>
+
+      <div id="root" data-composition-id="image" data-width="1920" data-height="1080">
+        <div class="phone" id="im-phone">
+          <img id="im-dark" src="assets/shots/02-camera-dark.png" alt="" />
+          <img id="im-green" src="assets/shots/03-camera-green.png" alt="" />
+        </div>
+
+        <!-- Movement A — the phone coaches the shot -->
+        <div class="stage-a" id="im-a">
+          <div class="lbl t-kicker">✱ On the phone</div>
+          <div class="head"><span class="mask"><span class="t-headline" id="im-ah">It coaches the shot before it is taken.</span></span></div>
+          <div class="pill" id="im-pill-red"><span class="hi">रोशनी में लाएं</span><span>bring it into the light</span></div>
+          <div class="pill green" id="im-pill-green"><span>shutter armed · the gate agrees</span></div>
+        </div>
+
+        <!-- Movement B — the server does the work -->
+        <div class="stage-b" id="im-b">
+          <div class="lbl t-kicker">✱ On the server</div>
+          <div class="head"><span class="mask"><span class="t-headline" id="im-bh">Then the server does the work.</span></span></div>
+          <div class="pair">
+            <div class="plate">
+              <div class="box">
+                <img src="assets/pot-original.png" alt="" />
+                <div class="after" id="im-after"><img src="assets/pot-cutout.png" alt="" /></div>
+                <div class="wipe" id="im-wipe"></div>
+              </div>
+              <div class="cap">
+                <span class="capline t-mono-up" id="im-cap-a">As photographed</span>
+                <span class="capline t-mono-up coral" id="im-cap-b">As listed · real BiRefNet output</span>
+              </div>
+            </div>
+          </div>
+          <div class="chips">
+            <span class="chip" id="im-k1">Background removed</span>
+            <span class="chip" id="im-k2">Framed</span>
+            <span class="chip" id="im-k3">Every channel's size</span>
+          </div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          const scope = '[data-composition-id="image"] ';
+          const q = (s) => document.querySelector(scope + s);
+          const tl = gsap.timeline({ paused: true });
+
+          // Starting states that the framework does not own.
+          gsap.set([q("#im-b"), q("#im-green"), q("#im-pill-green"), q("#im-cap-b")], { autoAlpha: 0 });
+          gsap.set(q("#im-after"), { clipPath: "inset(0 100% 0 0)" });
+
+          tl.fromTo(q("#im-ah"), { yPercent: 110 }, { yPercent: 0, duration: 0.8, ease: "power3.out" }, 0.2)
+            .fromTo(q("#im-pill-red"), { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.6 }, 1.0)
+
+            // The gate decides. Only the ring colour changes on the plate.
+            .to(q("#im-green"), { autoAlpha: 1, duration: 0.45, ease: "power1.inOut" }, 3.0)
+            .to(q("#im-pill-red"), { autoAlpha: 0, duration: 0.3 }, 3.0)
+            .to(q("#im-pill-green"), { autoAlpha: 1, duration: 0.4 }, 3.25)
+
+            // Hand over to the server half.
+            .to(q("#im-a"), { autoAlpha: 0, duration: 0.5 }, 4.5)
+            .to(q("#im-b"), { autoAlpha: 1, duration: 0.01 }, 5.1)
+            .fromTo(q("#im-bh"), { yPercent: 110 }, { yPercent: 0, duration: 0.8, ease: "power3.out" }, 5.2)
+
+            // The wipe leaves the real cutout behind it.
+            .fromTo(q("#im-wipe"), { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: "power2.in" }, 6.4)
+            .to(q("#im-after"), { clipPath: "inset(0 0% 0 0)", duration: 0.55, ease: "none" }, 6.9)
+            .fromTo(q("#im-wipe"), { transformOrigin: "right center" }, { scaleX: 0, duration: 0.55, ease: "power2.out" }, 6.95)
+
+            .to(q("#im-cap-a"), { autoAlpha: 0, duration: 0.3 }, 6.9)
+            .to(q("#im-cap-b"), { autoAlpha: 1, duration: 0.4 }, 7.1)
+
+            .fromTo(q("#im-k1"), { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.45 }, 9.5)
+            .fromTo(q("#im-k2"), { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.45 }, 9.62)
+            .fromTo(q("#im-k3"), { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.45 }, 9.74);
+
+          window.__timelines["image"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>
