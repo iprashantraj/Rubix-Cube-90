@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+  <head><meta charset="UTF-8" /><title>Frame 6 — The price</title></head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; background: var(--cream); }
+        #root .phone { left: 1180px; top: 31px; }
+        #root .kicker { position: absolute; left: 80px; top: 110px; }
+        #root .rows { position: absolute; left: 80px; top: 180px; width: 940px; }
+        #root .row { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 0; }
+        #root .row .l { font: 500 26px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+        #root .row .v { font: 400 56px/1 var(--serif); color: var(--ink); }
+        #root .floorline { width: 940px; height: 1px; background: var(--hair-strong); transform-origin: left center; }
+        #root .floor { display: flex; align-items: baseline; justify-content: space-between; padding-top: 26px; }
+        #root .floor .l { font: 500 26px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--coral); }
+        #root .floor .v { font: 400 80px/1 var(--serif); color: var(--ink); }
+        #root .band { position: absolute; left: 80px; top: 782px; width: 940px; }
+        #root .bar { position: relative; height: 78px; border-radius: 6px; background: rgba(28,25,23,0.10); transform-origin: left center; }
+        #root .bar .ends { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; }
+        #root .bar .ends span { font: 500 26px/1 var(--mono); color: var(--muted); }
+        #root .bandcap { margin-top: 16px; }
+        #root .mark { position: absolute; left: 120px; top: -134px; text-align: center; width: 240px; }
+        #root .mark .v { font: 400 84px/1 var(--serif); color: var(--coral); }
+        #root .mark .l { font: 500 24px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--coral); margin-top: 8px; }
+        #root .mark .stem { width: 2px; height: 26px; background: var(--coral); margin: 10px auto 0; }
+        #root .closer { position: absolute; left: 80px; top: 940px; width: 980px; }
+      </style>
+
+      <div id="root" data-composition-id="price" data-width="1920" data-height="1080">
+        <div class="phone"><img src="assets/shots/08-price.png" alt="" /></div>
+
+        <div class="kicker t-kicker" id="pc-kicker">✱ Arithmetic, not a guess</div>
+
+        <div class="rows">
+          <div class="row" id="pc-r1"><span class="l">Material</span><span class="v">₹<span class="num" data-to="380">0</span></span></div>
+          <div class="row" id="pc-r2"><span class="l">Her hours · cluster wage rate</span><span class="v">₹<span class="num" data-to="640">0</span></span></div>
+          <div class="row" id="pc-r3"><span class="l">Margin</span><span class="v">₹<span class="num" data-to="160">0</span></span></div>
+          <div class="floorline" id="pc-line"></div>
+          <div class="floor" id="pc-floor"><span class="l">Floor</span><span class="v">₹1180</span></div>
+        </div>
+
+        <div class="band">
+          <div class="bar" id="pc-bar">
+            <div class="ends"><span>₹1300</span><span>₹2100</span></div>
+            <div class="mark" id="pc-mark" data-layout-allow-overflow>
+              <div class="v">₹1450</div>
+              <div class="stem"></div>
+              <div class="l">Suggested</div>
+            </div>
+          </div>
+          <div class="bandcap t-mono-up" id="pc-bandcap">What comparable work actually sells for</div>
+        </div>
+
+        <div class="closer t-lead" id="pc-closer">
+          Comparables may raise it. Never below what the work cost her.
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          const scope = '[data-composition-id="price"] ';
+          const q = (s) => document.querySelector(scope + s);
+          const tl = gsap.timeline({ paused: true });
+
+          gsap.set([q("#pc-floor"), q("#pc-mark")], { autoAlpha: 0 });
+
+          const countUp = (row, at) => {
+            const el = row.querySelector(".num");
+            const to = Number(el.dataset.to);
+            const o = { n: 0 };
+            tl.fromTo(row, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.4 }, at);
+            tl.to(o, {
+              n: to, duration: 0.7, ease: "power2.out", snap: { n: 1 },
+              onUpdate: () => { el.textContent = String(Math.round(o.n)); },
+            }, at);
+          };
+
+          tl.fromTo(q("#pc-kicker"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 0);
+          countUp(q("#pc-r1"), 0.2);
+          countUp(q("#pc-r2"), 0.8);
+          countUp(q("#pc-r3"), 1.4);
+
+          tl.fromTo(q("#pc-line"), { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: "power2.inOut" }, 2.4)
+            .fromTo(q("#pc-floor"), { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.6, ease: "power3.out" }, 2.7)
+            .fromTo(q("#pc-bar"), { scaleX: 0 }, { scaleX: 1, duration: 0.9, ease: "power2.inOut" }, 3.6)
+            .fromTo(q("#pc-bandcap"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 4.4)
+            .fromTo(q("#pc-mark"), { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.7, ease: "power3.out" }, 5.4)
+            .fromTo(q("#pc-closer"), { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 6.4);
+
+          window.__timelines["price"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

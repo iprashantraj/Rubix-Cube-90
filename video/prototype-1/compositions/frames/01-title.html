@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+  <head><meta charset="UTF-8" /><title>Frame 1 — Problem statement card</title></head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; background: var(--cream); }
+        #root .kicker { position: absolute; left: 80px; top: 120px; }
+        #root .num { position: absolute; left: 74px; top: 176px; }
+        #root .title { position: absolute; left: 80px; top: 456px; width: 1500px; }
+        #root .title .mask + .mask { margin-top: 6px; }
+        #root .rule { position: absolute; left: 80px; top: 780px; width: 1760px; }
+        #root .foot { position: absolute; left: 80px; top: 824px; }
+        #root .foot div + div { margin-top: 14px; }
+        #root .edge { position: absolute; right: 80px; top: 120px; text-align: right; }
+      </style>
+
+      <div id="root" data-composition-id="title" data-width="1920" data-height="1080">
+        <div class="kicker t-kicker" id="ti-kicker">✱ Smart India Hackathon · Problem statement</div>
+
+        <div class="num">
+          <span class="mask"><span class="t-display-cover coral" id="ti-num" data-layout-allow-overlap>26090</span></span>
+        </div>
+
+        <div class="title">
+          <span class="mask"><span class="t-headline" id="ti-l1">AI-driven market linkage and smart cataloging</span></span>
+          <span class="mask"><span class="t-headline" id="ti-l2">for marginalized artisans</span></span>
+        </div>
+
+        <div class="rule" id="ti-rule"></div>
+
+        <div class="foot" id="ti-foot">
+          <div class="t-mono-up">Ministry of Social Justice and Empowerment</div>
+          <div class="t-mono-up">Category: Software · Theme: Heritage &amp; Culture</div>
+        </div>
+
+        <div class="edge t-mono-up" id="ti-edge">90 seconds</div>
+      </div>
+
+      <script>
+        (function () {
+          const tl = gsap.timeline({ paused: true });
+          const q = (s) => document.querySelector('[data-composition-id="title"] ' + s);
+
+          tl.fromTo(q("#ti-kicker"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: "power2.out" }, 0)
+            .fromTo(q("#ti-edge"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, ease: "power2.out" }, 0.2)
+            .fromTo(q("#ti-num"), { yPercent: 110 }, { yPercent: 0, duration: 0.9, ease: "power3.out" }, 0.5)
+            .fromTo(q("#ti-l1"), { yPercent: 110 }, { yPercent: 0, duration: 0.8, ease: "power3.out" }, 1.4)
+            .fromTo(q("#ti-l2"), { yPercent: 110 }, { yPercent: 0, duration: 0.8, ease: "power3.out" }, 1.58)
+            .fromTo(q("#ti-rule"), { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power2.inOut" }, 2.4)
+            .fromTo(q("#ti-foot"), { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out" }, 2.6);
+
+          window.__timelines["title"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>
