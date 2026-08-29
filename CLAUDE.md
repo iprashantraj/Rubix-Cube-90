@@ -90,8 +90,18 @@ needed yet and says so.
 
 Three stages inside that sequence are still unwritten and are **skipped explicitly**, with
 every response naming them: `white_balance()`, `tone()`, `denoise_sharpen()`. Colour is the
-significant absence. F2 (`/catalog`) and F3 (`/price`) are still stubs, so the app's
-`enhance.failed` degrade path remains the common path for everything except images.
+significant absence.
+
+**F2 and F3 are no longer stubs.** `/catalog/interpret` turns one spoken sentence into one
+field value, `/catalog/harvest` fills whatever other slots that same sentence happened to
+contain, and `/catalog` writes the listing once and then lets `ai/catalog/seo.py` — pure and
+deterministic — cut it to each channel's real limits. An unreachable model never raises:
+`compose_fallback` builds the listing from the artisan's own answers and marks it
+`confidence: 0`. `/catalog/prefill`, the vision-only pre-fill, is the one piece still
+unwritten. `/price` is deterministic end to end — cost floor, cluster wage rate, channel
+MRP, comparables that may only raise the suggestion — and refuses with 422 when there is
+neither a material cost nor labour hours, because a floor of ₹0 clamps nothing while
+sounding authoritative.
 
 The job table is process-local (`ai/enhance/jobs.py`): one worker thread, because one GPU.
 Restarting the service loses in-flight jobs and their ids. `docs/decisions.md` #2's Redis+RQ
