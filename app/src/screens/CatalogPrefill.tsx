@@ -7,6 +7,13 @@ import { Screen, BigButton, Card, YesNo, Spinner } from '../ui/kit';
 import { IconRetry } from '../ui/icons';
 
 /**
+ * Below this, the guess is not spoken at all. Tuned against the two ends we have measured
+ * rather than picked round: an underexposed pot reads 0.35 and a well-lit saree 0.95, and
+ * the failure this guards is silent — a wrong guess confirmed by a yes nobody meant.
+ */
+const PREFILL_MIN_CONFIDENCE = 0.5;
+
+/**
  * /catalog/prefill — the wait, the colour lock, and the vision shortcut. Spec §5.6, §6.4.
  *
  * Three things happen here, strictly one at a time (design law rule 4):
@@ -129,7 +136,13 @@ export default function CatalogPrefill() {
     try {
       const p = await api.post(`/products/${productId}/prefill`, {});
       const words = [p.title ?? p.category, p.material].filter(Boolean).join(', ');
-      if (words) {
+      // A weak guess is worse than no guess. "Sahi hai?" invites a yes, and someone who
+      // did not hear it clearly gives one — so a guess we do not believe would put a
+      // detail nobody checked onto the listing under their apparent confirmation. Below
+      // the threshold we simply ask the questions, which is what we did before this
+      // endpoint existed. The server reports its own confidence honestly: a dark,
+      // underexposed pot came back at 0.35 and a clear saree at 0.95.
+      if (words && (p.confidence ?? 0) >= PREFILL_MIN_CONFIDENCE) {
         useDraft.getState().setPrefill(p);
         setGuess(words);
         return setStep('guess');

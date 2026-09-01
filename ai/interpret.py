@@ -531,7 +531,10 @@ async def interpret(req: dict) -> dict:
     return validate(content, payload)
 
 
-async def _call_model(system: str, user: str, max_tokens: int = 400) -> str:
+async def _call_model(
+    system: str, user: str, max_tokens: int = 400, image_data_url: str | None = None,
+    model: str | None = None,
+) -> str:
     """One turn in, the message content out. Shared by interpret(), harvest() and /catalog.
 
     `max_tokens` is a parameter because the three callers want different sizes and the
@@ -547,12 +550,23 @@ async def _call_model(system: str, user: str, max_tokens: int = 400) -> str:
     model list, and reading `reasoning` when `content` comes back null under a tight token
     budget. Two copies would drift and one of them would silently lose a fix.
     """
+    chosen = model or MODEL
     body = {
-        "model": MODEL,
-        "models": [MODEL, FALLBACK_MODEL],
+        "model": chosen,
+        # No second choice when the caller named a model: the fallback is text-only, and
+        # sending an image to it would fail in a way that reads like the picture's fault.
+        "models": [chosen] if model else [MODEL, FALLBACK_MODEL],
         "messages": [
             {"role": "system", "content": system},
-            {"role": "user", "content": user},
+            {"role": "user", "content": (
+                user if image_data_url is None else
+                # The multimodal shape. A data URL rather than the storage url on purpose:
+                # `file://` and a private bucket are both unreachable from OpenRouter, and
+                # handing a third party a signed url to our raw uploads would be a worse
+                # answer than sending the pixels we already had to read anyway.
+                [{"type": "text", "text": user},
+                 {"type": "image_url", "image_url": {"url": image_data_url}}]
+            )},
         ],
         "temperature": 0,
         "max_tokens": max_tokens,
