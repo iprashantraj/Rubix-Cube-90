@@ -1,5 +1,8 @@
 fastapi
 uvicorn[standard]
+# service.py loads ai/.env. Arrives via uvicorn[standard] too; named here because
+# depending on a transitive dependency for a startup step is how it goes missing.
+python-dotenv
 pydantic
 pillow
 opencv-python-headless

@@ -489,9 +489,14 @@ async def interpret(req: dict) -> dict:
         # exactly like "the model did not understand the sentence".
         "max_tokens": 400,
         "response_format": {"type": "json_object"},
-        # Ask OpenRouter to suppress reasoning where the provider supports it. Ignored by
-        # models that have none, which is the case we actually want.
-        "reasoning": {"exclude": True},
+        # `exclude` alone only HIDES the reasoning — the provider still generates it and
+        # still bills the tokens against max_tokens. On deepseek-v4-flash that produced a
+        # roughly one-in-three failure: the whole budget spent thinking, finish_reason
+        # "length", content empty, and the caller unable to tell that apart from a model
+        # that had nothing to say. `enabled: False` stops it being generated at all.
+        # 8 runs, 0 failures, ~150 completion tokens each, against 1400-and-empty before.
+        # Ignored by models that have no reasoning mode, which is the case we want anyway.
+        "reasoning": {"enabled": False, "exclude": True},
     }
 
     try:
@@ -526,8 +531,16 @@ async def interpret(req: dict) -> dict:
     return validate(content, payload)
 
 
-async def _call_model(system: str, user: str) -> str:
-    """One turn in, the message content out. Shared by interpret() and harvest().
+async def _call_model(system: str, user: str, max_tokens: int = 400) -> str:
+    """One turn in, the message content out. Shared by interpret(), harvest() and /catalog.
+
+    `max_tokens` is a parameter because the three callers want different sizes and the
+    single 400 was silently wrong for one of them. interpret() and harvest() return one
+    short JSON object and 400 is generous. /catalog returns a whole listing — a title, an
+    English description, a Hindi description, a short description, keywords and bullets —
+    and Devanagari costs two to three times the tokens of the same sentence in English. It
+    ran out mid-object on every request with a full field set, the JSON never closed, and
+    the caller could not tell truncation apart from a model that was simply unreachable.
 
     Extracted when harvest arrived rather than copied, because the interesting parts of this
     body are all decisions — temperature 0 so a confirmation means something, the fallback
@@ -542,9 +555,9 @@ async def _call_model(system: str, user: str) -> str:
             {"role": "user", "content": user},
         ],
         "temperature": 0,
-        "max_tokens": 400,
+        "max_tokens": max_tokens,
         "response_format": {"type": "json_object"},
-        "reasoning": {"exclude": True},
+        "reasoning": {"enabled": False, "exclude": True},
     }
 
     try:
