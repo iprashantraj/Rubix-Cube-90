@@ -1,8 +1,9 @@
 # F2 — the first live run, and the four faults it found
 
 **Date:** 2026-09-01 · **Touches:** `ai/service.py`, `ai/interpret.py`, `ai/catalog/describe.py`,
-`ai/requirements.txt`, `web/api/.env.example`, `web/api/routers/voice.py`, `scripts/f2_smoke.py`
-**Branch:** `f2-cataloger-fixes` · **Commits:** `f160307`, `7766f58` · **PR:** #1
+`ai/requirements.txt`, `ai/contracts.md`, `web/api/.env.example`, `web/api/routers/voice.py`,
+`ai/catalog/prefill.py`, `app/src/screens/CatalogPrefill.tsx`, `scripts/f2_smoke.py`
+**Branch:** `f2-cataloger-fixes` · **Commits:** `f160307`, `7766f58`, `d3c8b98` · **PR:** #1
 
 **Not F3.** F2 is not my feature; this is the record of taking it from *written* to *observed*,
 because nobody had ever run it against a live model and the difference turned out to matter.
@@ -188,6 +189,71 @@ Two smaller observations, neither a bug:
 
 ---
 
+## `/catalog/prefill`, built
+
+The last unwritten piece of F2. Everything around it was already here and waiting:
+`products.py` picks the primary image and proxies, `CatalogPrefill.tsx` calls it and speaks
+the guess, and `slots.js` drops a question for every field it fills — with a **passing test
+for that case**, written against a stub that returned nothing. Only the function that looks
+at the picture was missing.
+
+Two real photographs, taken from the segmentation fixtures:
+
+```
+saree   what: saree with tassels · material: silk · colour: red
+        technique: brocade · category: textiles.saree      confidence 0.95
+
+pot     what: vessel · material: clay · colour: black
+        technique: hand-thrown · category: pottery.vessel  confidence 0.35
+```
+
+The pot is the underexposed fixture, and 0.35 is the model being honest about a photograph it
+can barely see. That gap between 0.35 and 0.95 is the whole reason the number is usable.
+
+### What it may look at, and why that is the design
+
+Rule 1 is sharper here than anywhere else in the app. Everywhere else a fabricated detail has
+to survive the artisan reading it. Here it arrives as a **spoken question they answer yes to**,
+so an invented material lands on a listing wearing their own confirmation. That is worse than
+no pre-fill at all.
+
+So it returns only what a photograph can carry — the object, its colour, and a material or
+technique when the weave is legible — and `null` for everything else. Null is a good answer
+and the prompt says so in those words.
+
+Size, weight, stock, lead time, cost and hours are refused **twice**: the prompt says they are
+not visible, and `validate_prefill` drops them even when a model volunteers them. The second
+guard is not belt and braces — `time` and `cost` are inputs to F3's price floor, so a
+hallucinated "three days" does not merely read wrong, it moves money.
+
+### The confidence threshold
+
+`PREFILL_MIN_CONFIDENCE = 0.5` in `CatalogPrefill.tsx`. Below it nothing is spoken and the
+interview runs exactly as it did before this endpoint existed. *"Sahi hai?"* invites a yes,
+and someone who did not hear it clearly gives one — so a guess we do not believe would put an
+unchecked detail on the listing under an apparent confirmation. The pot at 0.35 stays silent.
+
+### The storage problem, solved by not having it
+
+Pixels go to the model as a downscaled JPEG **data URL**, not a url. `file://` and a private
+bucket are both unreachable from OpenRouter, and handing a third party a signed link to our
+raw uploads would be a worse answer than sending bytes we already had to read.
+`storage.open_image` does the reading, so every scheme it supports works and `s3://` stays the
+one explicit refusal — surfaced as the same 502 `/enhance` uses.
+
+Error paths, all exercised: 400 with no `image_url`; 502 and `message_key: enhance.failed` for
+`s3://`, a missing file and a non-image; and an unreachable model returns **every field null
+rather than an error**, because "ask the questions" is the correct outcome there.
+
+### Found by running it
+
+A model wrote `confidence` to sixty decimal places, spent the token budget on digits, and
+returned an object that never closed — the pot came back empty on the first attempt. The
+prompt now asks for two decimals and the budget is 600. Fourth instance in this feature of the
+same lesson: **this was not visible from reading the code.**
+
+---
+
 ## The check that exists now
 
 `scripts/f2_smoke.py` runs the whole chain and **prints rather than asserts**, deliberately:
@@ -219,7 +285,9 @@ says which key is absent, and a 404 says the running uvicorn predates the route.
 | `/api/tts` — server voice | ✅ fixed, `bulbul:v2` was deprecated and every call a 400 |
 | `/api/asr` — Hindi and Odia, full chain | ⚠️ runs, but on a **synthetic** clip only |
 | **A human recording** | ❌ still never run — the last real unknown |
-| `/catalog/prefill` — vision pre-fill | ❌ `NotImplementedError` |
+| `/catalog/prefill` — vision pre-fill | ✅ live, 2 real photos, honest confidence |
+| `prefill.py` self-check — 11 assertions, plain `python3` | ✅ no venv, key or network |
+| `/catalog/prefill` against S3-backed storage | ❌ nothing produces those urls yet |
 | Tests on any F2 network path | ❌ none exist |
 
 `describe.py` and `seo.py` self-checks are pure-function only — they never touch a model.
@@ -238,9 +306,10 @@ The smoke script prints for a human and asserts nothing. So the text path is **o
    transcript — which puts a Devanagari title on an Amazon listing.
 3. **Widen the OpenRouter data policy and set `OPENROUTER_MODEL` to an instruct model.**
    `enabled: false` neutralised the symptom; the model is still the wrong shape for the job.
-4. **`/catalog/prefill`.** Not before the above — the flow already degrades past it correctly,
-   and building the optional shortcut while the mandatory path is unverified optimises the
-   wrong half.
+4. **Tune `PREFILL_MIN_CONFIDENCE` against more than two photographs.** 0.5 sits between the
+   only two points measured — 0.35 and 0.95 — which is a defensible place to start and not
+   evidence. The correction rates already recorded with `source: "prefill"` are what should
+   move it.
 5. **A test on the `/catalog` contract**, the way `test_service.py` covers `/enhance`.
 
 ---
