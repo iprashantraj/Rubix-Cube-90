@@ -99,8 +99,37 @@ have. This endpoint is for the sentences the table cannot reach, which is most o
 
 ## POST /catalog/prefill  — vision only, before the artisan speaks
 
-Request `{ "image_url": "..." }` → same fields, all nullable. The artisan corrects by voice
-instead of describing from scratch.
+Request `{ "image_url": "..." }`. The artisan corrects a guess by voice instead of
+describing from scratch, and every field filled here is a question `catalog/slots.js` then
+does not ask.
+
+Response — every field nullable, and null is a good answer.
+```json
+{
+  "what": "saree with tassels",
+  "material": "silk",
+  "colour": "red",
+  "technique": "brocade",
+  "category": "textiles.saree",
+  "title": "red silk saree with tassels",
+  "keywords": ["saree", "tassels", "red", "silk", "brocade"],
+  "confidence": 0.95
+}
+```
+
+**Only what a photograph can carry.** No size, weight, stock, lead time, cost or hours —
+not merely because they are unknowable from an image, but because `time` and `cost` feed
+F3's price floor, and a hallucinated "three days" moves real money. Any such field a model
+volunteers is dropped rather than forwarded.
+
+`confidence` is load-bearing and honestly reported: an underexposed pot returns 0.35, a
+well-lit saree 0.95. The app speaks nothing below `PREFILL_MIN_CONFIDENCE` (0.5) because
+"sahi hai?" invites a yes, and a guess confirmed by a yes nobody meant is worse than the
+plain question it replaced.
+
+An unreachable model is **not** an error here: the response is every field null, which the
+app reads as "ask the questions". `502` with `message_key: enhance.failed` is reserved for
+an unreadable source — our missing file must never be reported as their bad photograph.
 
 ---
 

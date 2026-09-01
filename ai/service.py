@@ -20,6 +20,12 @@ from pydantic import BaseModel
 
 from enhance import jobs, pipeline, storage
 from catalog import seo
+from catalog.prefill import (
+    SYSTEM_PROMPT_PREFILL,
+    VISION_MODEL,
+    to_data_url,
+    validate_prefill,
+)
 from catalog.describe import (
     SYSTEM_PROMPT_DESCRIBE,
     build_describe_payload,
@@ -208,9 +214,55 @@ async def catalog(req: dict) -> dict:
 
 
 @app.post("/catalog/prefill")
-def catalog_prefill(req: dict):
-    """F2. Vision-only pre-fill, before the artisan speaks."""
-    raise NotImplementedError
+async def catalog_prefill(req: dict) -> dict:
+    """F2. Vision-only pre-fill, before the artisan speaks. See contracts.md.
+
+    The app speaks this back as a question — "Sambalpuri saree lag rahi hai, cotton ki.
+    Sahi hai?" — so every field here is one the artisan will be asked to confirm, and
+    `catalog/slots.js` drops the matching question from the interview. That is the whole
+    value and also the whole risk: a wrong guess arrives wearing their "yes".
+
+    Three outcomes, and the app treats them differently:
+      200 with fields         a guess worth speaking
+      200 with all nulls      nothing legible in the photograph -> ask the questions
+      502                     our file is unreadable, not their photograph's fault
+
+    Never 500, and never an exception the caller has to interpret. `CatalogPrefill.tsx`
+    catches everything and walks on to /catalog/voice, so the worst case here costs the
+    shortcut and never the listing.
+    """
+    image_url = req.get("image_url")
+    if not image_url:
+        raise HTTPException(400, "image_url is required")
+
+    try:
+        image = storage.open_image(image_url)
+    except storage.SourceError as e:
+        # Same split as /enhance: our missing file must not be reported as their bad
+        # photograph, or they retake a picture that was fine.
+        raise HTTPException(502, {"reason": str(e), "message_key": "enhance.failed"}) from e
+
+    try:
+        content = await call_model(
+            SYSTEM_PROMPT_PREFILL,
+            "Look at this photograph and fill what you can actually see.",
+            # 400 was enough for the JSON and not for the day a model wrote `confidence`
+            # to sixty decimal places, spent the budget on digits, and returned an object
+            # that never closed. The prompt asks for two decimals; this is the belt.
+            max_tokens=600,
+            image_data_url=to_data_url(image),
+            model=VISION_MODEL,
+        )
+    except InterpretError as e:
+        # An empty guess, not a failure. The interview covers everything this would have
+        # filled, which is exactly what happened before this endpoint existed.
+        log.warning("prefill unavailable, returning an empty guess: %s", e)
+        return validate_prefill("")
+
+    guess = validate_prefill(content)
+    if not guess["confidence"]:
+        log.info("prefill read nothing usable from %s", image_url)
+    return guess
 
 
 class PriceRequest(BaseModel):
