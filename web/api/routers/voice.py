@@ -73,11 +73,20 @@ SARVAM_LANGS = {"hi": "hi-IN", "or": "od-IN", "en": "en-IN"}
 # device voice wins and that fix holds. The moment a key is added, English TTS silently
 # reverts. Route English TTS past Sarvam then, or accept the regression knowingly.
 
-# bulbul:v2 is the current TTS model; `anushka` is one of its supported speakers. Both are
+# bulbul:v3 is the current TTS model; `ritu` is one of its supported speakers. Both are
 # constants rather than settings because changing them changes how the app *sounds*, which
 # is a product decision, not a deployment one.
-SARVAM_TTS_MODEL = "bulbul:v2"
-SARVAM_TTS_SPEAKER = "anushka"
+#
+# This was `bulbul:v2` / `anushka`, and both had to move together on 2026-09-01: Sarvam
+# answers v2 with "Model 'bulbul:v2' has been deprecated. Please use 'bulbul:v3' instead",
+# and v3 rejects `anushka` outright — the speaker lists do not overlap. Every spoken prompt
+# in the app was therefore a 400, turned into a 503 by the handler below, which the client
+# correctly read as "provider is down" and answered with the device voice. The voice layer
+# never went silent, which is why a deprecation that broke server TTS entirely was invisible
+# from the phone. Same failure shape as the `saarika:v2` ASR note above: a wrong string in
+# one constant, hidden by a fallback doing its job.
+SARVAM_TTS_MODEL = "bulbul:v3"
+SARVAM_TTS_SPEAKER = "ritu"
 
 # saaras:v3 is the documented default; saaras:v4 also exists. Named explicitly rather than
 # omitted so an upstream default change cannot silently alter transcript quality under us.
