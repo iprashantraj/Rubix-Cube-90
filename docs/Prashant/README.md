@@ -221,7 +221,7 @@ every number above.
 | 2026-08-28 | [`research/RESULTS.md`](../../research/RESULTS.md) | **The verdict** — 144 listings collected, and what they say about the floor |
 | 2026-08-28 | [F3-floor-persistence-and-clusters.md](F3-floor-persistence-and-clusters.md) | Two written safeguards that did nothing: an unsaved floor, and cluster wage rates no artisan could reach |
 | 2026-08-28 | [dev-setup-and-theme-check.md](dev-setup-and-theme-check.md) | Not F3: a self-check that failed on every page load, and the undocumented Python 3.10+ requirement |
-| 2026-09-01 | [F2-first-live-run.md](F2-first-live-run.md) | Not F3: F2's first run against a live model — four faults in a row on one code path, all degrading silently into the fallback, and a prompt that fabricated |
+| 2026-09-01 | [F2-first-live-run.md](F2-first-live-run.md) | Not F3: F2's first run against a live model — four faults in a row on one code path, all degrading silently into the fallback, a prompt that fabricated, and a **server TTS that had been dead behind its own fallback** |
 
 Commits: `c2c58dd` · `819aa3c` · `8633a0c` · `6e955bc` · `cb63fa2`, plus `40fb279` (a missing migration
 that broke `POST /api/products` on any fresh clone) and `7b4101d`.
