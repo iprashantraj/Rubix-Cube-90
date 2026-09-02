@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <head><meta charset="UTF-8" /><title>Frame 5 — The sentence</title></head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; background: var(--cream); }
+        #root .phone { left: 1180px; top: 31px; }
+        #root .kicker { position: absolute; left: 80px; top: 110px; }
+        #root .quote { position: absolute; left: 80px; top: 172px; width: 1000px; }
+        #root .said { font: 400 26px/1 var(--mono); color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 20px; }
+        #root .slots { position: absolute; left: 80px; top: 470px; width: 1000px; }
+        #root .slot {
+          display: flex; align-items: baseline; gap: 26px;
+          border: 1px solid var(--hair); border-radius: 8px; background: #fff;
+          padding: 20px 26px; margin-bottom: 14px;
+          box-shadow: 0 1px 3px rgba(28,25,23,0.06);
+        }
+        #root .slot .f { font: 500 24px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--coral); width: 190px; }
+        #root .slot .v { font: 500 40px/1.2 var(--deva); color: var(--ink); }
+        #root .count { position: absolute; left: 80px; top: 890px; }
+        #root .listing { position: absolute; left: 80px; top: 480px; width: 1000px; }
+        #root .listing .hi { font: 500 46px/1.35 var(--deva); color: var(--ink); }
+        #root .listing .en { font: 400 42px/1.35 var(--sans); color: var(--muted); margin-top: 18px; }
+        #root .listing .lim { margin-top: 34px; }
+      </style>
+
+      <div id="root" data-composition-id="catalog" data-width="1920" data-height="1080">
+        <div class="phone"><img src="assets/shots/06-voice-heard.png" alt="" /></div>
+
+        <div class="kicker t-kicker" id="ca-kicker">✱ One sentence, her own language</div>
+
+        <div class="quote" id="ca-quote">
+          <div class="said">She said, once</div>
+          <div class="t-quote">“यह मिट्टी की सुराही है, हाथ से बनी, अजमेर की, दो लीटर की”</div>
+        </div>
+
+        <div class="slots" id="ca-slots">
+          <div class="slot" id="ca-s1"><span class="f">Material</span><span class="v">मिट्टी</span></div>
+          <div class="slot" id="ca-s2"><span class="f">Size</span><span class="v">2 लीटर</span></div>
+          <div class="slot" id="ca-s3"><span class="f">Time</span><span class="v">दो दिन</span></div>
+          <div class="slot" id="ca-s4"><span class="f">Special</span><span class="v">हाथ से बनी, अजमेर की</span></div>
+        </div>
+
+        <div class="count t-mono-up" id="ca-count">One answer · four slots filled · nothing asked twice</div>
+
+        <div class="listing" id="ca-listing">
+          <div class="hi">हस्तनिर्मित मिट्टी की सुराही, 2 लीटर — अजमेर</div>
+          <div class="en">Handmade terracotta water pot with brass tap, 2 L — Ajmer, Rajasthan</div>
+          <div class="lim t-mono-up">Trimmed to each channel's real limit · GeM 200 · ONDC 100</div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          const scope = '[data-composition-id="catalog"] ';
+          const q = (s) => document.querySelector(scope + s);
+          const tl = gsap.timeline({ paused: true });
+
+          gsap.set(q("#ca-listing"), { autoAlpha: 0 });
+
+          tl.fromTo(q("#ca-kicker"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 0)
+            .fromTo(q("#ca-quote"), { autoAlpha: 0, y: 22 }, { autoAlpha: 1, y: 0, duration: 0.9, ease: "power3.out" }, 0.3)
+            .fromTo(q("#ca-s1"), { autoAlpha: 0, y: -18 }, { autoAlpha: 1, y: 0, duration: 0.5, ease: "power3.out" }, 2.0)
+            .fromTo(q("#ca-s2"), { autoAlpha: 0, y: -18 }, { autoAlpha: 1, y: 0, duration: 0.5, ease: "power3.out" }, 2.3)
+            .fromTo(q("#ca-s3"), { autoAlpha: 0, y: -18 }, { autoAlpha: 1, y: 0, duration: 0.5, ease: "power3.out" }, 2.6)
+            .fromTo(q("#ca-s4"), { autoAlpha: 0, y: -18 }, { autoAlpha: 1, y: 0, duration: 0.5, ease: "power3.out" }, 2.9)
+            .fromTo(q("#ca-count"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6 }, 4.6)
+
+            // The slots retire; the composed listing takes their place.
+            .to(q("#ca-slots"), { autoAlpha: 0, duration: 0.6 }, 6.4)
+            .to(q("#ca-count"), { autoAlpha: 0, duration: 0.6 }, 6.4)
+            .fromTo(q("#ca-listing"), { autoAlpha: 0, y: 26 }, { autoAlpha: 1, y: 0, duration: 0.9, ease: "power3.out" }, 6.9);
+
+          window.__timelines["catalog"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

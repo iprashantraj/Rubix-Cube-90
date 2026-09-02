@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+  <head><meta charset="UTF-8" /><title>Frame 7 — Three promises</title></head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; background: var(--cream); }
+        #root .kicker { position: absolute; left: 80px; top: 110px; }
+        #root .head { position: absolute; left: 74px; top: 178px; }
+        #root .head .t-display { font-size: 108px; }
+        #root .cards { position: absolute; left: 80px; top: 400px; display: flex; gap: 24px; }
+        #root .card { width: 420px; height: 524px; display: flex; flex-direction: column; }
+        #root .card .n { font: 500 24px/1 var(--mono); letter-spacing: 0.14em; color: var(--coral); margin-bottom: 26px; }
+        #root .card .b { margin-top: 18px; flex: 1; font-size: 26px; }
+        #root .card .proof {
+          font: 500 22px/1.4 var(--mono); color: var(--coral);
+          border-top: 1px solid var(--hair); padding-top: 20px;
+        }
+        #root .phone { left: 1490px; top: 400px; width: 292px; height: 632px; border-radius: 28px; }
+      </style>
+
+      <div id="root" data-composition-id="usp" data-width="1920" data-height="1080">
+        <div class="kicker t-kicker" id="us-kicker">✱ What makes it different</div>
+        <div class="head"><span class="mask"><span class="t-display" id="us-head">Three promises the code keeps.</span></span></div>
+
+        <div class="cards">
+          <div class="card" id="us-c1">
+            <div class="n">01</div>
+            <div class="t-card-title">Nothing is invented.</div>
+            <div class="b t-body">No generative background, no super-resolution, no relighting. What ships is what she photographed — because she takes the return if it isn't.</div>
+            <div class="proof">no diffusion in the pipeline</div>
+          </div>
+          <div class="card" id="us-c2">
+            <div class="n">02</div>
+            <div class="t-card-title">Every failure speaks.</div>
+            <div class="b t-body">If the model is unreachable the listing is still built — from her own answers — and the app says so out loud. Losing the AI never costs the listing.</div>
+            <div class="proof">compose_fallback · confidence: 0</div>
+          </div>
+          <div class="card" id="us-c3">
+            <div class="n">03</div>
+            <div class="t-card-title">Her colour, her consent.</div>
+            <div class="b t-body">Correcting light moves colour, and only the person holding the object can say if it is still true. Nothing publishes until she confirms.</div>
+            <div class="proof">colour_confirmed · the publish gate</div>
+          </div>
+        </div>
+
+        <div class="phone" id="us-phone"><img src="assets/shots/05-colour-confirm.png" alt="" /></div>
+      </div>
+
+      <script>
+        (function () {
+          const scope = '[data-composition-id="usp"] ';
+          const q = (s) => document.querySelector(scope + s);
+          const tl = gsap.timeline({ paused: true });
+
+          gsap.set(q("#us-phone"), { autoAlpha: 0 });
+          [1, 2, 3].forEach((i) => gsap.set(q("#us-c" + i + " .proof"), { autoAlpha: 0 }));
+
+          tl.fromTo(q("#us-kicker"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 0)
+            .fromTo(q("#us-head"), { yPercent: 110 }, { yPercent: 0, duration: 0.8, ease: "power3.out" }, 0.2);
+
+          [1, 2, 3].forEach((i, k) => {
+            const at = 0.9 + k * 1.6;
+            tl.fromTo(q("#us-c" + i), { autoAlpha: 0, y: 34 }, { autoAlpha: 1, y: 0, duration: 0.7, ease: "power3.out" }, at)
+              .fromTo(q("#us-c" + i + " .proof"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.4 }, at + 0.75);
+          });
+
+          // Promise three gets the actual screen beside it, then leaves.
+          tl.fromTo(q("#us-phone"), { autoAlpha: 0, y: 30 }, { autoAlpha: 1, y: 0, duration: 0.9, ease: "power3.out" }, 6.0)
+            .to(q("#us-phone"), { autoAlpha: 0, duration: 0.8, ease: "power2.in" }, 12.2);
+
+          window.__timelines["usp"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>
