@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApiQuery } from '../api/useApi';
+import { ServerImage } from '../api/useDisplayImage';
 import type { Me, Order, Product } from '../api/types';
 import { useSession } from '../store';
 import { t, bcp47 } from '../i18n/index';
@@ -263,7 +264,7 @@ export default function Home() {
               <button key={p.id} className="shot" onClick={() => nav(`/products/${p.id}`)}>
                 <span className="shot__img">
                   {p.image ? (
-                    <img src={p.image} alt={p.title ?? ''} loading="lazy" />
+                    <ServerImage src={p.image} alt={p.title ?? ''} loading="lazy" />
                   ) : (
                     <span className="shot__none">
                       <IconPhoto size={34} aria-hidden />

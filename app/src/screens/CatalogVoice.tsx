@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useDraft, useSession } from '../store';
 import { api } from '../api/client';
 import { useApiQuery } from '../api/useApi';
+import { useDisplayImage } from '../api/useDisplayImage';
 import { useVoice } from '../voice/useVoice';
 import { record, transcribe, type RecHandle } from '../voice/listen';
 import { interpretAnswer } from '../voice/interpret';
@@ -114,11 +115,10 @@ function targetChannels(channels: Channel[] | undefined, sellsOn: string[] | und
 /**
  * Same rule as /catalog/prefill: the AI service returns `s3://` URLs (ai/contracts.md),
  * which no <img> renders, and on a dev box there is no enhancement at all. The artisan's
- * own photo is always displayable and is always the same object.
+ * own photo is always displayable and is always the same object. `useDisplayImage` holds
+ * that rule now, plus the WebView mixed-content fix — read its docstring before changing
+ * either screen's image handling.
  */
-function displayable(url?: string | null, fallback?: string | null) {
-  return url && /^https?:/.test(url) ? url : fallback;
-}
 
 export default function CatalogVoice() {
   const nav = useNavigate();
@@ -128,6 +128,10 @@ export default function CatalogVoice() {
   const images = useDraft((s) => s.images);
   const answer = useDraft((s) => s.answer);
   const prefill = useDraft((s) => s.prefill);
+
+  // Up here rather than next to the <img> that uses it: two `<Navigate>` early returns sit
+  // between, and a hook after a conditional return is a hook that sometimes does not run.
+  const image = useDisplayImage(images?.[0]?.url, photoUrl);
 
   /*
    * What this artisan already told us on earlier products, so we stop asking for it.
@@ -398,8 +402,6 @@ export default function CatalogVoice() {
     if (v) answer(q.field, v);
     next();
   }
-
-  const image = displayable(images?.[0]?.url, photoUrl);
 
   /*
    * A slot we believe we already know: from the photo, or from what this artisan said on an

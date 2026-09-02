@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { useDisplayImage } from '../api/useDisplayImage';
 import { useDraft } from '../store';
 import { useVoice } from '../voice/useVoice';
 import { Screen, BigButton, Card, YesNo, Spinner } from '../ui/kit';
@@ -37,10 +38,10 @@ const MAX_POLLS = 30; // ~60s. Beyond that the job is not coming back on this sc
  * The AI service returns `s3://` URLs (ai/contracts.md), which no <img> can render, and on
  * a dev box there is no enhancement at all. The local photo is always displayable and is
  * always the same product, so it is the fallback for both cases.
+ *
+ * `useDisplayImage` also carries the fix for plain-http server images being auto-upgraded
+ * and dropped inside the WebView — see the docstring there, it is not obvious.
  */
-function displayable(url?: string | null, fallback?: string | null) {
-  return url && /^https?:/.test(url) ? url : fallback;
-}
 
 export default function CatalogPrefill() {
   const nav = useNavigate();
@@ -104,6 +105,10 @@ export default function CatalogPrefill() {
     };
   }, [step, draft.enhanceJobId, say]);
 
+  // Above the early return, and it has to stay there: hooks may not be called
+  // conditionally, and `productId` is null on a cold open of this route.
+  const image = useDisplayImage(draft.images?.[0]?.url, draft.photoUrl);
+
   if (!productId) return <Navigate to="/camera" replace />;
 
   async function confirmColour() {
@@ -147,8 +152,6 @@ export default function CatalogPrefill() {
     say('colour.retake');
     nav('/camera');
   }
-
-  const image = displayable(draft.images?.[0]?.url, draft.photoUrl);
 
   if (step === 'enhancing') {
     return (
