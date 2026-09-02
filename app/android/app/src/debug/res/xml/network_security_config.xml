@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG BUILDS ONLY. Gradle merges `src/debug/res` over `src/main/res` for the debug
+  variant and nothing else, so `assembleRelease` still gets the loopback-only file in
+  `src/main/res/xml/` and the field posture that file argues for is unchanged. Do not
+  move this into src/main.
+
+  Why it exists: `adb reverse tcp:8000 tcp:8000` only works while the phone is on the
+  USB cable. Untethered, the app has to reach the dev API at the laptop's LAN address
+  over plain HTTP, and src/main's config blocks exactly that on purpose.
+
+  Why `true` and not the laptop's IP as a <domain>: DHCP reassigns it, and a stale IP
+  here fails as "no network" on a phone with full signal — the single most confusing
+  failure this app can produce, per app/src/api/client.ts. A debug APK that is already
+  android:debuggable is not the place to spend a re-flash on that.
+
+  Point the app at the laptop with VITE_API_BASE in app/.env.local — see .env.example.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -50,6 +50,37 @@ adb shell pm grant in.gov.sih.kaarigar android.permission.RECORD_AUDIO
 Set `VITE_API_BASE` (see `.env.example`) when the API is anywhere other than a
 laptop-tethered `adb reverse` — a LAN box, staging, a tunnel.
 
+#### Off the cable
+
+`adb reverse` only holds while the USB cable does, which rules out handing the phone to
+someone and letting them walk around with it. To run untethered, put the phone and the
+laptop on the same WiFi and point the app at the laptop's LAN address instead of loopback:
+
+```bash
+ip -4 -o addr show scope global                     # or `ipconfig getifaddr en0` on macOS
+echo 'VITE_API_BASE=http://<that-ip>:8000/api' > .env.local
+
+cd ../web/api && .venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000   # not 127.0.0.1
+```
+
+Then rebuild — `VITE_API_BASE` is read at build time, so an edit to `.env.local` does not
+reach an APK that is already installed:
+
+```bash
+npm run build && npx cap sync android
+cd android && ./gradlew assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+`ai/` does not need to be reachable from the phone. The app only ever talks to `web/api`,
+which calls `ai/` on `localhost:8001` from the server side.
+
+Two things that make this look like a broken app rather than a misconfigured one:
+
+- **A stale IP.** DHCP reassigns the laptop's address and every request fails as
+  `net.offline` — full signal, "no network". Re-check the IP before blaming anything else.
+- **The host firewall.** `ufw`/`firewalld` will drop the phone's connection to :8000
+  silently. `curl http://<that-ip>:8000/health` from another machine says which it is.
+
 > **If the app says "no network" on a phone with full signal, this is why.** Every `fetch`
 > failure becomes `net.offline`, and a request that 404s against the WebView's own assets
 > fails exactly like an unreachable server. Check `adb reverse` is up and the API is
@@ -58,6 +89,11 @@ laptop-tethered `adb reverse` — a LAN box, staging, a tunnel.
 Cleartext to `localhost` is allowed by `android/app/src/main/res/xml/network_security_config.xml`
 and **only** to loopback — nothing else on the network can reach it, so it cannot quietly
 become a plaintext channel in the field.
+
+The LAN case above needs more than loopback, so it gets its own config in
+`android/app/src/debug/res/xml/`, which Gradle merges over `src/main/res` for the **debug
+variant only**. `assembleRelease` still gets the loopback-only file, and the argument above
+holds unchanged for anything that ships.
 
 > Anything that calls the API must go through `apiUrl()` in `src/api/client.js`, including
 > modules that use bare `fetch`. A hardcoded `'/api/...'` works in the browser and then

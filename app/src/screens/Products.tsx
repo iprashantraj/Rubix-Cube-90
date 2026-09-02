@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
+import { ServerImage } from '../api/useDisplayImage';
 import { useApiQuery } from '../api/useApi';
 import type { Product } from '../api/types';
 import { useVoice } from '../voice/useVoice';
@@ -85,7 +86,7 @@ export default function Products() {
         return (
           <button key={p.id} className="chan" onClick={() => nav(`/products/${p.id}`)}>
             {p.image ? (
-              <img
+              <ServerImage
                 src={p.image}
                 alt=""
                 width={56}
