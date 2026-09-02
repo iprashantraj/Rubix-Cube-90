@@ -55,7 +55,13 @@ def _fixture(name):
 
 
 def test_health():
-    assert _client().get("/health").json() == {"ok": True}
+    body = _client().get("/health").json()
+    assert body["ok"] is True
+    # `warm` reports the prewarm thread: null while loading, the device once ready, and it
+    # stays null here because TestClient's lifespan gives the thread no time to finish.
+    # Asserted on `ok` alone rather than the whole dict so adding a diagnostic field is not
+    # a breaking change — the app only ever reads `ok`.
+    assert "warm" in body
 
 
 def test_missing_image_url_is_400():
