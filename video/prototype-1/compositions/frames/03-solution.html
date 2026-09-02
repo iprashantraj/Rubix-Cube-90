@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+  <head><meta charset="UTF-8" /><title>Frame 3 — The app</title></head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; background: var(--cream); }
+        #root .kicker { position: absolute; left: 80px; top: 200px; }
+        #root .head { position: absolute; left: 74px; top: 300px; width: 1060px; }
+        #root .head .t-display { font-size: 100px; }
+        #root .head .mask + .mask { margin-top: 4px; }
+        #root .chips { position: absolute; left: 80px; top: 700px; display: flex; gap: 16px; }
+        #root .note { position: absolute; left: 80px; top: 820px; width: 940px; }
+        #root .phone { left: 1180px; top: 31px; }
+      </style>
+
+      <div id="root" data-composition-id="solution" data-width="1920" data-height="1080">
+        <div class="kicker t-kicker" id="so-kicker">✱ Kaarigar</div>
+
+        <div class="head">
+          <span class="mask"><span class="t-display" id="so-l1">The business manager</span></span>
+          <span class="mask"><span class="t-display" id="so-l2">she cannot hire.</span></span>
+        </div>
+
+        <div class="chips">
+          <span class="chip" id="so-c1">One phone</span>
+          <span class="chip" id="so-c2">One voice</span>
+          <span class="chip" id="so-c3">No English</span>
+        </div>
+
+        <div class="note t-lead" id="so-note">
+          From the object in her hand to a live listing on a government marketplace.
+        </div>
+
+        <div class="phone" id="so-phone"><img src="assets/shots/01-home.png" alt="" /></div>
+      </div>
+
+      <script>
+        (function () {
+          const scope = '[data-composition-id="solution"] ';
+          const q = (s) => document.querySelector(scope + s);
+          const tl = gsap.timeline({ paused: true });
+
+          tl.fromTo(q("#so-phone"), { autoAlpha: 0, y: 60 }, { autoAlpha: 1, y: 0, duration: 1.0, ease: "power3.out" }, 0)
+            .fromTo(q("#so-kicker"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 0.3)
+            .fromTo(q("#so-l1"), { yPercent: 110 }, { yPercent: 0, duration: 0.8, ease: "power3.out" }, 0.6)
+            .fromTo(q("#so-l2"), { yPercent: 110 }, { yPercent: 0, duration: 0.8, ease: "power3.out" }, 0.78)
+            .fromTo(q("#so-c1"), { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.45 }, 1.8)
+            .fromTo(q("#so-c2"), { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.45 }, 1.92)
+            .fromTo(q("#so-c3"), { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.45 }, 2.04)
+            .fromTo(q("#so-note"), { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.7 }, 2.4);
+
+          window.__timelines["solution"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

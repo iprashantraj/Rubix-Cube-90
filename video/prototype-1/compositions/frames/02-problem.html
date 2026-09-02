@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+  <head><meta charset="UTF-8" /><title>Frame 2 — Fifty-one weeks offline</title></head>
+  <body>
+    <template>
+      <style>
+        #root { position: absolute; inset: 0; background: var(--cream); }
+        #root .kicker { position: absolute; left: 80px; top: 110px; }
+        #root .head { position: absolute; left: 74px; top: 320px; }
+        #root .strip {
+          position: absolute; left: 80px; top: 560px;
+          display: flex; gap: 8px; align-items: flex-end;
+          transform-origin: left top;
+        }
+        #root .cell { width: 18px; height: 44px; background: rgba(28,25,23,0.12); border-radius: 2px; }
+        #root .cell.on { background: var(--coral); }
+        #root .under { position: absolute; left: 80px; top: 664px; width: 1300px; }
+        #root .asks { position: absolute; left: 80px; top: 420px; width: 1180px; }
+        #root .ask {
+          display: flex; align-items: baseline; gap: 32px;
+          padding: 22px 0; border-top: 1px solid var(--hair);
+        }
+        #root .ask .n { font: 500 24px/1 var(--mono); color: var(--coral); width: 46px; }
+        #root .ask .w { font: 400 60px/1.1 var(--serif); color: var(--ink); }
+        #root .closer { position: absolute; left: 80px; top: 810px; width: 1400px; }
+        #root .closer .cr { width: 240px; height: 2px; background: var(--coral); margin-bottom: 22px; }
+      </style>
+
+      <div id="root" data-composition-id="problem" data-width="1920" data-height="1080">
+        <div class="kicker t-kicker" id="pr-kicker">✱ The year, as it is now</div>
+
+        <div class="head"><span class="mask"><span class="t-display" id="pr-head">One week a year.</span></span></div>
+
+        <div class="strip" id="pr-strip"></div>
+
+        <div class="under t-lead" id="pr-under">
+          The mela. The other fifty-one, she is offline.
+        </div>
+
+        <div class="asks" id="pr-asks">
+          <div class="ask" id="pr-a1"><span class="n">01</span><span class="w">A clean photograph</span></div>
+          <div class="ask" id="pr-a2"><span class="n">02</span><span class="w">An English description</span></div>
+          <div class="ask" id="pr-a3"><span class="n">03</span><span class="w">A defensible price</span></div>
+        </div>
+
+        <div class="closer" id="pr-closer">
+          <div class="cr"></div>
+          <div class="t-lead">In a language, and a literacy, she does not have.</div>
+        </div>
+      </div>
+
+      <script>
+        (function () {
+          const scope = '[data-composition-id="problem"] ';
+          const q = (s) => document.querySelector(scope + s);
+          const strip = q("#pr-strip");
+          for (let i = 0; i < 52; i++) {
+            const d = document.createElement("div");
+            d.className = "cell" + (i === 8 ? " on" : "");
+            strip.appendChild(d);
+          }
+
+          const tl = gsap.timeline({ paused: true });
+          const cellOn = strip.children[8];
+
+          tl.fromTo(q("#pr-kicker"), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5 }, 0)
+            .fromTo(strip, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.8, ease: "power2.out" }, 0.1)
+            .fromTo(cellOn, { height: 44 }, { height: 62, duration: 0.5, ease: "power3.out" }, 0.9)
+            .fromTo(q("#pr-head"), { yPercent: 110 }, { yPercent: 0, duration: 0.8, ease: "power3.out" }, 1.4)
+            .fromTo(q("#pr-under"), { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 0.6 }, 2.2)
+
+            // Movement B — the strip retires upward, the three asks arrive.
+            .to(q("#pr-head"), { autoAlpha: 0, duration: 0.5 }, 7.6)
+            .to(q("#pr-under"), { autoAlpha: 0, duration: 0.5 }, 7.6)
+            .to(strip, { scale: 0.42, y: -396, duration: 0.7, ease: "power2.inOut" }, 7.6)
+            .fromTo(q("#pr-a1"), { autoAlpha: 0, y: 26 }, { autoAlpha: 1, y: 0, duration: 0.55, ease: "power3.out" }, 8.4)
+            .fromTo(q("#pr-a2"), { autoAlpha: 0, y: 26 }, { autoAlpha: 1, y: 0, duration: 0.55, ease: "power3.out" }, 9.2)
+            .fromTo(q("#pr-a3"), { autoAlpha: 0, y: 26 }, { autoAlpha: 1, y: 0, duration: 0.55, ease: "power3.out" }, 10.0)
+            .fromTo(q("#pr-closer"), { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.8, ease: "power2.out" }, 11.2);
+
+          window.__timelines["problem"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>
