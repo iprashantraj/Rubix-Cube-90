@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
@@ -23,13 +26,60 @@ from interpret import interpret as run_interpret
 from price import comps
 from price.compute import quote
 
-app = FastAPI(title="Rubix AI", version="0.1.0")
 log = logging.getLogger(__name__)
+
+_warm_device: str | None = None
+
+
+def _prewarm() -> None:
+    """Load BiRefNet and burn one inference, so the first artisan does not pay for it.
+
+    Imported here rather than at module scope on purpose: `enhance/segmenter.py` says its
+    import is lazy because it pulls in torch, and doing that at startup would put a
+    multi-second import in front of every endpoint in this file, including the ones that
+    have nothing to do with images.
+    """
+    global _warm_device
+    try:
+        from enhance import segmenter
+
+        t = time.perf_counter()
+        _warm_device = segmenter.prewarm()
+        log.info("segmenter warm on %s in %.0fms", _warm_device, (time.perf_counter() - t) * 1000)
+    except Exception:
+        # Rule 3: degrade and speak. No GPU, no weights on disk and no network to fetch them,
+        # or torch not installed — none of that may stop `/price`, `/catalog` or the gate from
+        # serving. The first `/enhance` simply pays the load itself, exactly as it did before
+        # this existed, and `load()` holds a lock so nothing double-loads.
+        log.warning("segmenter prewarm failed; first /enhance pays the load", exc_info=True)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Warm the model in the background at startup.
+
+    A BACKGROUND thread, not an await. Blocking startup would be simpler, but it would also
+    mean a box with no GPU cannot serve pricing or cataloguing — one feature's cold start
+    taking down four. Uvicorn binds immediately and the model lands ~4s later, which is
+    still long before anyone has photographed anything.
+
+    Daemon, so Ctrl-C during that window exits rather than hanging on a torch import.
+    """
+    threading.Thread(target=_prewarm, name="segmenter-prewarm", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Rubix AI", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    """`warm` is null while the model is still loading, and false if prewarm gave up.
+
+    Worth reading before a demo: false means enhancement still works but the first photo
+    will stall for about four seconds.
+    """
+    return {"ok": True, "warm": _warm_device}
 
 
 @app.post("/catalog/interpret")

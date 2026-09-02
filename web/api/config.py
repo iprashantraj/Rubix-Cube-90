@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # separate deploy units and the AI box has a GPU that this one does not.
     ai_base_url: str = "http://localhost:8001"
 
+    # Where `ai/enhance/storage.py` writes rendered variants. Same env var and same default
+    # as that module reads, so there is one setting with two readers rather than two copies
+    # that can drift. Only consulted when S3 is unconfigured — see `_publish_local`.
+    ai_output_dir: str = "/tmp/rubix-ai-out"
+
     # Where uploaded chunks are assembled and kept.
     #
     # Local filesystem, not S3, and deliberately so for now: `ai/` has to be able to open

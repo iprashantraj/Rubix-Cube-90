@@ -12,6 +12,7 @@ from urllib.parse import unquote, urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -480,6 +481,7 @@ class RerenderIn(BaseModel):
 async def rerender(
     product_id: str,
     body: RerenderIn,
+    request: Request,
     db: Session = Depends(get_db),
     artisan: Artisan = Depends(current_artisan),
 ) -> dict:
@@ -523,12 +525,13 @@ async def rerender(
 
     # Same republish as the poll path: the AI service writes to its own disk, and a WebView
     # cannot open a path on the AI box.
-    return _publish_results(job, p, artisan, db)
+    return _publish_results(job, p, artisan, db, str(request.base_url))
 
 
 @router.get("/enhance/{job_id}")
 async def enhance_status(
     job_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     artisan: Artisan = Depends(current_artisan),
 ) -> dict:
@@ -546,7 +549,7 @@ async def enhance_status(
         raise HTTPException(404, "unknown job")
     job = await _ai_get(f"/enhance/{job_id}")
     _store_recipe(job, owner, db)
-    return _publish_results(job, owner, artisan, db)
+    return _publish_results(job, owner, artisan, db, str(request.base_url))
 
 
 def _store_recipe(job: dict, product: Product, db: Session) -> None:
@@ -577,7 +580,9 @@ def _store_recipe(job: dict, product: Product, db: Session) -> None:
     db.commit()
 
 
-def _publish_results(job: dict, product: Product, artisan: Artisan, db: Session) -> dict:
+def _publish_results(
+    job: dict, product: Product, artisan: Artisan, db: Session, base_url: str = ""
+) -> dict:
     """Put the pipeline's output somewhere the phone can actually load it.
 
     🐞 `ai/enhance/storage.py` writes each rendered variant to local disk and returns
@@ -597,14 +602,31 @@ def _publish_results(job: dict, product: Product, artisan: Artisan, db: Session)
     this is `ai/enhance/storage.py` publishing directly (`contracts.md` already specifies
     `s3://out/...` as the output), and that needs storage credentials in `ai/.env`, which it
     does not have today. Move it there before this is deployed anywhere real.
-    """
-    if not objectstore.available():
-        return job
 
+    Two modes, and "no S3" is no longer "do nothing":
+
+    🐞 Until 2026-09-02 this opened with `if not objectstore.available(): return job`, so
+    turning S3 off for demo speed silently restored the exact bug the paragraphs above
+    describe — urls stayed `file://`, `_record_variants` never ran, and the artisan was shown
+    their own untouched photo under a caption saying it had been improved. The pipeline had
+    done every bit of the work. Deleting credentials should cost latency, not correctness,
+    so the unconfigured path now serves the same bytes off local disk instead.
+    """
     images = job.get("images")
     if not images:
         return job
 
+    if objectstore.available():
+        _publish_s3(images, product, artisan)
+    else:
+        _publish_local(images, base_url)
+
+    _record_variants(images, product, db)
+    return job
+
+
+def _publish_s3(images: list, product: Product, artisan: Artisan) -> None:
+    """Copy each rendered variant into the public bucket and rewrite the url to point there."""
     for img in images:
         url = img.get("url") or ""
         if not url.startswith("file://"):
@@ -624,8 +646,68 @@ def _publish_results(job: dict, product: Product, artisan: Artisan, db: Session)
             # prettier picture, never the listing (rule 3).
             log.warning("could not publish %s: %s", src.name, e)
 
-    _record_variants(images, product, db)
-    return job
+
+def _publish_local(images: list, base_url: str) -> None:
+    """No S3: hand out urls that read the AI service's output through `GET /api/enhanced`.
+
+    Nothing is copied. Both services already share a filesystem in dev — that is the premise
+    the whole `file://` contract rests on — so the fastest correct move is to serve those
+    exact bytes rather than round-trip them through object storage. This is the mode the demo
+    runs in, and it is chosen for latency: an upload no longer waits on Supabase.
+
+    ⚠️ CEILING: these urls are only valid from a machine that can reach THIS api, and they
+    embed whichever host the caller used — which on a phone hotspot is a DHCP lease that
+    `docs/app/START-SERVER.md` says moves within the hour. `_record_variants` writes them to
+    the database, so a row published in this mode goes stale when the laptop's address
+    changes, where an S3 url would not. Fine for a demo, wrong for anything durable. Turning
+    S3 back on and re-running `/enhance` overwrites the rows with permanent urls.
+
+    `base_url` is empty when a caller has no request to derive it from; there is no useful
+    url to build then, so the `file://` url stays and the app degrades to the original photo
+    exactly as it does on a failed S3 publish.
+    """
+    if not base_url:
+        return
+    root = Path(settings().ai_output_dir).resolve()
+    for img in images:
+        url = img.get("url") or ""
+        if not url.startswith("file://"):
+            continue
+        src = Path(unquote(urlparse(url).path)).resolve()
+        # The AI service is trusted, but this path ends up in a url that anyone may request
+        # back, so it is confined to the output tree here as well as at the read side.
+        if not src.is_relative_to(root) or not src.is_file():
+            log.warning("enhanced file missing or outside %s: %s", root, src)
+            continue
+        img["url"] = f"{base_url.rstrip('/')}/api/enhanced/{src.relative_to(root).as_posix()}"
+
+
+@router.get("/enhanced/{path:path}")
+def enhanced_file(path: str) -> FileResponse:
+    """Serve one rendered variant off local disk. Only used when S3 is unconfigured.
+
+    🔒 Deliberately unauthenticated, and that is not an oversight. The app renders this in an
+    `<img>`, which cannot carry a bearer token, so this has to be readable the same way the
+    public S3 bucket is in the other mode. What guards it is the same thing that guards that
+    bucket: the path contains a `product_id`, a uuid4 hex from `models._id()`, so 122 bits
+    stand between a stranger and one artisan's product photo. Enumeration is not available.
+
+    🔒 Confined to `ai_output_dir` by resolving first and checking containment after.
+    `resolve()` collapses `..` and follows symlinks, so both a traversal and a symlink
+    planted inside the output tree land outside `root` and get the same 404. An absolute
+    `path` is covered too: `root / "/etc/passwd"` is `/etc/passwd` in pathlib, and the
+    containment check is what catches it. Never serve from a joined path without this.
+    """
+    root = Path(settings().ai_output_dir).resolve()
+    src = (root / path).resolve()
+    if not src.is_relative_to(root) or not src.is_file():
+        # One message for "no such file" and for "nice try", so this cannot be used to probe
+        # what exists outside the tree.
+        raise HTTPException(404, "not found")
+    # Immutable for the same reason the S3 objects are: a new render writes a new product or
+    # a new variant name, so a cached copy can never be stale. On a hotspot the re-fetch this
+    # saves is the difference between a demo that feels instant and one that does not.
+    return FileResponse(src, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 # What the pipeline calls a target, and what the rest of the system calls that variant.
