@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="1310" viewBox="0 0 1680 1310">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#cbd2d9"/></marker></defs>
+<rect width="1680" height="1310" fill="#fbfcfd"/>
+<text x="64" y="68" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="30" fill="#1f2933" font-weight="600" text-anchor="start" letter-spacing="0">Kaarigar</text>
+<text x="64" y="96" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">A craftsperson photographs what they made, says a few words about it, and it is listed for sale.</text>
+<rect x="1216" y="44" width="400" height="62" rx="10" fill="#ffffff" stroke="#cbd2d9" stroke-width="1.2"/>
+<rect x="1236" y="66" width="26" height="14" rx="4" fill="#ffffff" stroke="#1f2933" stroke-width="1.6"/>
+<text x="1272" y="78" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#1f2933" font-weight="400" text-anchor="start" letter-spacing="0">built and running</text>
+<rect x="1400" y="66" width="26" height="14" rx="4" fill="#fafbfc" stroke="#9aa5b1" stroke-width="1.6" stroke-dasharray="5 4"/>
+<text x="1436" y="78" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">planned</text>
+<rect x="636" y="146" width="408" height="84" rx="12" fill="#ffffff" stroke="#1f2933" stroke-width="1.8"/>
+<text x="840" y="178" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1f2933" font-weight="600" text-anchor="middle" letter-spacing="1.2">WHO ARE YOU?</text>
+<text x="840" y="202" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12.5" fill="#7b8794" font-weight="400" text-anchor="middle" letter-spacing="0">on a phone → artisan   ·   in a browser → officials</text>
+<path d="M 700 230 L 420 292" stroke="#cbd2d9" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<path d="M 980 230 L 1262 292" stroke="#cbd2d9" stroke-width="1.6" fill="none" marker-end="url(#a)"/>
+<rect x="64" y="292" width="700" height="540" rx="18" fill="#fff7ed" stroke="#b45309" stroke-width="1.8"/>
+<text x="96" y="330" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#b45309" font-weight="700" text-anchor="start" letter-spacing="1.6">THE ARTISAN</text>
+<text x="96" y="356" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">Mobile app · voice-first · works for someone who cannot read</text>
+<rect x="96" y="384" width="636" height="54" rx="10" fill="#ffffff" stroke="#e7d4bd" stroke-width="1.4"/>
+<text x="112" y="409" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">1  Sign up</text>
+<text x="112" y="426" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">phone number, and what they make</text>
+<path d="M 414 438 L 414 444" stroke="#e0d3c2" stroke-width="1.6" fill="none"/>
+<rect x="96" y="444" width="636" height="54" rx="10" fill="#ffffff" stroke="#e7d4bd" stroke-width="1.4"/>
+<text x="112" y="469" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">2  Photograph it</text>
+<text x="112" y="486" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">the phone coaches the shot</text>
+<path d="M 414 498 L 414 504" stroke="#e0d3c2" stroke-width="1.6" fill="none"/>
+<rect x="96" y="504" width="636" height="54" rx="10" fill="#ffffff" stroke="#e7d4bd" stroke-width="1.4"/>
+<text x="112" y="529" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">3  Tidy the photo</text>
+<text x="112" y="546" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">background removed, never invented</text>
+<path d="M 414 558 L 414 564" stroke="#e0d3c2" stroke-width="1.6" fill="none"/>
+<rect x="96" y="564" width="636" height="54" rx="10" fill="#ffffff" stroke="#e7d4bd" stroke-width="1.4"/>
+<text x="112" y="589" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">4  Say what it is</text>
+<text x="112" y="606" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">a few spoken questions, in their language</text>
+<path d="M 414 618 L 414 624" stroke="#e0d3c2" stroke-width="1.6" fill="none"/>
+<rect x="96" y="624" width="636" height="54" rx="10" fill="#ffffff" stroke="#e7d4bd" stroke-width="1.4"/>
+<text x="112" y="649" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">5  See a fair price</text>
+<text x="112" y="666" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">warns them before they sell at a loss</text>
+<path d="M 414 678 L 414 684" stroke="#e0d3c2" stroke-width="1.6" fill="none"/>
+<rect x="96" y="684" width="636" height="54" rx="10" fill="#ffffff" stroke="#e7d4bd" stroke-width="1.4"/>
+<text x="112" y="709" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">6  Send it out</text>
+<text x="112" y="726" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">one press, every marketplace at once</text>
+<rect x="916" y="292" width="700" height="540" rx="18" fill="#fafbfc" stroke="#9aa5b1" stroke-width="1.8" stroke-dasharray="7 6"/>
+<text x="948" y="330" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#9aa5b1" font-weight="700" text-anchor="start" letter-spacing="1.6">OFFICIALS &amp; ONBOARDING AGENCIES</text>
+<text x="948" y="356" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">A separate website. Nothing here is built yet.</text>
+<rect x="948" y="384" width="316" height="52" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="964" y="409" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Did the money arrive</text>
+<text x="964" y="426" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">settlement delays, paid or not</text>
+<rect x="1284" y="384" width="316" height="52" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="1300" y="409" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Why 950 of 1,000 dropped</text>
+<text x="1300" y="426" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">the exact step they gave up at</text>
+<rect x="948" y="446" width="316" height="52" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="964" y="471" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Which sellers are stuck</text>
+<text x="964" y="488" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">and what they are stuck on</text>
+<rect x="1284" y="446" width="316" height="52" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="1300" y="471" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">How many joined</text>
+<text x="1300" y="488" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">and who they are</text>
+<rect x="948" y="508" width="316" height="52" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="964" y="533" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">How many products listed</text>
+<text x="964" y="550" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">the actual output</text>
+<rect x="1284" y="508" width="316" height="52" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="1300" y="533" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Who is still selling</text>
+<text x="1300" y="550" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">active, not just signed up</text>
+<rect x="948" y="570" width="316" height="52" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="964" y="595" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Which regions work</text>
+<text x="964" y="612" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">and which need help</text>
+<rect x="1284" y="570" width="316" height="52" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="1300" y="595" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Which crafts sell</text>
+<text x="1300" y="612" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">by trade</text>
+<rect x="948" y="632" width="316" height="52" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="964" y="657" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Which marketplace pays</text>
+<text x="964" y="674" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">Amazon, GeM, or elsewhere</text>
+<rect x="948" y="762" width="652" height="52" rx="10" fill="#fff5f5" stroke="#e3b7b7" stroke-width="1.4"/>
+<text x="964" y="784" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12.5" fill="#9b2c2c" font-weight="600" text-anchor="start" letter-spacing="0">An agency onboards 1,000 artisans. Fifty reach a live listing.</text>
+<text x="964" y="802" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">Nobody can say what stopped the other 950 — that is what this side is for.</text>
+<path d="M 414 832 L 414 862" stroke="#0f766e" stroke-width="1.6" fill="none"/>
+<path d="M 1266 832 L 1266 862" stroke="#0f766e" stroke-width="1.6" fill="none" stroke-dasharray="5 4"/>
+<rect x="64" y="862" width="1552" height="62" rx="12" fill="#f0fdfa" stroke="#0f766e" stroke-width="1.8"/>
+<text x="840" y="890" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13.5" fill="#0f766e" font-weight="700" text-anchor="middle" letter-spacing="0.8">ONE SHARED DATABASE</text>
+<text x="840" y="910" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="middle" letter-spacing="0">the app writes it, the dashboard reads it — both sides see the same truth</text>
+<text x="64" y="986" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#1f2933" font-weight="700" text-anchor="start" letter-spacing="1.4">WHERE THE PRODUCT ACTUALLY GOES</text>
+<text x="64" y="1010" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">Not all the same. What each one costs the artisan is different, and the app says so before they press anything.</text>
+<rect x="64" y="1038" width="208" height="58" rx="10" fill="#ffffff" stroke="#cfe3df" stroke-width="1.4"/>
+<text x="80" y="1063" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Our own shop</text>
+<text x="80" y="1080" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">live now</text>
+<rect x="288" y="1038" width="208" height="58" rx="10" fill="#ffffff" stroke="#cfe3df" stroke-width="1.4"/>
+<text x="304" y="1063" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">ONDC</text>
+<text x="304" y="1080" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">no paperwork for them</text>
+<rect x="512" y="1038" width="208" height="58" rx="10" fill="#ffffff" stroke="#cfe3df" stroke-width="1.4"/>
+<text x="528" y="1063" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">GeM</text>
+<text x="528" y="1080" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">we make the file</text>
+<rect x="736" y="1038" width="208" height="58" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="752" y="1063" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Amazon</text>
+<text x="752" y="1080" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">needs their account</text>
+<rect x="960" y="1038" width="208" height="58" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="976" y="1063" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Flipkart</text>
+<text x="976" y="1080" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">needs their account</text>
+<rect x="1184" y="1038" width="208" height="58" rx="10" fill="#ffffff" stroke="#9aa5b1" stroke-width="1.4" stroke-dasharray="5 4"/>
+<text x="1200" y="1063" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">Meesho</text>
+<text x="1200" y="1080" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">guided, by hand</text>
+<rect x="1408" y="1038" width="208" height="58" rx="10" fill="#ffffff" stroke="#cfe3df" stroke-width="1.4"/>
+<text x="1424" y="1063" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1f2933" font-weight="500" text-anchor="start" letter-spacing="0">WhatsApp</text>
+<text x="1424" y="1080" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">photo + caption</text>
+<text x="64" y="1150" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">Not built yet: a place for buyers to browse.  ·  Myntra is out — it will not accept an unbranded artisan at all.</text>
+<rect x="64" y="1180" width="1552" height="84" rx="12" fill="#ffffff" stroke="#cbd2d9" stroke-width="1.2"/>
+<text x="88" y="1210" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#1f2933" font-weight="700" text-anchor="start" letter-spacing="0">The rule the whole thing is built on</text>
+<text x="88" y="1234" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#7b8794" font-weight="400" text-anchor="start" letter-spacing="0">The photograph is cleaned, never invented. The price warns before it flatters. Nothing is published until the artisan has confirmed the colour with their own eyes.</text>
+</svg>

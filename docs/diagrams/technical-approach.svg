@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#a0aec0"/></marker></defs>
+<rect width="1920" height="1080" fill="#ffffff"/>
+<rect x="760" y="28" width="400" height="62" rx="10" fill="#f7fafc" stroke="#1a202c" stroke-width="2.2"/>
+<text x="960" y="55" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="16" fill="#1a202c" font-weight="700" text-anchor="middle" letter-spacing="1.2">WHO ARE YOU?</text>
+<text x="960" y="76" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12.5" fill="#718096" font-weight="400" text-anchor="middle" letter-spacing="0">phone → artisan   ·   browser → government or buyer</text>
+<rect x="1560" y="28" width="336" height="62" rx="8" fill="#ffffff" stroke="#a0aec0" stroke-width="1.4"/>
+<rect x="1578" y="46" width="24" height="13" rx="3" fill="#ffffff" stroke="#1a202c" stroke-width="2"/>
+<text x="1612" y="57" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12.5" fill="#1a202c" font-weight="400" text-anchor="start" letter-spacing="0">built and running</text>
+<rect x="1578" y="66" width="24" height="13" rx="3" fill="#f7fafc" stroke="#a0aec0" stroke-width="2" stroke-dasharray="4 3"/>
+<text x="1612" y="77" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12.5" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">designed, not built</text>
+<rect x="48" y="116" width="590" height="760" rx="14" fill="#fff5f5" stroke="#c53030" stroke-width="2.2"/>
+<rect x="68" y="134" width="550" height="48" rx="8" fill="#fed7d7" stroke="#c53030" stroke-width="2"/>
+<text x="343.0" y="158" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#c53030" font-weight="700" text-anchor="middle" letter-spacing="1.4">SELLER  /  ARTISAN</text>
+<text x="343.0" y="176" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="11.5" fill="#718096" font-weight="400" text-anchor="middle" letter-spacing="0">mobile · voice-first</text>
+<rect x="668" y="116" width="590" height="760" rx="14" fill="#faf5ff" stroke="#553c9a" stroke-width="2.2"/>
+<rect x="688" y="134" width="550" height="48" rx="8" fill="#e9d8fd" stroke="#553c9a" stroke-width="2"/>
+<text x="963.0" y="158" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#553c9a" font-weight="700" text-anchor="middle" letter-spacing="1.4">GOVERNMENT</text>
+<text x="963.0" y="176" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="11.5" fill="#718096" font-weight="400" text-anchor="middle" letter-spacing="0">web dashboard</text>
+<rect x="1288" y="116" width="584" height="760" rx="14" fill="#ebf8ff" stroke="#2b6cb0" stroke-width="2.2" stroke-dasharray="8 6"/>
+<rect x="1308" y="134" width="544" height="48" rx="8" fill="#bee3f8" stroke="#2b6cb0" stroke-width="2"/>
+<text x="1580.0" y="158" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#2b6cb0" font-weight="700" text-anchor="middle" letter-spacing="1.4">BUYER</text>
+<text x="1580.0" y="176" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="11.5" fill="#718096" font-weight="400" text-anchor="middle" letter-spacing="0">web · not built yet</text>
+<path d="M 343 90 L 343 116" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<path d="M 963 90 L 963 116" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<path d="M 1580 90 L 1580 116" stroke="#a0aec0" stroke-width="2.2" fill="none" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<rect x="68" y="204" width="550" height="74" rx="10" fill="#ffffff" stroke="#c53030" stroke-width="1.8"/>
+<text x="88" y="234" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">1.  Register &amp; onboard</text>
+<text x="88" y="256" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">phone, craft, which marketplaces they use</text>
+<path d="M 343 278 L 343 312" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<rect x="68" y="312" width="550" height="74" rx="10" fill="#ffffff" stroke="#c53030" stroke-width="1.8"/>
+<text x="88" y="342" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">2.  Capture the product</text>
+<text x="88" y="364" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">the phone coaches the shot before it fires</text>
+<path d="M 343 386 L 343 420" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<rect x="68" y="420" width="550" height="74" rx="10" fill="#ffffff" stroke="#c53030" stroke-width="1.8"/>
+<text x="88" y="450" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">3.  AI cleans the photo</text>
+<text x="88" y="472" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">background removed — never invented</text>
+<path d="M 343 494 L 343 528" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<rect x="68" y="528" width="550" height="74" rx="10" fill="#ffffff" stroke="#c53030" stroke-width="1.8"/>
+<text x="88" y="558" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">4.  Answers a few questions</text>
+<text x="88" y="580" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">spoken, own language, 9 of 200 fields</text>
+<path d="M 343 602 L 343 636" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<rect x="68" y="636" width="550" height="74" rx="10" fill="#ffffff" stroke="#c53030" stroke-width="1.8"/>
+<text x="88" y="666" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">5.  Pricing assistant</text>
+<text x="88" y="688" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">material + labour → a floor it will not go under</text>
+<path d="M 343 710 L 343 744" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<rect x="68" y="744" width="550" height="74" rx="10" fill="#ffffff" stroke="#c53030" stroke-width="1.8"/>
+<text x="88" y="774" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="14.5" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">6.  Confirm &amp; publish</text>
+<text x="88" y="796" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">colour confirmed, then one press</text>
+<rect x="688" y="204" width="550" height="84" rx="10" fill="#ffffff" stroke="#553c9a" stroke-width="1.8"/>
+<text x="708" y="238" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">Total sellers listed</text>
+<text x="708" y="262" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">artisans onboarded, products digitised</text>
+<path d="M 963 288 L 963 334" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<rect x="688" y="334" width="550" height="84" rx="10" fill="#ffffff" stroke="#553c9a" stroke-width="1.8"/>
+<text x="708" y="368" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">Where the sellers drop</text>
+<text x="708" y="392" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">the exact step that stopped them</text>
+<path d="M 963 418 L 963 464" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<rect x="688" y="464" width="550" height="84" rx="10" fill="#ffffff" stroke="#553c9a" stroke-width="1.8"/>
+<text x="708" y="498" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">Region &amp; craft performance</text>
+<text x="708" y="522" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">which districts and trades are working</text>
+<path d="M 963 548 L 963 594" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<rect x="688" y="594" width="550" height="84" rx="10" fill="#e9d8fd" stroke="#553c9a" stroke-width="2.2"/>
+<text x="708" y="628" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">Government action / planning</text>
+<text x="708" y="652" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">where to send the next intervention</text>
+<path d="M 963 678 L 963 724" stroke="#a0aec0" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<rect x="688" y="724" width="550" height="84" rx="10" fill="#e9d8fd" stroke="#553c9a" stroke-width="2.2"/>
+<text x="708" y="758" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">Report generated</text>
+<text x="708" y="782" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">exported, and shareable</text>
+<rect x="1308" y="226" width="544" height="84" rx="10" fill="#ffffff" stroke="#a0aec0" stroke-width="1.8" stroke-dasharray="5 4"/>
+<text x="1328" y="260" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">Finds the product</text>
+<text x="1328" y="284" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">search, or a craft they were looking for</text>
+<path d="M 1580 310 L 1580 356" stroke="#a0aec0" stroke-width="2.2" fill="none" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<rect x="1308" y="356" width="544" height="84" rx="10" fill="#ffffff" stroke="#a0aec0" stroke-width="1.8" stroke-dasharray="5 4"/>
+<text x="1328" y="390" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">Sees the real thing</text>
+<text x="1328" y="414" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">studio photo, and who made it</text>
+<path d="M 1580 440 L 1580 486" stroke="#a0aec0" stroke-width="2.2" fill="none" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<rect x="1308" y="486" width="544" height="84" rx="10" fill="#ffffff" stroke="#a0aec0" stroke-width="1.8" stroke-dasharray="5 4"/>
+<text x="1328" y="520" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">Buys one, or asks for many</text>
+<text x="1328" y="544" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">a shopper checks out; a B2B buyer raises an RFQ</text>
+<path d="M 1580 570 L 1580 616" stroke="#a0aec0" stroke-width="2.2" fill="none" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<rect x="1308" y="616" width="544" height="84" rx="10" fill="#ffffff" stroke="#a0aec0" stroke-width="1.8" stroke-dasharray="5 4"/>
+<text x="1328" y="650" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#1a202c" font-weight="600" text-anchor="start" letter-spacing="0">Artisan gets the order</text>
+<text x="1328" y="674" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12" fill="#718096" font-weight="400" text-anchor="start" letter-spacing="0">and the money reaches them</text>
+<text x="1580" y="806" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#2b6cb0" font-weight="600" text-anchor="middle" letter-spacing="0">Two kinds of buyer, one catalogue.</text>
+<text x="1580" y="828" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12.5" fill="#718096" font-weight="400" text-anchor="middle" letter-spacing="0">Not built yet — the artisan side had to work first.</text>
+<path d="M 343 876 L 343 910" stroke="#2c7a7b" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<path d="M 963 876 L 963 910" stroke="#2c7a7b" stroke-width="2.2" fill="none" marker-end="url(#a)"/>
+<path d="M 1580 870 L 1580 910" stroke="#2c7a7b" stroke-width="2.2" fill="none" stroke-dasharray="6 5" marker-end="url(#a)"/>
+<rect x="48" y="910" width="1848" height="68" rx="12" fill="#e6fffa" stroke="#2c7a7b" stroke-width="2.2"/>
+<text x="960" y="940" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" fill="#2c7a7b" font-weight="700" text-anchor="middle" letter-spacing="1">ONE SHARED DATABASE   ·   PostgreSQL</text>
+<text x="960" y="962" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="12.5" fill="#718096" font-weight="400" text-anchor="middle" letter-spacing="0">the app writes it, the dashboard only reads it — every government number is a query, not new tracking</text>
+<text x="48" y="1020" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13" fill="#1a202c" font-weight="700" text-anchor="start" letter-spacing="1.4">PUBLISHES TO</text>
+<rect x="200" y="1002" width="226" height="44" rx="8" fill="#ffffff" stroke="#2c7a7b" stroke-width="1.8"/>
+<text x="313" y="1030" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13.5" fill="#1a202c" font-weight="600" text-anchor="middle" letter-spacing="0">Our marketplace</text>
+<rect x="446" y="1002" width="226" height="44" rx="8" fill="#ffffff" stroke="#2c7a7b" stroke-width="1.8"/>
+<text x="559" y="1030" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13.5" fill="#1a202c" font-weight="600" text-anchor="middle" letter-spacing="0">ONDC</text>
+<rect x="692" y="1002" width="226" height="44" rx="8" fill="#ffffff" stroke="#2c7a7b" stroke-width="1.8"/>
+<text x="805" y="1030" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13.5" fill="#1a202c" font-weight="600" text-anchor="middle" letter-spacing="0">GeM</text>
+<rect x="938" y="1002" width="226" height="44" rx="8" fill="#ffffff" stroke="#a0aec0" stroke-width="1.8" stroke-dasharray="5 4"/>
+<text x="1051" y="1030" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13.5" fill="#1a202c" font-weight="600" text-anchor="middle" letter-spacing="0">Amazon</text>
+<rect x="1184" y="1002" width="226" height="44" rx="8" fill="#ffffff" stroke="#a0aec0" stroke-width="1.8" stroke-dasharray="5 4"/>
+<text x="1297" y="1030" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13.5" fill="#1a202c" font-weight="600" text-anchor="middle" letter-spacing="0">Flipkart</text>
+<rect x="1430" y="1002" width="226" height="44" rx="8" fill="#ffffff" stroke="#a0aec0" stroke-width="1.8" stroke-dasharray="5 4"/>
+<text x="1543" y="1030" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13.5" fill="#1a202c" font-weight="600" text-anchor="middle" letter-spacing="0">Meesho</text>
+<rect x="1676" y="1002" width="226" height="44" rx="8" fill="#ffffff" stroke="#2c7a7b" stroke-width="1.8"/>
+<text x="1789" y="1030" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="13.5" fill="#1a202c" font-weight="600" text-anchor="middle" letter-spacing="0">WhatsApp</text>
+</svg>
