@@ -15,6 +15,21 @@ const MAX_ATTEMPTS = 5;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /*
+ * ⚠️ These two make the resume below actually work.
+ *
+ * `upload()` used to mint a fresh upload_id on every call and then immediately ask the
+ * server what that brand new id had received — which is `[]`, always, by construction. So
+ * the probe was a guaranteed-empty round trip AND a drop at 90% restarted from chunk 0,
+ * which is the exact failure the chunked design exists to prevent. It reads as correct
+ * because the probe is right there; the id it probed was just never the id from last time.
+ *
+ * The id is remembered in sessionStorage, not localStorage: an id the server has since
+ * garbage-collected is dead weight, and we are online-first (docs/decisions.md) — this is a
+ * crash-and-reopen cushion, not an offline queue.
+ */
+import { planResume, resumeKey } from './resume.js';
+
+/*
  * Upload size budget.
  *
  * 1600px on the long edge at quality 0.82 takes a ~2.5MB camera frame to roughly 350KB.
@@ -130,15 +145,51 @@ export async function upload(
   } = {},
 ): Promise<{ url: string }> {
   const total = Math.ceil(blob.size / CHUNK);
-  const { upload_id } = await api.post('/uploads', {
-    size: blob.size,
-    chunks: total,
-    content_type: blob.type || 'image/jpeg',
-  });
 
-  // Ask what the server already has. On a fresh upload this is empty; after a drop it is
-  // how we avoid re-sending the first two megabytes.
-  const done = new Set((await api.get(`/uploads/${upload_id}`)).received ?? []);
+  /*
+   * One request, not two, on the common path.
+   *
+   * Every request on this path costs a round trip to a database in ap-southeast-2, and a
+   * photo is already ten of them. A fresh upload has nothing to resume by definition, so it
+   * does not ask. Only an id we have seen before is worth a probe.
+   */
+  const key = await resumeKey(blob);
+  const remembered = sessionStorage.getItem(key);
+
+  let prior = null;
+  if (remembered) {
+    try {
+      prior = await api.get(`/uploads/${remembered}`);
+    } catch (e) {
+      // 404: the server restarted, or garbage-collected it, or it belongs to an artisan who
+      // has since signed out. Any of those means start over — this is a cushion, not a
+      // guarantee, and it must never be the reason a photo cannot be uploaded at all.
+      if (!(e instanceof ApiError && e.status === 404)) throw e;
+    }
+  }
+
+  const plan = planResume(prior);
+  if (plan.action === 'done') {
+    sessionStorage.removeItem(key);
+    onProgress?.(1);
+    return { url: plan.url as string };
+  }
+
+  let upload_id = plan.action === 'resume' ? (remembered as string) : null;
+  const done = new Set<number>(plan.done);
+
+  if (!upload_id) {
+    const started = await api.post('/uploads', {
+      size: blob.size,
+      chunks: total,
+      content_type: blob.type || 'image/jpeg',
+    });
+    upload_id = started.upload_id as string;
+  }
+
+  // Written BEFORE the first chunk, so a drop mid-upload has an id waiting for it. Writing
+  // it after the loop would only ever record uploads that did not need resuming.
+  sessionStorage.setItem(key, upload_id);
 
   for (let i = 0; i < total; i++) {
     if (done.has(i)) {
@@ -168,5 +219,9 @@ export async function upload(
     onProgress?.((i + 1) / total);
   }
 
-  return api.post(`/uploads/${upload_id}/complete`, {});
+  const result = await api.post(`/uploads/${upload_id}/complete`, {});
+  // Only once the url exists. Clearing it earlier would throw away the id on the one path
+  // that needs it, and `complete` is idempotent server-side precisely so a retry is cheap.
+  sessionStorage.removeItem(key);
+  return result;
 }
