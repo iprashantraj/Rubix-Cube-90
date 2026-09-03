@@ -103,3 +103,47 @@ def write_image(im: Image.Image, product_id: str, target: str, quality: int) -> 
     path = out / f"{target}_{im.width}.jpg"
     im.convert("RGB").save(path, "JPEG", quality=quality, optimize=True, subsampling=1)
     return path.as_uri(), im.width, im.height
+
+
+# --- masks -------------------------------------------------------------------
+#
+# A re-render has to reach the mask without re-running BiRefNet, or the recipe buys
+# nothing: switching tier would still cost a GPU pass and the artisan would still wait.
+# So the alpha is stored beside the outputs, keyed by the mask_version that produced it.
+#
+# PNG, greyscale, lossless. JPEG here would be a real bug rather than a size saving — its
+# ringing lands hardest on exactly the high-frequency edges the mask exists to describe,
+# and a tassel's threads are the first thing it would smear.
+
+
+def mask_path(product_id: str, mask_version: str) -> Path:
+    """Where one product's alpha lives. Versioned, so a better model can be rendered
+    alongside the old one rather than overwriting it — that is what makes re-rendering an
+    upgrade instead of a migration."""
+    return OUTPUT_DIR / product_id / f"mask_{mask_version}.png"
+
+
+def write_mask(alpha, product_id: str, mask_version: str) -> str:
+    """Persist a float [0,1] alpha. Returns the url."""
+    import numpy as np
+
+    path = mask_path(product_id, mask_version)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    a = np.clip(np.asarray(alpha, dtype=np.float32), 0.0, 1.0)
+    Image.fromarray((a * 255.0 + 0.5).astype(np.uint8), "L").save(path, "PNG", optimize=True)
+    return path.as_uri()
+
+
+def read_mask(product_id: str, mask_version: str):
+    """Load a stored alpha as float32 [0,1]. Raises `SourceError` when it is not there.
+
+    Missing is a normal outcome, not a crash: the mask is derived data and can be evicted,
+    and the caller's answer is to re-segment. It is `SourceError` for the same reason a
+    missing upload is — it is our file that is gone, not the artisan's photograph.
+    """
+    import numpy as np
+
+    path = mask_path(product_id, mask_version)
+    if not path.exists():
+        raise SourceError(f"no stored mask for {product_id} at {mask_version} — re-segment")
+    return np.asarray(Image.open(path).convert("L"), dtype=np.float32) / 255.0

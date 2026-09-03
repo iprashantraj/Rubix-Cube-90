@@ -975,6 +975,36 @@ input {
   opacity: 0.55;
 }
 
+/*
+ * "Choose a photo" — the gallery escape hatch, beside the shutter rather than competing
+ * with it. The camera is still the primary action and still the middle of the screen; this
+ * sits off to the right at normal button weight so it reads as the other option, not as an
+ * equal one.
+ *
+ * Rule 1 in app/README.md caps a screen at three tappable things. This screen now has the
+ * shutter, the standing/flat toggle (one group, one target) and this — exactly three.
+ * Anything further has to replace one of them.
+ */
+.cam__fileInput {
+  display: none;
+}
+.cam__gallery {
+  position: absolute;
+  /* Vertically centred against the 88px shutter, clear of its 10px glow ring. */
+  bottom: calc(62px + env(safe-area-inset-bottom));
+  right: 20px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  /* Never wrap — a second line grows upward into the mode toggle sitting above it. */
+  white-space: nowrap;
+}
+
 /* --- tabs ---------------------------------------------------------------- */
 
 .tabs {

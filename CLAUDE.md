@@ -81,6 +81,7 @@ cd ai && .venv/bin/pytest test_catalog.py  # F2 shaping in four scripts, and the
 cd ai && .venv/bin/python probe_dialects.py  # dialects vs the live model; needs a key, spends money
 cd ai && python3 test_gate.py    # server quality gate, 10 assertions, no venv or fixtures
 cd ai && python3 test_segment.py # master downscale; skips the model half without a venv
+cd ai && python3 test_recipe.py  # recipe + renderer, 18 assertions, no venv
 cd ai && .venv/bin/pytest test_service.py  # the /enhance contract end to end; needs fastapi
 python3 images/check.py --resume && python3 images/calibrate.py   # thresholds vs the fixture set
 ```

@@ -56,6 +56,18 @@ is the fix, and `jobs.submit()` / `jobs.get()` is the entire swap surface.
 `white_balance()`, `tone()` and `denoise_sharpen()` are unwritten and skipped explicitly;
 every response lists them under `skipped`.
 
+## The recipe
+
+Stages compute **parameters**, not images. `enhance/renderer.py` `render(original, mask,
+recipe)` is the only thing in the pipeline that produces pixels, which is what makes
+CLAUDE.md rule 2 hold by construction rather than by care.
+
+    POST /enhance/rerender   replay a stored recipe — no GPU while the mask is cached
+
+The alpha is kept beside the outputs under the recipe's `mask_version`, so switching tier
+costs ~200ms instead of a model pass. `enhance/recipe.py` owns the shape; the web side left
+it undefined on purpose.
+
 ## Segmentation
 
 `enhance/segmenter.py` is BiRefNet, pinned to the revision the benchmark measured. Two

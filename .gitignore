@@ -3,13 +3,23 @@ __pycache__/
 .venv/
 venv/
 node_modules/
+# Every .env variant, because these were exact names and a real credential slipped past
+# them: `web/api/.env.bak-s3` holds a live Supabase S3 key pair and was untracked but NOT
+# ignored, so one `git add -A` would have published it. Match the family, not the filenames
+# somebody happened to think of — the next backup will be called something else again.
 .env
-.env.local
-.env.bak
+.env.*
+!.env.example
 # Supabase personal access token. Full control of every project in the account — a wider
 # credential than anything in .env, and it is only here long enough to bootstrap.
 .supabase-token
 .DS_Store
+
+# /graphify's output. ~270 files, almost all of it a content-addressed LLM response cache
+# keyed on chunk hashes — it regenerates from the source it was built out of, and it goes
+# stale the moment anyone commits. graph.html/graph.json are derived too.
+graphify-out/
+
 research/data/
 # The raw price observations. The DERIVED file (ai/price/comps_seed.json) is what gets
 # committed, same rule as research/data/: commit the manifest, not the collection.
