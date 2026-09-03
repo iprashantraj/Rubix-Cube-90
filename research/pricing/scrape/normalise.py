@@ -50,7 +50,9 @@ def _category(text: str):
     """First category word to appear, in the order gi_crafts.CATEGORIES lists them —
     specific before general, so "dress material" beats "fabric"."""
     for word, cat in CATEGORIES:
-        rx = _WORD.get(word) or _WORD.setdefault(word, re.compile(rf"\b{re.escape(word)}\b"))
+        # Optional trailing s: sellers write "table runners" and "table mats" as often as
+        # the singular, and \brunner\b does not match "runners".
+        rx = _WORD.get(word) or _WORD.setdefault(word, re.compile(rf"\b{re.escape(word)}s?\b"))
         if rx.search(text):
             return cat
     return None
@@ -103,7 +105,10 @@ def normalise(row: dict) -> tuple[dict | None, str]:
     # Same two rules as the weave: word boundaries, and the title before anything else.
     # A substring test over every field put 2,550 itokri rows in `basketry.mat`, because
     # "material" contains "mat".
-    cat = _category(title) or _category(hay)
+    # Title first; then the site's own product_type, and nothing else. Falling back to the
+    # whole haystack read the shop's menu tags as if they described the product, which put
+    # a flared sleeve dress in `woodwork.furniture` because a tag mentioned table linen.
+    cat = _category(title) or _category(str(specs.get("product_type", "")).lower())
     l1, l2 = cat if cat else ("unknown", "unknown")
 
     mrp = None

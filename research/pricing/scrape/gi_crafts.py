@@ -124,7 +124,17 @@ CATEGORIES = [
     ("bangle", ("jewellery", "bangle")), ("jewellery", ("jewellery", "jewellery")),
     ("pottery", ("pottery", "pottery")), ("terracotta", ("pottery", "terracotta")),
     ("planter", ("pottery", "planter")), ("mug", ("pottery", "mug")),
-    ("basket", ("basketry", "basket")), ("mat", ("basketry", "mat")),
+    ("basket", ("basketry", "basket")),
+    # A cotton table mat is a textile. Mats were under basketry, which put 116 printed
+    # cotton mats in with the sabai grass baskets.
+    ("table mat", ("textiles", "table-mat")), ("place mat", ("textiles", "table-mat")),
+    ("table runner", ("textiles", "table-runner")), ("runner", ("textiles", "table-runner")),
+    ("coaster", ("textiles", "coaster")), ("mat", ("textiles", "mat")),
+    ("rakhi", ("accessories", "rakhi")), ("potli", ("accessories", "potli")),
+    ("skirt", ("textiles", "skirt")), ("kaftan", ("textiles", "kaftan")),
+    ("dress", ("textiles", "dress")), ("shirt", ("textiles", "shirt")),
+    ("palazzo", ("textiles", "palazzo")), ("jacket", ("textiles", "jacket")),
+    ("notebook", ("stationery", "notebook")), ("fridge", ("textiles", "fridge-cover")),
     ("bag", ("accessories", "bag")), ("pouch", ("accessories", "pouch")),
     ("wallet", ("accessories", "wallet")), ("keychain", ("accessories", "keychain")),
     ("brass", ("metalwork", "brass")), ("dhokra", ("metalwork", "dhokra")),
