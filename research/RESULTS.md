@@ -11,6 +11,7 @@ Nothing goes on a slide until it has a verdict here.
 | asr-bhashini | access terms, rate limits, does our use case qualify | open | |
 | description-llm | prompt that reliably yields EN+HI + structured fields | open | |
 | pricing | does cost-up land near real listing prices | **first evidence — depends entirely on labour hours; see below** | 2026-08-28 |
+| pricing-dataset | does weave-level labelling change the pricing verdict | **yes — it reverses it for Sambalpuri; see below** | 2026-09-03 |
 
 Rules: benchmark on our own test photos, not blog rankings. Record the date — a verdict
 from three months ago on a model that shipped a new version is not a verdict.
@@ -242,3 +243,82 @@ data end to end**, and that the gap between listed prices and any plausible fair
 enough to be the story rather than a rounding error.
 
 Reproduce: `python3 research/pricing/pricing.py check --material-cost 800 --labour-hours 160`.
+
+---
+
+## pricing-dataset — weave-level labels change the answer, 2026-09-03
+
+The 2026-08-28 pricing entry above closed with three caveats. The second one said:
+
+> *"`textiles.saree` is too broad a comparison class. A plain Santipuri and a Sambalpuri
+> bandha ikat are both 'handloom cotton saree' and differ perhaps tenfold in labour. Some of
+> the 160 h 'floor above market' result is that mismatch, not exploitation."*
+
+That caveat is now answered, and it was right.
+
+### What was collected
+
+34,459 listings across three marketplaces, replacing the 144 collected by hand:
+
+| Source | Rows | How |
+|---|---|---|
+| goswadeshi.in | 25,000 | `/products.json` — this is gocoop under its new name |
+| itokri.com | 15,239 | `/products.json`, at the `Crawl-delay: 10` its robots.txt asks for |
+| indiahandmade.com | 200 | HTML, Magento spec tables |
+
+38,980 rows survive normalisation. **23,469 carry a weave-level label** — sambalpuri,
+pochampally, khandua, bomkai, nuapatna, baluchari, jamdani — of which 20,181 have that weave
+named in the seller's own title rather than inferred from a tag. The code is in
+`research/pricing/scrape/`; the collection notes are in `PROBE.md` and `HANDREAD-200.md`.
+
+### The finding
+
+Same floor as the 2026-08-28 run — 160 hours, ₹800 of materials, ₹120/hour Sambalpur cluster
+rate, giving **₹23,000** — checked against the same market, now labelled by weave:
+
+| Comparison class | n | median | p10 | p90 | verdict |
+|---|---|---|---|---|---|
+| `textiles.saree` (undifferentiated) | 4,683 | ₹5,740 | ₹1,680 | ₹14,200 | floor above the market |
+| **`textiles.saree.sambalpuri`** | **1,481** | **₹10,214** | ₹4,704 | ₹27,443 | **floor inside the spread** |
+| `textiles.saree.banarasi` | 343 | ₹24,271 | ₹14,129 | ₹40,804 | floor inside the spread |
+| `textiles.saree.gadwal` | 141 | ₹19,600 | ₹13,590 | ₹26,900 | floor inside the spread |
+| `textiles.saree.paithani` | 140 | ₹18,500 | ₹4,890 | ₹32,000 | floor inside the spread |
+| `textiles.saree.nuapatna` | 794 | ₹3,020 | ₹1,859 | ₹5,300 | floor above the market |
+| `textiles.saree.tangail` | 390 | ₹2,465 | ₹999 | ₹5,341 | floor above the market |
+
+**A ₹23,000 floor is above the market for sarees in general and inside it for Sambalpuri in
+particular.** The median Sambalpuri saree lists at ₹10,214, not the ₹2,140 the 144-row sample
+suggested — 4.8× higher — because the hand-collected sample was mostly the cheap end of an
+undifferentiated category.
+
+The August finding is not withdrawn. At the ₹2,140 median it quoted, a 20-day saree still
+implies ₹8/hour, and there really are Sambalpuri-labelled sarees at ₹900. What changes is the
+claim we can make from it: **"handloom sarees are priced below cost" is not supportable at
+this resolution. "Sambalpuri sarees below about ₹4,700 cannot be paying a cluster wage for
+20 days' work" is** — and it is the more useful sentence, because it is the one the app can
+act on for a specific artisan with a specific product.
+
+Across all 299 comparison classes the floor still sits above the median in 293 of them. Most
+of those are keychains, pouches and cushion covers, where 160 hours of labour is not the
+question being asked. The saree rows are the ones that bear on the premise.
+
+### What this does and does not settle
+
+**Settles:** label resolution changes the verdict, not just the confidence interval. The
+request document's claim that "2,000 rows labelled at the weave level beats 5,000 labelled
+saree" is now measured rather than asserted, and the taxonomy walk-up in `ai/price/` is
+carrying real weight.
+
+**Does not settle:** these are still asking prices, not sold prices — caveat 1 from August
+stands and no amount of scraping fixes it. `default_wage_per_hour = 120` is still unsourced,
+and it is still the denominator of every number here. And 160 hours remains an assumption
+about how long a saree takes; the dataset says what sarees cost, never how long they took.
+
+**One caution about the data itself.** 5,861 goswadeshi rows are tagged `wholesale`. Their
+median price is *higher* than the retail rows, so the tag marks stock offered in bulk rather
+than a bulk discount, and they are kept. They are flagged in `listings.normalised.jsonl` so
+any model can be run with and without them.
+
+Reproduce: `python3 research/pricing/pricing.py check --material-cost 800 --labour-hours 160`
+after `python3 research/pricing/scrape/normalise.py --observed` and
+`python3 research/pricing/pricing.py build --collector "prashant (scrapling)"`.

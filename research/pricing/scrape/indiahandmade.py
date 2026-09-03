@@ -110,7 +110,7 @@ def parse(url: str, html: str, run_id: str) -> dict | None:
 def run(limit: int | None, reparse: bool) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     run_id = f"{SOURCE}-{date.today().isoformat()}"
-    out_path = OUT / "listings.jsonl"
+    out_path = OUT / f"listings.{SOURCE}.jsonl"   # per source: --reparse truncates this file
 
     done = set()
     if out_path.exists() and not reparse:

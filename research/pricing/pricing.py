@@ -34,7 +34,9 @@ REPO = HERE.parent.parent
 OBSERVED = HERE / "observed.csv"
 SEED = REPO / "ai" / "price" / "comps_seed.json"
 
-SOURCES = {"indiahandmade", "amazon", "flipkart", "gem"}  # `market` is queried live, never seeded
+# `market` is queried live, never seeded. goswadeshi and itokri arrive from
+# research/pricing/scrape — goswadeshi is gocoop's catalogue under its new name.
+SOURCES = {"indiahandmade", "goswadeshi", "itokri", "okhai", "amazon", "flipkart", "gem"}
 COLUMNS = ["category", "source", "price", "url_or_note", "seen_on"]
 
 
