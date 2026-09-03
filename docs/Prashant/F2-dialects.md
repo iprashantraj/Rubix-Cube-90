@@ -73,5 +73,8 @@ sends the artisan's chosen language, so this is correct today — but it means a
 defaulted tag degrades comprehension silently rather than loudly.
 
 **Nothing here is a promise about a real microphone.** These are typed transcripts. What ASR
-does to Bhojpuri in a courtyard is a separate measurement and it needs a Bhashini or Sarvam
-key, which is still the one thing F2 is waiting on.
+does to Bhojpuri in a courtyard is a separate measurement, and it is not blocked: the Sarvam
+key in `web/api/.env` works, in all four languages (`F2-shippable.md`, "Where F2 stands").
+What it needs is somebody speaking Bhojpuri into a phone. Expect it to be the harder half —
+the recogniser is trained on standard Hindi, so a dialect reaches this module already
+degraded, and the two prompt rules above only repair what the transcript still carries.

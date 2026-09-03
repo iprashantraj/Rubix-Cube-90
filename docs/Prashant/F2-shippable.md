@@ -174,27 +174,48 @@ against a specific commit, and rewriting a record of what was true then destroys
 per-channel shaping → copy blocks → publish. An unreachable model degrades to a listing built
 from the artisan's own sentences at `confidence: 0` rather than costing them the listing.
 
-**The one thing outstanding is not code.** `/api/asr` and `/api/tts` return 503 until a
-Bhashini or Sarvam key is configured. The marquee phrase of the problem statement — "via voice
-notes" — is the only part not currently live, and it is a signup form, not a commit. Confirm
-the provider covers Tamil and Bengali speech before announcing those two languages; the text
-path works regardless.
+**Voice is live, in all four languages.** An earlier draft of this note said `/api/asr` and
+`/api/tts` answer 503 until a key is configured, and named it F2's one outstanding item. That
+was taken from the documentation rather than from trying it: a Sarvam key is in
+`web/api/.env`, and both tiers answer. Measured 2026-09-03, synthesising one sentence per
+language and round-tripping the audio back through transcription:
+
+| | TTS | said | heard |
+|---|---|---|---|
+| `hi` → `hi-IN` | 83 KB | यह सूती साड़ी है | यह सूती साड़ी है। ✓ |
+| `or` → `od-IN` | 65 KB | ଏହା ସୂତା ଶାଢ଼ୀ | ଏହା ସୁତା ସାଢ଼ୀ। — two vowel/sibilant slips |
+| `ta` → `ta-IN` | 54 KB | இது பருத்திப் புடவை | இது பருத்தி **புடமை**. — the noun changed |
+| `bn` → `bn-IN` | 70 KB | এটা সুতির শাড়ি | এটা সুতির শাড়ি। ✓ |
+
+So the §4 assumption — that Sarvam covers the two new languages — holds, and the `ta-IN` /
+`bn-IN` codes are right.
+
+**What that does not prove.** This is a clean synthetic voice read into the same vendor's
+recogniser: the easiest input that exists. It establishes the wiring, the key and the language
+codes, and nothing about a courtyard microphone. **Tamil lost a content word on that easiest
+input** — `புடவை` (saree) came back as `புடமை`, which is not a spelling wobble but the answer
+to "what is this?". Worth a real-voice check before leaning on Tamil.
 
 **Known and recorded, not fixed:** romanised input gets transliterated into script (harmless
 for a listing, wrong for a name); the language tag matters more than it looks — the same
 romanised Tamil sent as `hi` returns nothing and as `ta` returns the right word; and the
-dialect measurements are typed transcripts, so what ASR does to Bhojpuri in a courtyard is a
-separate measurement that needs the key above.
+dialect measurements in `F2-dialects.md` are typed transcripts, so what ASR does to Bhojpuri
+in a courtyard is still an unmade measurement — now blocked only on somebody speaking into a
+phone, not on a key.
 
 ## Verification
 
 ```bash
-cd ai && .venv/bin/pytest                     # 104 passed, 6 failed — all 6 pre-existing F1 "no torch" skips
+cd ai && .venv/bin/pytest                     # 122 passed, 6 failed — all 6 pre-existing F1 "no torch" skips
 cd ai && .venv/bin/pytest test_catalog.py     # 26 passed
 web/api/.venv/bin/pytest web/api/test_catalog.py  # 4 passed
 cd app && npm test && npx tsc --noEmit && npm run build   # clean
 cd ai && .venv/bin/python probe_dialects.py   # 12/12, needs a key and spends money
 ```
+
+Speech was verified separately, against the live provider, by calling `_sarvam_tts` and
+`_sarvam_asr` directly for `hi`, `or`, `ta` and `bn` — see the table above. It spends Sarvam
+quota, so it is not in the suite.
 
 Not yet run: the live app → web → ai round trip. It needs `uvicorn service:app` on 8001 and a
 real artisan token.
