@@ -22,17 +22,19 @@ platform's real limits — without typing anything.
         ↓
   2  PRE-FILL          a vision model reads the photo and fills what it can
         ↓
-  3  INTERVIEW         one spoken question at a time, in their language
+  3  SPEECH → TEXT     record on the phone, transcribe on Sarvam
+        ↓
+  4  INTERVIEW         one spoken question at a time, in their language
         ↓                 ├── the answer to the question asked
         ↓                 └── every OTHER fact that sentence contained  ← the harvest
         ↓
-  4  REVIEW            read back aloud; they confirm or re-record
+  5  REVIEW            read back aloud; they confirm or re-record
         ↓
-  5  COMPOSE           one listing written once: title, English + Hindi, keywords, bullets
+  6  COMPOSE           one listing written once: title, English + Hindi, keywords, bullets
         ↓
-  6  SHAPE             cut to each channel's real limits, deterministically, no model
+  7  SHAPE             cut to each channel's real limits, deterministically, no model
         ↓
-  7  PUBLISH           API where one exists, paste-one-field-at-a-time where it does not
+  8  PUBLISH           API where one exists, paste-one-field-at-a-time where it does not
 ```
 
 ### 1 · Photograph
@@ -52,7 +54,46 @@ cotton saree — right?" is one tap, where "what is it made of?" is a sentence.
 Nothing is auto-accepted. A vision guess is a guess, and publishing one under the artisan's
 name is how they get a return they cannot afford.
 
-### 3 · The interview — and why it is questions, not one long voice note
+### 3 · Speech to text — how her voice actually becomes words
+
+We do not do speech recognition ourselves. We record on the phone and send the clip to a
+service built for Indian languages.
+
+```
+  MediaRecorder on the phone          the browser's own recorder, no library
+        ↓  one clip (webm/opus), not a stream
+  POST /api/asr  → web/api            multipart, plus the language she chose
+        ↓
+  Sarvam  saaras:v3                   Bhashini (ULCA) as the second tier
+        ↓
+  transcript  →  the interpreter
+```
+
+Recording stops on silence or on her tap. The first ~140 ms is dropped: that is the gap before
+she starts speaking, and feeding it to a recogniser only gives it something to misread.
+
+**Three choices behind that diagram.**
+
+*The whole clip goes at once — no live streaming.* Streaming partial words looks impressive and
+works properly only on phones with the headroom for it. Transcript quality must not depend on
+what handset somebody could afford, so there is nothing to stream and nothing to half-render:
+record, then transcribe.
+
+*The key never reaches the phone.* Phone → `web/api` → Sarvam. A key shipped inside an APK is a
+published key, and rotating it means an app release rural users never install.
+
+*It is not on-device.* Offline Indic speech recognition is not good enough yet, and we would
+rather say so than ship a worse transcript that looks self-sufficient. With no signal the
+keyboard takes over — and the app **says out loud** that it has, because a silent fallback is
+indistinguishable from a broken app to someone who cannot read the screen.
+
+**Speaking back** is the same path in reverse: `bulbul:v3` on Sarvam, one clip per phrase,
+cached on the server by (language, text) so a prompt said a thousand times is synthesised once.
+English is deliberately spoken by the device's own voice instead — somebody who chose English
+as their interface language chose it because they read it, and an Indian-English TTS accent
+makes the one language they picked the hardest to follow.
+
+### 4 · The interview — and why it is questions, not one long voice note
 
 The obvious design is: record one voice note, let the AI sort it out. We deliberately did not
 build that, and the reason is accessibility rather than accuracy. If an artisan who cannot read
@@ -84,13 +125,13 @@ Three rules that are not negotiable here:
 * **cost is never harvested.** It is what they spent on materials — their margin, an input to
   the price floor, and no part of any listing. It never leaves the phone.
 
-### 4 · Review
+### 5 · Review
 
 The listing is read back aloud before anything is written. What is shown is the artisan's own
 sentence, not our reduction of it: the reduction is the thing we are asking them to trust, so
 the evidence has to be the original.
 
-### 5 · Compose — English *and* Hindi, always
+### 6 · Compose — English *and* Hindi, always
 
 `POST /catalog` turns the answers into one listing: title, `desc_en`, `desc_hi`, `short_desc`,
 keywords, bullets.
@@ -110,7 +151,7 @@ instruction to make things up when the facts run out.
 from the artisan's own sentences and marks it `confidence: 0`. Losing the AI costs a prettier
 description. It must never cost the listing.
 
-### 6 · Shape — the part with no AI in it at all
+### 7 · Shape — the part with no AI in it at all
 
 `ai/catalog/seo.py` is pure, deterministic Python with no model anywhere near it. It cuts the
 finished listing to each platform's documented limits.
@@ -130,7 +171,7 @@ opposite of every consumer marketplace where the brand is the seller's name. So 
 name is scrubbed from GeM copy — and the model is told never to write it in the first place,
 because a name transliterated into the other script cannot be scrubbed afterwards.
 
-### 7 · Publish
+### 8 · Publish
 
 Channels with an API get pushed. Channels without one — Meesho, GeM, WhatsApp — get
 `copy_blocks`: **one button per field, in the order that platform's form asks for them.** One
@@ -142,7 +183,7 @@ button copying a blob would leave the artisan to split it up, and splitting text
 
 | Layer | Choice | Why |
 |---|---|---|
-| Speech in / out | **Sarvam AI** (`saaras:v3` ASR, `bulbul:v3` TTS), Bhashini as second tier | One documented REST call; Bhashini needs a pipeline round trip first |
+| Speech in / out | **Sarvam AI** (`saaras:v3` ASR, `bulbul:v3` TTS), Bhashini as second tier | One documented REST call; Bhashini needs a pipeline round trip first. Recording is the browser's own `MediaRecorder` — no library |
 | Text model | **DeepSeek v4 Flash** via OpenRouter, Gemma fallback | Cheap and fast enough to sit in a conversational loop |
 | Vision model | **Qwen3-VL 30B** via OpenRouter | Reads the photo for the pre-fill |
 | Backend | **FastAPI**, two services | `web/api` holds the session, `ai/` holds the model key and never sees the artisan |
