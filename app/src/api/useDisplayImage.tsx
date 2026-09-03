@@ -1,4 +1,22 @@
 import { useEffect, useState, type ImgHTMLAttributes } from 'react';
+import { apiUrl } from './client';
+
+/**
+ * A stored image url as something fetchable from this device.
+ *
+ * The server stores enhanced renditions as `/api/enhanced/…` — root-relative, so that no
+ * laptop's DHCP address is baked into a database row (see `_publish_local`). Relative is
+ * exactly right for a browser and exactly wrong for Capacitor, where the app is served from
+ * `https://localhost` and a leading `/api` resolves into the app's OWN bundled assets: the
+ * request 404s against the WebView and never reaches a server at all. That is the failure
+ * `client.ts` documents as the most confusing this app can produce.
+ *
+ * So relative urls go through `apiUrl()`, which is the same indirection every other API call
+ * already uses. Absolute urls (S3, or anything already resolved) are returned untouched.
+ */
+function resolveSrc(url: string): string {
+  return url.startsWith('/api/') ? apiUrl(url.slice('/api'.length)) : url;
+}
 
 /**
  * Turn a server image url into something the WebView will actually paint.
@@ -39,8 +57,9 @@ export function useDisplayImage(url?: string | null, fallback?: string | null) {
 
   useEffect(() => {
     // Not a server url — a blob: or data: url is already paintable, and the artisan's own
-    // photo is the fallback in every other case.
-    if (!url || !/^https?:/.test(url)) {
+    // photo is the fallback in every other case. `/api/…` counts as a server url: it is how
+    // enhanced renditions are stored, and resolveSrc turns it into a reachable one.
+    if (!url || !(/^https?:/.test(url) || url.startsWith('/api/'))) {
       setObjectUrl(null);
       return undefined;
     }
@@ -51,7 +70,7 @@ export function useDisplayImage(url?: string | null, fallback?: string | null) {
     // Show the fallback while the enhanced image is in flight rather than a blank frame.
     setObjectUrl(null);
 
-    fetch(url)
+    fetch(resolveSrc(url))
       .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((blob) => {
         if (!alive) return;
