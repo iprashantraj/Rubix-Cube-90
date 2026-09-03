@@ -198,6 +198,11 @@ if (import.meta.env.DEV) {
    */
   for (const [code, bundle] of Object.entries(BUNDLES)) {
     for (const [key, text] of Object.entries(bundle)) {
+      // `_reviewed` is an ARRAY and `_note` is prose — the translator metadata described at
+      // the top of this file. Calling .match() on the array threw on module load, which is
+      // a BLANK APP, from a check whose entire job is to be cheaper than finding out later.
+      // A dev-only guard that can break the app is worse than no guard.
+      if (key.startsWith('_') || typeof text !== 'string') continue;
       const want: string[] = (BUNDLES.en[key] ?? '').match(/\{\w+\}/g) ?? [];
       const got: string[] = text.match(/\{\w+\}/g) ?? [];
       ok(

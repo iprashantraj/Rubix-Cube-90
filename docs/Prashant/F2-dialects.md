@@ -72,6 +72,11 @@ a name, and worth a rule if it turns up on `onboard.name`.
 sends the artisan's chosen language, so this is correct today — but it means a wrong or
 defaulted tag degrades comprehension silently rather than loudly.
 
+**The flow has since been run in a browser** (`F2-shippable.md` §7) — in Tamil, end to end,
+with one sentence filling three slots and the interview skipping the questions it had already
+been given the answers to. Every answer in that run was TYPED. So the finding below stands
+exactly as written.
+
 **Nothing here is a promise about a real microphone.** These are typed transcripts. What ASR
 does to Bhojpuri in a courtyard is a separate measurement, and it is not blocked: the Sarvam
 key in `web/api/.env` works, in all four languages (`F2-shippable.md`, "Where F2 stands").

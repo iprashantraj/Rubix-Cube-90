@@ -88,6 +88,20 @@ export default function CatalogPrefill() {
             useDraft.getState().setImages(job.images ?? []);
             return setStep('colour');
           }
+          if (job.status === 'failed') {
+            /*
+             * The job ran and died — no GPU, a model that would not load, a worker that
+             * crashed. Degrade NOW rather than polling out the remaining budget: the status
+             * is terminal, so every further poll is a second the artisan spends watching a
+             * spinner that is lying to them. Rule 3 says every failure degrades AND speaks,
+             * and `degrade()` is what speaks.
+             *
+             * Found by running the flow on a box without torch, where /enhance answers
+             * `{"status": "failed"}` on the first poll and this screen sat on "we are
+             * improving your photo, please wait" for the full sixty seconds.
+             */
+            return degrade();
+          }
           if (job.status === 'rejected') {
             // Rejected at the gate, no GPU spent. The reason is a message key precisely so
             // it can be spoken in their language — "resolution_below_1000px" is not.

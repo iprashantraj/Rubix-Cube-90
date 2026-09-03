@@ -168,10 +168,81 @@ against a specific commit, and rewriting a record of what was true then destroys
 
 ---
 
+## 7. The first live run, and the five faults it found
+
+Everything above was verified by tests and by calling the AI service directly. Then the whole
+flow was run for real — Postgres, `web/api`, `ai/` and the app in a browser, in Tamil, with a
+synthetic photograph fed through the gallery picker because the pane blocks the camera.
+
+Five faults, none of which a unit test could have caught, because each one lives in the space
+*between* the pieces the tests cover.
+
+**`\b` cannot match an Indic name.** `strip_seller_identity` had never worked for a Devanagari
+surname. Python's `re` counts only letters, digits and `_` as word characters, and every Indic
+vowel sign and anusvara is a combining mark (Mn/Mc) — so in `मोहंती` the final `ी` is a
+NON-word character and `\bमोहंती\b` never matches. GeM rejects seller information in any
+field, so this was a rejection an artisan could not have diagnosed. The unit test in §2 passed
+because it used `उत्सव`, which happens to end in a bare consonant. Replaced with lookarounds
+over a class that includes combining marks and U+0900–U+0DFF — every script this app accepts
+and several it does not.
+
+**The connector stayed when the name left.** The GeM title came out as `Cotton Saree by` and
+its description as `This saree is woven by . It is made of cotton.` A test asserting
+`"Utsav" not in title` passes happily on a dangling `by`. English puts the connector before
+the name and Hindi and Odia put it after; both go now, with the punctuation debris.
+
+**The model transliterated the name past the scrub.** English copy said "handwoven by
+artisan"; Hindi said `उत्सव मोहंती द्वारा` — the same name in the other script, which no
+literal match on the name we hold can ever remove. Fixed at the source: rule 5b in
+`SYSTEM_PROMPT_DESCRIBE` forbids naming the maker in any field in either language, and says
+why. Verified twice against the live model; both runs now say `कारीगर द्वारा`.
+
+**A dev-only self-check blanked the app.** The placeholder guard added in §4 ran `.match()`
+over every value in every bundle — and `_reviewed` is an ARRAY, `_note` is prose, both
+documented as translator metadata at the top of that same file. It threw on module load: white
+screen, no routes. `npm test`, `tsc --noEmit` and `npm run build` were all green, because none
+of them executes a `import.meta.env.DEV` block. **A guard whose entire purpose is to be
+cheaper than finding out later must not be the thing that breaks the app.**
+
+**`/catalog/prefill` polled a dead job for sixty seconds.** The loop handled `done` and
+`rejected` and not `failed`, so a job that died — no torch on this box, but in production a
+model that will not load or a worker that crashed — left the artisan on "we are improving your
+photo, please wait" for the full poll budget before degrading. The status is terminal on the
+first poll. Rule 3 says every failure degrades AND speaks; this did neither until the budget
+ran out.
+
+### What the run proved
+
+In order, all in Tamil, against both live services:
+
+* the server gate refused a too-bright photograph and said so — `நிழலுக்கு வாருங்கள்`;
+* the enhancement failed and degraded to the artisan's own photo, spoken, without costing the
+  listing (rule 3);
+* colour confirmation gated publish (rule 4);
+* the microphone was denied and the interview degraded to typing, in Tamil;
+* **one Tamil sentence — `idhu kaithari pruthi pudavai, moonu naal aachu, aaru gajam neelam`
+  — answered `what` and harvested `material`, `size` and `time`, and the interview SKIPPED
+  both harvested questions**, landing on `stock` with three of eight dots filled. That is §3
+  working in a browser rather than in an assertion;
+* `POST /api/catalog` returned 200 and the listing persisted as **"Handwoven Cotton Fabric,
+  6 Yards"** with `desc_en` AND `desc_hi` both written — from Tamil speech. Which is the
+  problem statement's actual requirement, demonstrated rather than claimed;
+* `/price` answered 422 → "set the price later", because `cost` and `time` were skipped. F3
+  refusing rather than clamping a floor to zero is the designed behaviour, not a fault.
+
+### What it did not prove
+
+**The spoken half was never exercised.** The browser pane blocks the microphone and the
+camera, so every answer was typed and the photograph was a canvas. ASR in a real room is
+untested, and it is exactly the input the dialect findings in §5 care about most: a Bhojpuri
+sentence reaches the interpreter already degraded by a recogniser trained on standard Hindi.
+One person, one phone, one courtyard is the missing measurement.
+
 ## Where F2 stands
 
-**Working end to end, on typed input, today.** Interview → interpret → harvest → compose →
-per-channel shaping → copy blocks → publish. An unreachable model degrades to a listing built
+**Working end to end, and run end to end** (§7). Photograph → gate → enhancement (or its
+failure, spoken) → colour confirmation → interview → interpret → harvest → compose →
+per-channel shaping → copy blocks → price. An unreachable model degrades to a listing built
 from the artisan's own sentences at `confidence: 0` rather than costing them the listing.
 
 **Voice is live, in all four languages.** An earlier draft of this note said `/api/asr` and
@@ -206,8 +277,8 @@ phone, not on a key.
 ## Verification
 
 ```bash
-cd ai && .venv/bin/pytest                     # 122 passed, 6 failed — all 6 pre-existing F1 "no torch" skips
-cd ai && .venv/bin/pytest test_catalog.py     # 26 passed
+cd ai && .venv/bin/pytest                     # 130 passed, 6 failed — all 6 pre-existing F1 "no torch" skips
+cd ai && .venv/bin/pytest test_catalog.py     # 34 passed
 web/api/.venv/bin/pytest web/api/test_catalog.py  # 4 passed
 cd app && npm test && npx tsc --noEmit && npm run build   # clean
 cd ai && .venv/bin/python probe_dialects.py   # 12/12, needs a key and spends money
@@ -217,5 +288,17 @@ Speech was verified separately, against the live provider, by calling `_sarvam_t
 `_sarvam_asr` directly for `hi`, `or`, `ta` and `bn` — see the table above. It spends Sarvam
 quota, so it is not in the suite.
 
-Not yet run: the live app → web → ai round trip. It needs `uvicorn service:app` on 8001 and a
-real artisan token.
+The live round trip HAS now been run — see §7 for what it found and what it did not reach.
+Reproducing it needs four things up at once, and one migration that a stale dev database will
+be missing:
+
+```bash
+web/api/.venv/bin/alembic upgrade head            # artisans.sells_on and two after it
+cd ai      && .venv/bin/uvicorn service:app --port 8001
+cd web/api && .venv/bin/uvicorn api.main:app --app-dir .. --port 8000
+cd app     && npm run dev
+```
+
+Still unreached by any run: **the microphone**. Every answer in §7 was typed and the
+photograph was a canvas, because the browser pane blocks both devices. One person speaking
+Bhojpuri into a real phone is the measurement nothing here substitutes for.
