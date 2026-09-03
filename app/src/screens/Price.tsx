@@ -144,19 +144,52 @@ export default function Price() {
     setPrice(price + stepFor(price));
   }
 
+  /**
+   * Settle a typed price: same floor guard the buttons enforce, same spoken warning.
+   *
+   * Returns the value it settled on so `accept` can use it directly — reading `price` back
+   * out of state in the same tick would give the pre-clamp number and save a price the
+   * screen just refused.
+   */
+  function commit(): number | null {
+    if (quote == null) return price;
+    // An emptied or nonsense field is not a price. Fall back to what the service suggested
+    // rather than to zero, which would be a listing given away.
+    if (price == null || !Number.isFinite(price)) {
+      setPrice(quote.suggested_price);
+      setAtFloor(false);
+      return quote.suggested_price;
+    }
+    const whole = Math.round(price);
+    if (whole < quote.floor) {
+      setPrice(quote.floor);
+      setAtFloor(true);
+      say('price.floor_warning', { floor: quote.floor });
+      return quote.floor;
+    }
+    setPrice(whole);
+    setAtFloor(false);
+    return whole;
+  }
+
   async function accept() {
     if (price == null || quote == null) return;
+    // Clamp before saving, and use what it returned rather than re-reading state: accepting
+    // straight from a typed field never fires `onBlur`, so without this a below-floor number
+    // could be saved by the one control on the screen that is supposed to be the final say.
+    const settled = commit();
+    if (settled == null) return;
     setBusy(true);
     try {
       // Keep the MRP ratio the service computed, so the GeM mandated discount still clears
       // the floor after the artisan has moved the price.
       const mrp = quote.suggested_price
-        ? Math.round((price * quote.mrp) / quote.suggested_price)
-        : price;
+        ? Math.round((settled * quote.mrp) / quote.suggested_price)
+        : settled;
       // The floor goes with them. GeM's adapter re-checks it at publish time — after the
       // mandated discount — and it reads the value off the product, not out of this screen.
-      await api.patch(`/products/${productId}`, { price, mrp, floor_price: quote.floor });
-      useDraft.getState().setPricing({ ...quote, price, mrp });
+      await api.patch(`/products/${productId}`, { price: settled, mrp, floor_price: quote.floor });
+      useDraft.getState().setPricing({ ...quote, price: settled, mrp });
       nav('/publish');
     } catch (e) {
       say((e as ApiError).messageKey ?? 'net.offline');
@@ -194,8 +227,52 @@ export default function Price() {
 
   return (
     <Screen prompt="price.title">
+      {/*
+        🐞 The number is typeable now, and this is a deliberate exception to design law
+        rule 3 ("nothing is typed except the OTP").
+
+        The ± buttons move in steps sized for the price, which is right for nudging and
+        useless for "I already know this sells for 4,500" — that is thirty taps. Artisans
+        asked for the field. A number pad is also the one keyboard that does not depend on
+        literacy: the digits are the same in every script this app speaks, and the artisan
+        already reads prices to buy thread.
+
+        The floor still governs. `commit` clamps and speaks exactly as `lower` does, so the
+        typed path cannot do something the button path refuses — which is the property that
+        matters, because this is the screen where a wrong number costs them money.
+      */}
       <Card raised>
-        <p style={{ fontSize: 44, fontWeight: 800, margin: 0, textAlign: 'center' }}>₹{price}</p>
+        <label
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+        >
+          <span style={{ fontSize: 44, fontWeight: 800 }} aria-hidden>₹</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={price ?? ''}
+            aria-label={t(lang, 'price.title')}
+            // Typed digits land in state as they are, unclamped: clamping mid-entry means
+            // deleting "4500" to type "900" snaps to the floor on the first keystroke and
+            // fights the artisan's thumb. The guard runs when they stop — on blur, and
+            // before accept.
+            onChange={(e) => {
+              setAtFloor(false);
+              setPrice(e.target.value === '' ? null : Number(e.target.value));
+            }}
+            onBlur={() => commit()}
+            style={{
+              fontSize: 44,
+              fontWeight: 800,
+              width: '5ch',
+              border: 'none',
+              borderBottom: '2px dashed var(--muted)',
+              background: 'transparent',
+              textAlign: 'center',
+              color: 'inherit',
+              padding: 0,
+            }}
+          />
+        </label>
       </Card>
 
       {/* One problem at a time: the floor warning is the only warning this screen can

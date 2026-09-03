@@ -26,6 +26,22 @@
  * @param me       `GET /me`, or null/undefined
  * @returns the rows to render, in priority order. Empty means nothing is waiting.
  */
+/**
+ * A product that was photographed and never described.
+ *
+ * No title means it never reached /catalog/review, so nothing has been written for it — it
+ * is "still to be listed", not a finished listing with a problem.
+ *
+ * Lives here rather than in Products.tsx because /home, /products and this file all need
+ * it, and a screen importing a helper out of another screen is how a render-time circular
+ * import happens: Home pulled `isDraft` from Products, Products was still initialising, and
+ * the component came back `undefined` — React error #130, a blank screen at launch, and a
+ * stack trace naming neither file. A plain shared module cannot do that.
+ */
+export function isDraft(p) {
+  return !p?.title || String(p.title).trim() === '';
+}
+
 export function todosFor(products, orders, me) {
   const ps = products ?? [];
   const os = orders ?? [];
@@ -41,10 +57,24 @@ export function todosFor(products, orders, me) {
     (o) => ['delivered', 'settled'].includes(o.state) && !o.artisan_confirmed_payment,
   ).length;
 
+  /*
+   * 🐞 A half-finished product is not a colour problem.
+   *
+   * Both of these used to be one "check the colour" row, because an abandoned draft has
+   * `colour_confirmed: false` like everything else. So an artisan who photographed a saree
+   * and walked away was told to go and check a colour, landed on a product with no name and
+   * no price, and had nothing to act on — the message named the wrong problem entirely.
+   *
+   * A product with no title never reached /catalog/review, so nothing has been written for
+   * it. That is "still to be listed", it resumes the interview, and it is a different
+   * sentence and a different destination from a finished listing whose colour is unchecked.
+   */
+  const drafts = ps.filter(isDraft).length;
+
   // 🔒 `=== false`, not `!p.colour_confirmed`. The field is optional: a product the server
   // did not send it for is UNKNOWN, not unconfirmed, and nagging an artisan about a product
   // that is actually fine is how a "waiting for you" list stops being read.
-  const unchecked = ps.filter((p) => p.colour_confirmed === false).length;
+  const unchecked = ps.filter((p) => !isDraft(p) && p.colour_confirmed === false).length;
 
   // Bank details only. has_pan and has_gst are genuinely optional for a small seller, and a
   // home screen carrying a chore that can never be finished trains people to ignore it.
@@ -68,6 +98,16 @@ export function todosFor(products, orders, me) {
       subKey: 'home.todo_pay_sub',
       count: toConfirm,
       to: '/earnings',
+    },
+    // Above the colour row: an unfinished product is not sellable at all, where an
+    // unconfirmed colour is one tap away from being.
+    drafts > 0 && {
+      key: 'draft',
+      urgent: false,
+      labelKey: 'home.todo_draft',
+      subKey: 'home.todo_draft_sub',
+      count: drafts,
+      to: '/products',
     },
     unchecked > 0 && {
       key: 'colour',
@@ -125,12 +165,28 @@ function demo() {
 
   // 🔒 The publish gate. Unknown is not the same as unconfirmed.
   const prods = [
-    { id: 'a', colour_confirmed: false },
-    { id: 'b', colour_confirmed: true },
-    { id: 'c' },
+    { id: 'a', title: 'Saree', colour_confirmed: false },
+    { id: 'b', title: 'Matka', colour_confirmed: true },
+    { id: 'c', title: 'Dhurrie' },
   ];
   const colour = todosFor(prods, [], null).find((r) => r.key === 'colour');
   assert(colour.count === 1, 'a product with no colour_confirmed field is not nagged about');
+
+  // A half-finished product is its own row, and never the colour row: it has no colour to
+  // check yet, and telling somebody to check one names the wrong problem.
+  const mixed = [
+    { id: 'd' },                                        // photographed, walked away
+    { id: 'e', title: '' },                             // empty title is still a draft
+    { id: 'f', title: '   ' },                          // and so is whitespace
+    { id: 'g', title: 'Saree', colour_confirmed: false } // finished, colour open
+  ];
+  const rows = todosFor(mixed, [], null);
+  assert(rows.find((r) => r.key === 'draft').count === 3, 'every untitled product is a draft');
+  assert(rows.find((r) => r.key === 'colour').count === 1, 'a draft is never counted as a colour job');
+  assert(
+    keys(rows) === 'draft,colour',
+    'unfinished comes before unconfirmed: one is unsellable, the other is one tap away',
+  );
 
   // Setup: only a server that has actually said "no bank" produces the row.
   assert(!todosFor([], [], {}).find((r) => r.key === 'setup'), 'an absent flag is not a chore');

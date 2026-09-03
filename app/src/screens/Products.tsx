@@ -3,6 +3,8 @@ import { ApiError } from '../api/client';
 import { ServerImage } from '../api/useDisplayImage';
 import { useApiQuery } from '../api/useApi';
 import type { Product } from '../api/types';
+import { useDraft } from '../store';
+import { isDraft } from './homeTodos.js';
 import { useVoice } from '../voice/useVoice';
 import { t } from '../i18n/index';
 import { Screen, BigButton, Chip } from '../ui/kit';
@@ -33,6 +35,11 @@ import { IconCreate, IconPhoto, IconForward } from '../ui/icons';
 
 /** Why this product is not selling yet, or that it is ready to. Never more than one. */
 function statusOf(p: Product) {
+  // 🐞 Drafts first, and this is the fix for a real complaint: an abandoned product has
+  // `colour_confirmed: false` like everything else, so it used to say "check the colour".
+  // The artisan opened it, found no name, no price and no colour to check, and had nothing
+  // to do. Naming the actual problem — it is not finished — is what makes the row useful.
+  if (isDraft(p)) return { tone: 'pending', key: 'products.draft' };
   // Ordered by what blocks a publish first. One problem at a time (design law rule 4) —
   // telling someone their price is unset while the colour lock is also open just buries
   // the one they have to fix first.
@@ -44,6 +51,9 @@ function statusOf(p: Product) {
 export default function Products() {
   const nav = useNavigate();
   const { lang } = useVoice();
+  // Seeds the in-memory draft from a saved row, so the interview can be re-entered for a
+  // product created in an earlier session. See the note on `resume` in store.ts.
+  const resume = useDraft((s) => s.resume);
 
   // The catalogue renders from the last visit's copy on the frame this screen appears and
   // corrects itself only if the server disagrees. Leaving the tab and coming back used to
@@ -84,7 +94,22 @@ export default function Products() {
       {items?.map((p) => {
         const st = statusOf(p);
         return (
-          <button key={p.id} className="chan" onClick={() => nav(`/products/${p.id}`)}>
+          <button
+            key={p.id}
+            className="chan"
+            onClick={() => {
+              // A draft has nothing for the detail screen to show — no title, no price, no
+              // per-channel truth — so it goes back into the interview that would produce
+              // those, seeded with the product the server already has. Sending it to
+              // /products/:id is what made "continue where I left off" a dead page.
+              if (isDraft(p)) {
+                resume(p);
+                nav('/catalog/voice');
+              } else {
+                nav(`/products/${p.id}`);
+              }
+            }}
+          >
             {p.image ? (
               <ServerImage
                 src={p.image}

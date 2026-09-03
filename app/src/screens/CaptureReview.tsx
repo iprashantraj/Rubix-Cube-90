@@ -132,17 +132,39 @@ export default function CaptureReview() {
 
   return (
     <Screen prompt={failed ?? (busy ? 'capture.uploading' : 'capture.confirm')}>
+      {/*
+        The progress belongs ON the photograph, not under it.
+
+        It used to sit below the card as a bare spinner, so the thing being worked on and
+        the evidence that work was happening were in two different places — and the photo
+        stayed perfectly sharp throughout, which reads as "nothing is happening" no matter
+        what the spinner does.
+
+        Dimming and blurring the shot while it uploads says the picture is being worked on
+        in the one language that needs no reading. The blur deepens once the bytes are up
+        and the server is rendering, so the two phases look different: uploading is
+        something the artisan's connection is doing, enhancing is something we are doing.
+
+        🔒 The blur is a CSS filter on the preview and nothing else. It never touches the
+        pixels, is never uploaded, and is gone the moment `busy` clears — rule 1 forbids
+        fabricating detail, and a cosmetic overlay on a local preview is not that.
+      */}
       <Card>
-        <img
-          src={draft.photoUrl ?? undefined}
-          alt=""
-          style={{ width: '100%', display: 'block', borderRadius: 14 }}
-        />
+        <div className={`shotwork${busy ? ' shotwork--busy' : ''}`}>
+          <img
+            src={draft.photoUrl ?? undefined}
+            alt=""
+            style={{ width: '100%', display: 'block', borderRadius: 14 }}
+          />
+          {busy && (
+            <div className="shotwork__over">
+              <Spinner label={`${Math.round(pct * 100)}%`} />
+            </div>
+          )}
+        </div>
       </Card>
 
-      {busy ? (
-        <Spinner label={`${Math.round(pct * 100)}%`} />
-      ) : (
+      {busy ? null : (
         <>
           <BigButton
             icon={IconYes}

@@ -652,6 +652,38 @@ input {
 }
 
 /*
+ * 🐞 Rhythm INSIDE a card.
+ *
+ * `.screen__body` owns the gap between cards, which is why `.card` deliberately has no
+ * margin — but nothing owned the gap between a card's own children. Anywhere two actions
+ * stack inside one card they touched edge to edge and read as one mis-drawn control.
+ *
+ * /publish is where it showed worst: a tier section renders "send to these" immediately
+ * followed by "next", and ChannelBlock stacks up to three of publish / connect / download.
+ * Two 56px buttons sharing a border is not a small cosmetic problem on the screen whose
+ * whole job is one unmistakable press.
+ *
+ * Adjacent-sibling margins rather than `gap`, because making .card a flex column would
+ * re-flow every card in the app to fix four of them.
+ */
+.card > .big + .big,
+.card > .big + .alt,
+.card > .alt + .big,
+.card > .yesno + .big,
+.card > .big + .yesno,
+.card > .help + .big,
+.card > .big + .help {
+  margin-top: 10px;
+}
+
+/* A button following text needs more air than one following another button, or the label
+   above reads as part of the control. */
+.card > p + .big,
+.card > p + .yesno {
+  margin-top: 14px;
+}
+
+/*
  * A status chip. Colour AND a word, always — the word is what a colour-blind user reads,
  * and the colour is what everyone else reads at a glance from across the room.
  */
@@ -2257,3 +2289,63 @@ input {
   border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
   padding-top: 14px;
 }
+
+/* --- work-in-progress overlay on a photograph ------------------------------
+ *
+ * Used by /capture/review while a shot uploads and the server renders it.
+ *
+ * The problem this solves is not decoration. A spinner underneath a perfectly sharp
+ * photograph reads as "nothing is happening to my picture" — the feedback and the subject
+ * are in different places, and the subject looks untouched. Dimming and blurring the shot
+ * itself says "this is being worked on" without a word of text, which is the only register
+ * this app can rely on.
+ *
+ * 🔒 A CSS filter on a local preview. It never touches the pixels, is never uploaded, and
+ * clears the moment the work does. CLAUDE.md rule 1 forbids fabricating detail in a
+ * listing image; this is the opposite — it temporarily shows LESS than we have.
+ */
+.shotwork {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.shotwork > img {
+  transition: filter 320ms ease, transform 320ms ease;
+}
+
+.shotwork--busy > img {
+  /* Deep enough to be unmistakable at arm's length on a cheap screen, and a slight scale so
+     the blurred edges do not reveal the card behind them. */
+  filter: blur(7px) brightness(0.62) saturate(0.9);
+  transform: scale(1.04);
+}
+
+.shotwork__over {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* A wash rather than a panel: the photograph stays visible underneath, so the artisan can
+     still see WHICH shot is being worked on. */
+  background: rgba(0, 0, 0, 0.28);
+  /* The percentage is read against the darkened photo, so it carries its own contrast
+     rather than depending on whatever the shot happens to be. */
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* A slow breath, so a stalled upload still looks alive. Held to opacity/scale only: those
+   are compositor properties and cost nothing on a 2GB phone. */
+.shotwork--busy > img {
+  animation: shotwork-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes shotwork-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.86; }
+}
+
+/* The blanket reduced-motion rule at the bottom of this file disables the animation; the
+   blur and the dim stay, because they are the message rather than the decoration. */

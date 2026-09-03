@@ -167,6 +167,7 @@ type Draft = {
   answer: (key: string, value: string) => void;
   setListing: (l: Record<string, unknown> | null) => void;
   setPricing: (p: Record<string, unknown> | null) => void;
+  resume: (p: { id: string; title?: string | null; image?: string | null; colour_confirmed?: boolean }) => void;
   reset: () => void;
 };
 
@@ -191,6 +192,42 @@ export const useDraft = create<Draft>((set) => ({
   answer: (key, value) => set((s) => ({ answers: { ...s.answers, [key]: value } })),
   setListing: (listing) => set({ listing }),
   setPricing: (pricing) => set({ pricing }),
+
+  /*
+   * Re-enter the create flow for a product that already exists on the server.
+   *
+   * 🐞 Why this had to exist: the draft is in-memory and every screen after /camera reads
+   * `draft.listing.product_id` off it. So navigating to /catalog/voice or /price for a
+   * product created in an earlier session gave a screen with nothing in it and no way
+   * forward — the artisan had a half-finished product in their catalogue and literally
+   * could not finish it. Re-shooting was the only path, which throws away a photo the
+   * server already enhanced.
+   *
+   * Seeded from the `/products` list row, which is all any resuming screen needs: the id to
+   * PATCH against, the image to show, and whether the colour lock is still open. `answers`
+   * stays empty on purpose — those were spoken sentences, not stored fields, and offering a
+   * stale one back as though the artisan had just said it would be putting words in their
+   * mouth. The interview's `defaults` already carries anything worth carrying.
+   *
+   * `photoBlob` stays null: the bytes are on the server now. Screens that fall back to the
+   * local copy degrade to `photoUrl`, which is exactly what they do after a reload anyway.
+   */
+  resume: (p) =>
+    set({
+      photoBlob: null,
+      photoUrl: p.image ?? null,
+      enhanceJobId: null,
+      images: p.image ? [{ url: p.image }] : null,
+      // The server's answer, not an assumption. An undefined flag means the row predates
+      // the column; treating that as "confirmed" would walk the colour lock.
+      colourConfirmed: p.colour_confirmed === true,
+      prefill: null,
+      answers: {},
+      listing: { product_id: p.id, ...(p.title ? { title: p.title } : {}) },
+      pricing: null,
+      mode: 'standing',
+    }),
+
   reset: () =>
     set({
       photoBlob: null,
