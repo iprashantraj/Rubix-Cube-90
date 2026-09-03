@@ -1,0 +1,15 @@
+{
+  "_note": "Strings for the gallery picker on /camera and for the shutter's label once it can be pressed on a red frame. Odia is deliberately absent for the same reason as _new_ui.json: an unreviewed Odia draft spoken to someone who cannot read it is worse than honest English in an English voice, and resolve() already falls back correctly. Add `or` here only after a native speaker has checked it.",
+
+  "en": {
+    "camera.gallery": "Choose a photo",
+    "camera.gallery_picked": "Photo chosen",
+    "photo.take_anyway": "Take the photo anyway"
+  },
+
+  "hi": {
+    "camera.gallery": "फ़ोटो चुनें",
+    "camera.gallery_picked": "फ़ोटो चुन ली",
+    "photo.take_anyway": "फिर भी फ़ोटो लें"
+  }
+}

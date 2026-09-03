@@ -106,6 +106,31 @@ def warm() -> str:
     return dev
 
 
+def prewarm() -> str:
+    """Load the weights AND spend one throwaway inference. Returns the device.
+
+    `warm()` on its own is not enough, and the gap is not small. Loading gets the weights
+    onto the device; the FIRST real inference then pays CUDA kernel autotuning on top of
+    that. Measured on an RTX 4060, 2026-09-02:
+
+        load()                 3486ms
+        first alpha() after it  899ms
+        every alpha() after     402ms
+
+    So ~4s lands on whichever photograph happens to arrive first — which during a demo is
+    the one somebody is watching, and during normal use is some artisan's. Paying it at
+    startup instead costs nothing anybody is waiting on.
+
+    The throwaway frame is `MASTER_LONG_EDGE` square because that is the size real callers
+    pass; `alpha()` resizes to `INFER_PX` internally either way, and matching the caller
+    means the autotuned kernels are the ones that get reused. The mask is discarded — a flat
+    white frame has no product in it and is not supposed to.
+    """
+    _, dev = load()
+    alpha(Image.new("RGB", (MASTER_LONG_EDGE, MASTER_LONG_EDGE), "white"))
+    return dev
+
+
 def to_master(image: Image.Image) -> Image.Image:
     """The 2000px master every later stage works on. Returns the original if already smaller.
 

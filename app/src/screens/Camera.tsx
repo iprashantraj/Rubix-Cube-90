@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { useCameraGate } from '../camera/useCameraGate';
@@ -60,6 +60,24 @@ export default function Camera() {
       console.warn('[camera] using bundled thresholds; server copy unavailable:', e),
     );
   }, []);
+
+  /*
+   * Gallery pick. Same destination as the shutter — a blob and an object URL in the draft,
+   * then /capture/review — so nothing downstream has to know which one it came from.
+   *
+   * The input is reset afterwards so choosing the same file twice in a row still fires
+   * onChange; without it the second pick is a no-op and looks like the button broke.
+   */
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    say('camera.gallery_picked');
+    setPhoto(file, URL.createObjectURL(file));
+    nav('/capture/review');
+  }
 
   const { videoRef, problem, isGreen, ready, error, capture } = useCameraGate({
     thresholds,
@@ -190,17 +208,56 @@ export default function Camera() {
       </div>
 
       {/*
-        Gated shutter. Disabled while red, so the artisan cannot take a bad photo even if
-        they try. They move until the button lights up — no reading required anywhere in
-        that loop. Auto-capture normally fires first; this stays for anyone who wants to
-        press it themselves — which it could not, because it had no onClick at all. It was
-        a button that lit up green, invited a press, and did nothing.
+        Pick an existing photo instead of shooting one.
+
+        A plain <input type="file">, not @capacitor/camera — the WebView hands this to
+        Android's own photo picker, which needs no runtime permission and no plugin call.
+        The gate does not run on what comes back, by definition: there is no live frame to
+        score. That is not a hole. `ai/enhance/pipeline.py` gate() re-checks resolution,
+        exposure and blur server-side and refuses what it cannot use, so the floor the
+        camera gate defends is still there — it just arrives as a spoken rejection after
+        the upload rather than as a locked shutter before it.
+
+        EXIF is stripped in CaptureReview via api/upload.ts's stripExif, which matters far
+        more here than on the camera path: a gallery photo carries the real capture GPS,
+        where a canvas-encoded camera blob never had any.
+      */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        className="cam__fileInput"
+        onChange={onPick}
+      />
+      <button className="cam__gallery" onClick={() => fileRef.current?.click()}>
+        {t(lang, 'camera.gallery')}
+      </button>
+
+      {/*
+        The shutter. Green means the gate is happy and auto-capture is about to fire on its
+        own; grey means it is not, and a press still takes the photo.
+
+        ⚠️ This reverses the original rule, deliberately and on request. The gate used to
+        HARD-BLOCK a red frame — `disabled={!isGreen}` — so an artisan could not take a bad
+        photo even on purpose, and moved until the button lit up. That is still the design
+        the coaching is built around, and it is still what happens if you simply wait: the
+        colour ring, the spoken problem and the auto-fire are all untouched, and auto-capture
+        remains green-only, because a photo the phone takes for you should still be one it
+        would vouch for.
+
+        What changed is only the manual override. Judgement the gate cannot make — this is
+        the only light there will be today, the object cannot be moved, the "blur" is a
+        flat white cloth the Laplacian always misreads (see the blur row in app/README.md)
+        — now belongs to the person holding the phone.
+
+        Still disabled until `ready`, because before the lens is open there is no frame to
+        capture and a button that responds to nothing is worse than one that admits it.
       */}
       <button
         className={`cam__shutter${isGreen ? ' cam__shutter--ok' : ''}`}
         onClick={capture}
-        disabled={!isGreen}
-        aria-label={t(lang, isGreen ? 'photo.ready' : problem ?? 'photo.blurry')}
+        disabled={!ready}
+        aria-label={t(lang, isGreen ? 'photo.ready' : 'photo.take_anyway')}
       />
     </div>
   );

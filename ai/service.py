@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import pathlib
+import threading
+import time
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -18,7 +21,7 @@ load_dotenv(pathlib.Path(__file__).resolve().parent / ".env")
 from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
-from enhance import jobs, pipeline, storage
+from enhance import jobs, pipeline, recipe, storage
 from catalog import seo
 from catalog.prefill import (
     SYSTEM_PROMPT_PREFILL,
@@ -39,13 +42,60 @@ from interpret import interpret as run_interpret
 from price import comps
 from price.compute import quote
 
-app = FastAPI(title="Rubix AI", version="0.1.0")
 log = logging.getLogger(__name__)
+
+_warm_device: str | None = None
+
+
+def _prewarm() -> None:
+    """Load BiRefNet and burn one inference, so the first artisan does not pay for it.
+
+    Imported here rather than at module scope on purpose: `enhance/segmenter.py` says its
+    import is lazy because it pulls in torch, and doing that at startup would put a
+    multi-second import in front of every endpoint in this file, including the ones that
+    have nothing to do with images.
+    """
+    global _warm_device
+    try:
+        from enhance import segmenter
+
+        t = time.perf_counter()
+        _warm_device = segmenter.prewarm()
+        log.info("segmenter warm on %s in %.0fms", _warm_device, (time.perf_counter() - t) * 1000)
+    except Exception:
+        # Rule 3: degrade and speak. No GPU, no weights on disk and no network to fetch them,
+        # or torch not installed — none of that may stop `/price`, `/catalog` or the gate from
+        # serving. The first `/enhance` simply pays the load itself, exactly as it did before
+        # this existed, and `load()` holds a lock so nothing double-loads.
+        log.warning("segmenter prewarm failed; first /enhance pays the load", exc_info=True)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Warm the model in the background at startup.
+
+    A BACKGROUND thread, not an await. Blocking startup would be simpler, but it would also
+    mean a box with no GPU cannot serve pricing or cataloguing — one feature's cold start
+    taking down four. Uvicorn binds immediately and the model lands ~4s later, which is
+    still long before anyone has photographed anything.
+
+    Daemon, so Ctrl-C during that window exits rather than hanging on a torch import.
+    """
+    threading.Thread(target=_prewarm, name="segmenter-prewarm", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Rubix AI", version="0.1.0", lifespan=lifespan)
 
 
 @app.get("/health")
 def health():
-    return {"ok": True}
+    """`warm` is null while the model is still loading, and false if prewarm gave up.
+
+    Worth reading before a demo: false means enhancement still works but the first photo
+    will stall for about four seconds.
+    """
+    return {"ok": True, "warm": _warm_device}
 
 
 @app.post("/catalog/interpret")
@@ -138,6 +188,49 @@ def enhance(req: dict, response: Response):
     job_id = jobs.submit(pipeline.run, image, targets, product_id)
     response.status_code = 202
     return {"job_id": job_id, "status": "queued"}
+
+
+@app.post("/enhance/rerender")
+def enhance_rerender(req: dict, response: Response):
+    """Re-apply a stored recipe. **No GPU when the mask is still cached.**
+
+    This is the endpoint the tier picker calls. `{product_id, image_url, recipe, targets}`,
+    plus an optional `tier` to change before rendering — sending `tier` marks the recipe
+    `tier_source: "user"`, and once a person has overruled the confidence score a later
+    automatic pass must not quietly overrule them back.
+
+    Synchronous, unlike `/enhance`: with the mask cached this is tens of milliseconds, and
+    a job id for that would be slower than the work. It falls back to re-segmenting if the
+    mask is gone, which is the one case where it takes as long as `/enhance` — acceptable,
+    because it is rare and the alternative is failing.
+
+    The caller stores the returned `recipe` back on the product row. `contracts.md` has the
+    shapes.
+    """
+    image_url = req.get("image_url")
+    rec = req.get("recipe")
+    if not image_url or not rec:
+        raise HTTPException(400, "image_url and recipe are required")
+    product_id = req.get("product_id") or "unknown"
+    targets = req.get("targets") or [pipeline.PRIMARY]
+
+    if req.get("tier"):
+        try:
+            rec = recipe.with_tier(rec, req["tier"], by_user=True)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    try:
+        image = storage.open_image(image_url)
+    except storage.SourceError as e:
+        raise HTTPException(502, {"reason": str(e), "message_key": "enhance.failed"})
+
+    try:
+        return pipeline.rerender(image, targets, product_id, rec)
+    except ValueError as e:
+        # A recipe render() cannot honour. 422 rather than 500: the request is well-formed
+        # and the stored recipe is the problem, and the caller's fix is to re-run /enhance.
+        raise HTTPException(422, {"reason": str(e), "message_key": "enhance.failed"})
 
 
 @app.get("/enhance/{job_id}")

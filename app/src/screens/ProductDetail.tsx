@@ -1,6 +1,7 @@
 import {useState} from 'react';
 import { useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { ServerImage } from '../api/useDisplayImage';
 import { useApiQuery } from '../api/useApi';
 import type { Channel, Product, PublishResult, PublishJob } from '../api/types';
 import { useVoice } from '../voice/useVoice';
@@ -101,7 +102,7 @@ export default function ProductDetail() {
             {product.image ? (
               // The photo is the identity of the product for a user who cannot read the
               // title, so it gets the space a heading would normally take.
-              <img
+              <ServerImage
                 src={product.image}
                 alt=""
                 style={{ width: '100%', borderRadius: 14, display: 'block' }}

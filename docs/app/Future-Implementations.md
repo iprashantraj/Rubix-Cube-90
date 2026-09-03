@@ -86,18 +86,113 @@ onboarding depend on a network round trip.
 
 ---
 
-## 4. Known gaps, unrelated to models
+## 4. Image pipeline latency — it was never the model
 
-- **No Alembic migrations exist.** `web/api/alembic/versions/` is empty; the schema is
-  created by `create_all()`, which silently ignores every column you alter. Fine for one
-  developer, wrong the moment two share a database.
+### Today
+
+Measured 2026-09-02 on the dev laptop (RTX 4060, model warm), one 12MP phone photo:
+
+| Stage | Time | Where |
+|---|---|---|
+| JPEG decode | ~100ms | CPU |
+| `gate()` blur/resolution | 375ms | CPU, full 12MP array |
+| `to_master()` 12MP → 2000px | 168ms | CPU LANCZOS |
+| **BiRefNet segment** | **402ms** | GPU |
+| `apply_tier()` | 124ms | CPU |
+| `crop()` | 54ms | CPU |
+| encode ×3 targets | 80ms | CPU |
+| **Total compute** | **≈1.3s** | all local |
+
+Against that, S3 on Supabase `ap-southeast-2` (Sydney) was costing **eight serialized round
+trips** at 0.81–1.13s each, measured:
+
+| Round trip | Count |
+|---|---|
+| `uploads.complete()` → `derive()` puts: full, thumb, display | 3 |
+| + original into the private bucket | 1 |
+| `ai/enhance/storage.py` fetching the signed `full` back | 1 GET |
+| `_publish_s3()` → amazon, gem, whatsapp | 3 |
+
+**≈7s of network against 1.3s of work. Compute was 15% of the wall clock.** The image was
+crossing the Indian Ocean four times to be processed by a GPU in the same room. S3 was
+switched off for the demo on 2026-09-02 for this reason, and that was the correct call.
+
+Three multipliers, in order of size — and note that none of them is the model:
+
+1. **Geography.** Sydney is ~0.9s RTT from India. Every round trip pays it in full.
+2. **Serialization.** Those seven puts are independent and run one after another.
+3. **Round-tripping.** `web/api` uploads bytes to Sydney so `ai/` can download the same
+   bytes straight back.
+
+### What changes for production
+
+| Change | Effect |
+|---|---|
+| Move the Supabase project to `ap-south-1` (Mumbai) | 0.9s → ~50ms per round trip. Biggest single win and it is a project setting, not code |
+| Parallelize the seven puts (`asyncio.gather`) | 7 serial → ~1 concurrent, even from Sydney |
+| `ai/` publishes to object storage directly | Kills the laptop→cloud→laptop→cloud round-trip entirely. `ai/contracts.md` already specifies `s3://out/...`; needs credentials in `ai/.env`, which it does not have today. This is the real fix, and `_publish_results` says so in its own docstring |
+| Redis + RQ for the job table (`docs/decisions.md` #2) | Jobs are process-local in `ai/enhance/jobs.py`; restarting the service loses in-flight work. Swap surface is two functions |
+| CDN in front of the public bucket | Marketplace image loads, not processing |
+
+### ⚠️ What must NOT be assumed in the meantime
+
+- **`GET /api/enhanced/{path}` is demo scaffolding and must be deleted before production.**
+  Added 2026-09-02 so that switching S3 off costs latency instead of correctness. It serves
+  the AI box's local disk, so it only works while both services share a filesystem, and the
+  urls it builds embed whichever host the caller used — on a phone hotspot that is a DHCP
+  lease `docs/app/START-SERVER.md` says moves within the hour. `_record_variants` writes
+  those urls to the database, so rows published this way go stale when the laptop's address
+  changes. An S3 url would not. Superseded by "`ai/` publishes directly" above.
+- **With S3 off, `Upload.url` is also `file://`.** `POST /uploads/{id}/complete` returns a
+  local path, so the `raw` ProductImage row is unreadable to anything that is not the phone
+  that took the photo. The app survives on its own local copy; the marketplace and admin
+  console do not. `_record_variants` promoting an enhanced variant to primary is what keeps
+  a listing page working — so this mode depends on enhancement having succeeded, where S3
+  mode does not.
+- **The 402ms GPU segment is the floor, not a target.** Do not shrink the inference size:
+  `ai/enhance/segmenter.py` documents that BiRefNet always infers at 1024² whatever it is
+  given, so there is nothing to gain. Do not feed it the full-resolution upload either — the
+  same docstring records that this is slower *and* visibly worse.
+- **The 375ms gate is not fat.** Blur detection needs real pixels; downscaling first
+  destroys the signal it measures. Raising or lowering the sample size is already on the
+  rejected list in `CLAUDE.md`.
+- **The database host is not the same problem as the storage host.** Both are in Sydney, but
+  the DB costs 200–406ms per query across a handful of queries per request (~1–2s), where
+  S3 cost ~7s. Moving the region fixes both at once. Standing up a local Postgres to dodge
+  the latency is a demo-day tradeoff, not an architecture decision — the schema is the same
+  either way and `alembic upgrade head` reproduces it.
+
+### The one thing still slow, and it is not on this list
+
+`ai/service.py` has **no startup warm**. `segmenter.warm()` exists and nothing calls it, so
+the model loads lazily on the first `/enhance`:
+
+```
+model load (COLD):           3486ms
+first inference (autotune):   899ms   ← vs 402ms warm
+```
+
+Every restart of the AI service re-arms this, and it lands on the first photo of a demo. A
+lifespan hook calling `warm()` plus one dummy inference to force CUDA autotune removes ~4s
+from that first request and changes nothing else.
+
+---
+
+## 5. Known gaps, unrelated to models
+
+- ~~**No Alembic migrations exist.**~~ Resolved. `web/api/alembic/versions/` holds seven as
+  of 2026-09-02, through `c3a71f0d5e42` (product recipe and mask version). `alembic upgrade
+  head` reproduces the schema on any host, which is what makes a local Postgres a
+  configuration change rather than a migration project.
 - **`POST /catalog/interpret` is not rate-limited.** It is authenticated, so it is not an
   open relay, but an artisan id is currently used only for identification. It spends money
   per call.
-- **`ai/enhance/` is missing its colour stages.** `white_balance()`, `tone()` and
-  `denoise_sharpen()` are unwritten and skipped explicitly, and every response names them.
-  Everything else in that service is implemented: `catalog/interpret`, `catalog/harvest`,
-  `catalog/prefill`, `POST /catalog` and the whole of `price/`. (`ai/catalog/nlp.py` was the
-  original stub sketch for F2 and was deleted on 2026-09-03 — `interpret.py`,
-  `catalog/describe.py`, `catalog/prefill.py` and `catalog/seo.py` are what got built, and
-  `transcribe`/`speak` live in `web/api/routers/voice.py`, not in that service at all.)
+- ~~**`ai/catalog/nlp.py`, `ai/enhance/`, `ai/price/` are still stubs.**~~ Stale twice over.
+  `enhance/` runs end to end apart from its colour stages — `white_balance()`, `tone()` and
+  `denoise_sharpen()` are unwritten, skipped explicitly, and named in every response — and
+  `price/` is deterministic. On the F2 side `catalog/interpret`, `catalog/harvest`,
+  `catalog/prefill` and `POST /catalog` are all built. `ai/catalog/nlp.py` was the original
+  stub sketch for F2 and was deleted on 2026-09-03: `interpret.py`, `catalog/describe.py`,
+  `catalog/prefill.py` and `catalog/seo.py` are what got built instead, and
+  `transcribe`/`speak` live in `web/api/routers/voice.py`, not in that service at all. See
+  the "Current state" section of `CLAUDE.md`.
