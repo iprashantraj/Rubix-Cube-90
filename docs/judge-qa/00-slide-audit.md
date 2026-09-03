@@ -63,22 +63,31 @@ no request.
 
 ---
 
-## A0.4 🟡 "sarvam" is the only named AI vendor on slide 3 — and it appears nowhere in the code
+## A0.4 ✅ "sarvam" on slide 3 — **now correct.** Resolved 2026-09-03
 
-The slide's "Voice, Marketplace & Cloud" panel shows Sarvam alone. What actually runs:
+**This entry previously said Sarvam appeared nowhere in the code. That is no longer true**, as
+of the `f2-cataloger-fixes` merge. Sarvam is the live ASR and TTS layer.
 
 | Job | What is wired today | File |
 |---|---|---|
 | Matting | BiRefNet, self-hosted, pinned revision | `ai/enhance/segmenter.py` |
+| **ASR + TTS** | **Sarvam, live. `bulbul:v3`, speaker `ritu`.** Key configured, both tiers answer | `web/api/routers/voice.py`, `config.py:83` |
 | Voice → field value | OpenRouter, `deepseek/deepseek-v4-flash` (text only) | `ai/interpret.py` |
-| ASR / TTS | **Bhashini intended, terms unconfirmed.** `docs/decisions.md` #5 is open | — |
-| Description | Leaning Claude (`claude-sonnet-5`). `docs/decisions.md` #3 open | `ai/catalog/describe.py` |
+| Description EN+HI | `ai/catalog/describe.py` | — |
+| Vision pre-fill | **`ai/catalog/prefill.py`, built** | `ai/service.py:309` |
 
-Naming one vendor we do not use, while omitting the two we do, is a question we cannot answer
-without contradicting the slide.
+**So the slide is right and the deck undersells it.** Sarvam is an Indian speech stack on an
+Indian government problem statement, and it is running — not aspirational.
 
-**→ Either wire Sarvam and say so, or replace the logo with BiRefNet + Bhashini.** An Indian
-open-weights model is a genuinely good answer on this PS — but only if it is running.
+**→ What to add rather than remove:** Sarvam alone on the panel still omits BiRefNet, which is
+the model that runs on **every single photograph** and the reason the unit economics work. Put
+both on. *"Sarvam for speech, BiRefNet self-hosted for images"* is two true statements and covers
+the whole AI surface.
+
+⚠️ **One trap the team already documented, worth knowing before a demo:** in Sarvam's map Odia is
+**`od-IN`, not the ISO `or-IN`**, and an unmapped code **falls back to Hindi silently.** That is
+heard in the room as "the Tamil voice is broken" and diagnosed as anything except a missing
+dictionary key.
 
 ---
 

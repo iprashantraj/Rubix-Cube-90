@@ -226,7 +226,7 @@ destroyed.**
 
 | # | Lever | 🧮 Annual saving at S3 | Effort |
 |---|---|---|---|
-| 1 | **Confirm Bhashini commercial terms** — avoids commercial ASR entirely | **₹18 Cr avoided** | **One email.** Unassigned today |
+| 1 | **Settle speech pricing** — Sarvam volume rate, or Bhashini free tier | **₹18 Cr avoided** | Two procurement calls. Swap surface is 2 functions |
 | 2 | **Self-host CV** (already decided) — vs a per-image API | **₹17.6 Cr avoided** | Done |
 | 3 | **GeM order API MoU** | **₹6.0 Cr** | A ministry conversation, no code |
 | 4 | **Self-host the description LLM** past crossover (§6.1) | **₹1.4 Cr** | ~2 weeks |

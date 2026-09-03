@@ -38,9 +38,18 @@ Current rates (`ai/price/rates.json`): default wage **₹120/hour**, default mar
 rates for **sambalpur 120, bhuj 140, varanasi 150, channapatna 110**, and a per-channel minimum
 discount of **10% for GeM**, zero elsewhere.
 
-**The LLM appears exactly once in this feature** — `ai/price/comps.py:20` — and **it never produces
-a price.** It normalises messy comparable listing titles so that we compare like with like. That
-boundary is in `ai/README.md` as a rule: **no LLM touches a price.**
+**There is now no LLM in this feature at all.** An earlier version of this answer said the model
+appeared exactly once, in `comps.normalize()`, to tidy messy comparable titles. **That function was
+deleted on 2026-09-03** — it was never called, and the reason given for removing it is the sharper
+version of our own rule: *"an LLM normalising listing titles would put a model in the one place F3
+says no model goes."*
+
+So the boundary in `ai/README.md` — **no LLM touches a price** — is now enforced by there being no
+model in the path, rather than by a convention someone has to remember.
+
+⚠️ **One stale docstring to fix before anyone reads the source in the room:** `ai/price/comps.py`
+still opens with *"then uses an LLM to normalize messy listing titles."* The function is gone; the
+sentence is not. A judge who opens that file sees us describing something we deliberately removed.
 
 **The correct slide sentence:** *"Deterministic cost-up pricing with a loss-guard floor. Every
 rupee traces to a material cost the artisan stated, hours they worked, and a published cluster
@@ -57,13 +66,20 @@ What it does not do is guess.
 **Think.** Do not stretch. Name the one part that is genuinely intelligent and let the rest be
 arithmetic proudly.
 
-**Answer.** Two things, and neither is a price predictor.
+**Answer. Almost none, deliberately — and that is the point.**
 
-1. **Comparable normalisation.** Real listing titles are *"Sambalpuri Cotton Handloom Saree with
-   Blouse Piece Traditional Bandha Ikat"* — the model reduces that to a comparison class. That is
-   language work, and it is the only place a model belongs in this feature.
-2. **Category mapping upstream**, which is where the actual intelligence in this whole system
-   lives — see Q5.2. The price is only as good as the category it is compared within.
+The intelligence sits **upstream** of the price, not inside it:
+
+1. **The voice interview** that extracts material, hours and cost from ordinary spoken sentences —
+   including a dialect *"ee sutti ke saari ha"* that a naive prompt got confidently wrong (Q3.8).
+   Getting `labour_hours` out of *"do din laga"* is the hard part; multiplying it by a wage rate is
+   not.
+2. **Category mapping**, which is where the real intelligence in this whole system lives — see
+   Q5.2. **The price is only as good as the category it is compared within.**
+
+**Inside the price calculation itself there is now no model whatsoever.** Say that plainly. On a
+government problem statement, *"the arithmetic is auditable and no model can move it"* is a
+feature, not an apology.
 
 **And the honest framing that wins the exchange:** the intelligence in this feature is not in
 the algorithm, it is in **knowing which number is wrong.** Every pricing tool in the market

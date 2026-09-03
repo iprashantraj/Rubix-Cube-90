@@ -121,40 +121,54 @@ the largest cost avoidance in the project.
 
 | Model | Role | In | Out |
 |---|---|---|---|
-| `deepseek/deepseek-v4-flash` (OpenRouter) | Voice → field value; comparable normalisation | ~$0.10 | ~$0.30 |
+| `deepseek/deepseek-v4-flash` (OpenRouter) | Voice → field value; slot harvest | ~$0.10 | ~$0.30 |
 | `claude-sonnet-5` | EN + HI description, category mapping | ~$3.00 | ~$15.00 |
+| *(vision model, TBD)* | `/catalog/prefill` — photo → nullable field guesses | — | — |
 
 🧮 Per product:
 
 | Call | Tokens (in / out) | Cost |
 |---|---|---|
 | Voice interpret × 2 | 400 / 60 each | $0.00012 ≈ **₹0.01** |
-| Comparable normalisation × 1 | 500 / 100 | $0.00008 ≈ **₹0.01** |
 | **Description, EN + HI + structured fields × 1** | 1,800 / 900 | $0.0189 ≈ **₹1.66** |
-| **Subtotal** | | **≈ ₹1.68 per product** |
+| **Subtotal** | | **≈ ₹1.67 per product** |
+
+> ⚠️ **Two changes from the 2026-09-03 merge.** The comparables-normalisation call is **gone** —
+> `comps.normalize()` was deleted, so **no model touches the price path at all** now. And
+> `/catalog/prefill` is **built**, which adds a vision call this table does not yet price: vision
+> tokens cost more than text, and **this is the one line in the cost model that will grow.** It
+> also buys back interview time, so net cost per product may fall — but that must be measured, not
+> assumed.
 
 > **The description call is 99% of our LLM spend.** Everything else is noise. That is the line to
 > optimise, and §5 of Part B gives the crossover volume at which self-hosting it becomes cheaper.
 
-### 3.3 ASR — the single largest variable, and it is a policy question not a technical one
+### 3.3 Speech — the single largest variable, and it is a procurement question not a technical one
 
-| Path | Per product (≈72 s of speech across 6 answers) | Status |
+> ⚠️ **Updated 2026-09-03.** Speech is now **live on Sarvam** (`bulbul:v3` TTS, Sarvam ASR,
+> `web/api/routers/voice.py`). Bhashini is the strategic target, **not the current provider.**
+> The cost model below therefore has a *real* middle row, not two hypotheticals.
+
+| Path | Per product (≈72 s speech in, plus TTS out) | Status |
 |---|---|---|
-| **Bhashini** | **₹0** on the free prototyping tier | 🟡 `docs/decisions.md` #5 **open** — commercial terms unconfirmed |
-| 💲 Commercial STT fallback | ~$0.006–0.016 per 15 s ⇒ 5 units ⇒ $0.03–0.08 ≈ **₹2.60–₹7.00** | Fallback only |
+| **Bhashini** | **₹0** on the free prototyping tier | 🟡 `docs/decisions.md` #5 **open** — unused, terms unconfirmed |
+| **Sarvam** — what runs today | 💲 **rate not yet confirmed for volume — verify** | ✅ **Live and measured working** |
+| 💲 Global commercial STT | ~$0.006–0.016 per 15 s ⇒ ~$0.03–0.08 ≈ **₹2.60–₹7.00** | Ceiling, not our path |
 
-🧮 **At 10 million products a year, that gap is ₹0 versus ₹26–70 crore.**
+🧮 **At 10 million products a year, the spread between the free tier and the commercial ceiling is
+₹0 versus ₹26–70 crore.** Sarvam sits somewhere between and **we do not yet know where** — which
+makes its volume rate the single most valuable unknown in this document.
 
-> **Confirming Bhashini's commercial terms is worth more rupees than every other engineering
-> decision in this document combined.** It is one email and it is unassigned. That is the
-> costing headline.
+> **Two things to establish, and neither is engineering work:** Sarvam's committed-volume pricing,
+> and whether Bhashini's terms cover us. **The provider swap costs two functions** — `_sarvam_tts`
+> and `_sarvam_asr` are the only code that changes — so this is a procurement decision with an
+> already-built escape hatch, which is the cheapest position to negotiate from.
 
-**And TTS is already solved by a design decision, not a budget.** Web Speech API for Indic TTS is
-on the **rejected** list in `CLAUDE.md` (unreliable voice availability across handsets) —
-**pre-generated audio instead.** 🧮 That converts speech *output* from a per-request runtime cost
-into a one-time build asset: roughly 2,000 strings × 12 languages ≈ 24,000 utterances, a
-**one-time ₹10,000–20,000**, then **₹0 marginal forever**, with no rate limit and no latency. A
-decision taken for reliability turns out to remove an entire recurring cost line.
+**And TTS output is already off the variable line entirely.** Web Speech API for Indic TTS is on
+the **rejected** list in `CLAUDE.md` (unreliable voice availability across handsets) —
+**pre-generated audio instead.** 🧮 Roughly 2,000 strings × 5 languages, a **one-time
+₹10,000–20,000**, then **₹0 marginal forever**, with no rate limit and no latency. A decision taken
+for reliability removes a recurring cost line.
 
 ### 3.4 Storage and bandwidth
 
@@ -194,7 +208,7 @@ they exist for rule 2, not for serving.
 | GPU compute (3 photos) | ₹0.02 | ₹0.02 |
 | LLM — description | ₹1.66 | ₹1.66 |
 | LLM — interpret + comps | ₹0.02 | ₹0.02 |
-| ASR | **₹0.00** | **₹4.50** |
+| Speech (ASR) — Sarvam, rate unconfirmed | **₹0.00** | **₹4.50** |
 | Storage (year 1, R2, tiered) | ₹0.10 | ₹0.10 |
 | Egress (R2) | ₹0.00 | ₹0.00 |
 | **Marginal cost per product** | **≈ ₹1.80** | **≈ ₹6.30** |

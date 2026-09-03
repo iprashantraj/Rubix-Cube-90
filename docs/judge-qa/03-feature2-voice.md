@@ -7,13 +7,38 @@
 **Think.** No. And the reason is specific and checkable, so give it precisely rather than calling
 it future work.
 
-**Answer. No. `POST /catalog/prefill` is the one route in `ai/service.py` still raising
-`NotImplementedError` (line 290).** It is the only one left.
+**Answer — as of the `f2-cataloger-fixes` merge on 2026-09-03: yes, it is built.** `ai/catalog/prefill.py`
+is 210 lines, wired at `ai/service.py:309`, with `validate_prefill` guarding the output.
 
-**The reason is not that we ran out of time.** `deepseek/deepseek-v4-flash` — the model behind the
-voice interpretation — **is a text model with no vision capability.** Handing it an image would at
-best be ignored and at worst be billed. So today **no image is sent to any model, anywhere in the
-system** (`docs/app/AI-Data-Flow.md`, "Never sent").
+> ⚠️ **This answer was rewritten.** An earlier version of this pack said `/catalog/prefill` was the
+> last unimplemented route in `ai/service.py`. **That was true when written and is now stale.**
+> The only `NotImplementedError`s left in `ai/` are the three deliberately-skipped colour stages in
+> `enhance/pipeline.py` (Part 2, Q2.2) and `enhance/studio.py`, the generative secondary images
+> that were always scoped as phase 12.
+
+**What it does:** the photograph is read, and the listing fields come back **all nullable**, so the
+artisan **corrects** by voice instead of describing from scratch — *"Sambalpuri saree lag rahi hai,
+cotton ki. Sahi hai?"* → one tap. That is the mentor's request (§13.3) and the friction killer.
+
+**Three properties worth stating**, because they are what keep it safe:
+
+- **A pre-fill is a `confirm`, never an answer.** The interview treats a guess from the photo as
+  something to put to the artisan as one tap — it does **not** count as answered and does **not**
+  let the question be skipped. A default that publishes without confirmation is a guess under their
+  name, and nothing earns that.
+- **Vision has its own allowlist**, not a loosened version of the text one. `build_payload()` in
+  `interpret.py` still permits four fields and an image is not among them; that refusal was the
+  safety property and it stayed.
+- **Failure is silent and non-fatal.** `service.py:352` logs *"prefill unavailable, returning an
+  empty guess"* — the interview simply asks every question, which is exactly the old behaviour.
+
+**The consent question is still open, and it is not an engineering one.** A photograph of a
+product taken inside someone's home **contains their home** — faces, children, the inside of a
+house. **The artisan consented to a marketplace listing. That is not consent to a foreign
+inference provider.** EXIF stripping (unconditional, `app/src/api/upload.ts`) stops home GPS
+reaching a public listing; it decides nothing about whether the pixels may go to a third party.
+**The `/consent` notice does not yet say so, and provider retention is unanswered.** Now that the
+route is live rather than hypothetical, that disclosure is overdue rather than pending.
 
 **What actually happens on the voice screens, and this is a UI decision people mistake for a data
 flow:** the photograph is on screen next to each question **purely so the human has something to
@@ -55,16 +80,27 @@ and it is still there.
 **Think.** Do not claim a government integration we have not confirmed. The strong move is to show
 the fallback ladder, because that is what makes the dependency survivable.
 
-**Today.** Bhashini is the intended ASR/translation/TTS layer and **`docs/decisions.md` #5 is
-open**: *"ULCA portal self-serve keys, free prototyping tier — confirm commercial terms."*
-`docs/Master-Technical-Reference.md` §6.6 carries an explicit **⚠️ UNVERIFIED** on access terms,
-rate limits and use-case eligibility, and `research/asr-bhashini/` is an empty directory with a
-`.gitkeep`. **We have not confirmed it. Saying otherwise would be the easiest thing in this deck
-to check.**
+> ⚠️ **Rewritten 2026-09-03.** An earlier version of this answer said speech was Bhashini-intended
+> and unverified. **Speech now runs on Sarvam and it is live.** Bhashini remains the strategic
+> target, not the current dependency.
 
-**Why we want it anyway:** government-aligned stack, better Indian dialect coverage, dramatically
-lower cost. On a MoSJE problem statement, using MeitY's own language mission is the correct
-architecture *and* the correct politics.
+**Today — Sarvam, running.** `bulbul:v3` for TTS (speaker `ritu`), Sarvam ASR for speech in,
+wired in `web/api/routers/voice.py`, key configured. **Measured working on 2026-09-03 in all four
+interview languages.** An earlier internal note claimed `/api/asr` and `/api/tts` answered 503
+until a key was set; that note had been *taken from the documentation rather than from trying it*,
+and was corrected by the commit literally titled *"Voice was never down: correct the docs that
+said it was."*
+
+**Bhashini is unverified and unused.** `docs/decisions.md` #5 is still open — ULCA portal keys,
+free prototyping tier, commercial terms unconfirmed — and `research/asr-bhashini/` is still an
+empty directory with a `.gitkeep`. **If asked whether we use Bhashini, the answer is no, not
+yet.**
+
+**Why Bhashini is still the right target**, and this is a genuine roadmap item rather than a
+hedge: government-aligned stack, MeitY's own language mission, and — see the costing document —
+**the difference between a free tier and a commercial per-second rate is the single largest
+variable cost in the entire system.** Sarvam proves the interface works; Bhashini is the
+provider swap behind it, and `_sarvam_tts` / `_sarvam_asr` are the only two functions that change.
 
 **What makes the dependency survivable — the degradation ladder, which is built:**
 
@@ -106,9 +142,25 @@ output. Separate them.
 Deterministic matters: the same listing renders the same way for GeM and for Amazon every time, so
 a rejected listing is reproducible instead of a coin flip.
 
-**Input side — the honest one.** Our language set today is `hi` / `or` / `en`
-(`ai/interpret.py`; anything else becomes `hi`). Which languages ship at launch is
-**`docs/Master-Technical-Reference.md` §17 open decision #8, still open.**
+**Input side.** **Five languages as of 2026-09-03** — `hi`, `or`, `ta`, `bn`, `en`
+(`ai/interpret.py:201`). Tamil and Bengali were added in the F2 merge; the AI layer needed **two
+lines**, because the shaping was already script-agnostic and the tests proved it before anything
+relied on it.
+
+**What the team did NOT do, and it is the honest part:** `ta.json` and `bn.json` carry **106 keys
+against English's 249** — the photo → interview → review path only. The remaining ~145 strings
+**fall back to English, in an English voice**, which `resolve()` guarantees. Both files declare an
+empty `_reviewed` list and say in their own note that **every string is an LLM draft.** These are
+spoken aloud to someone who cannot read them, so *"claiming they are reviewed would be the
+fabrication rule applied to language instead of pixels."*
+
+**One byte-level detail worth having ready**, because it is the kind of thing an industry judge
+probes: Amazon's `generic_keywords` cap is **249 bytes, not characters**, and every Indic script
+costs **three bytes per character** — while Amazon's *title* cap is 75 **characters**. Swap
+`clip_bytes` for `clip_chars` and every Indic seller silently loses two thirds of a title they
+were entitled to. `clip_bytes` is tested at **every byte offset from 1 to 120**, in four scripts,
+because a three-byte character splits at two different offsets and a single-offset test hits only
+one of them.
 
 Dialect is where ASR is weakest and where a general commercial model is weakest of all. A
 Sambalpuri speaker is not an edge case in this PS — Sambalpuri weaving is one of the flagship
