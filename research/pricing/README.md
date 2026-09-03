@@ -1,9 +1,10 @@
 # research/pricing/
 
-> **Status 2026-08-28: 144 listings collected from indiahandmade.com.** First verdict is in
-> [`../RESULTS.md`](../RESULTS.md). More is still welcome — especially weave-specific keys
-> (`textiles.saree.sambalpuri` rather than `textiles.saree`), which is the biggest weakness
-> in the current set.
+> **Status 2026-09-03: 50,000 listings collected, 45,652 in the training set.** From
+> goswadeshi, itokri and indiahandmade, by the scrapers in [`scrape/`](scrape/); the columns
+> are documented in [`scrape/DATASET.md`](scrape/DATASET.md). 27,180 rows carry the
+> weave-specific key this README asked for, and the verdict in [`../RESULTS.md`](../RESULTS.md)
+> changed because of them. **No more collection is needed** — see "How many", below.
 
 Two open questions, one dataset answers both:
 
@@ -32,13 +33,35 @@ right.
 
 ---
 
-## Why by hand, and not a scraper
+## Why by hand — and what changed on 2026-09-03
+
+**The section below was written before the scrapers existed, and it argued against them. Two
+of its three objections were answered; one still stands and always will.**
+
+| The objection | What happened |
+|---|---|
+| *"breaks the week somebody renames a CSS class"* | Three of the six sites turned out to publish `/products.json` — structured data with no selectors to break. The two that need HTML are cached, so a parser change costs no requests |
+| *"gets the demo laptop IP-blocked halfway through a presentation"* | Per-site delays honouring each `robots.txt` (10s for itokri, which asks for it), full response caching, and the seed is built ahead of time. **Nothing is ever scraped live in a demo** |
+| *"against Amazon's and Flipkart's terms"* | **Stands, unchanged.** Nothing here has ever touched either, and nothing should |
+
+What did not change is the rule below it: every number still comes off a real listing with a
+URL and a date. The scrapers read the same public pages a person would, and store what the
+page said rather than an interpretation of it.
+
+The hand-collected 144 are still in `observed.csv`, still valid, and simply joined by the rest.
+And the habit they came from is what makes the scraped set trustworthy: the first 200 scraped
+rows were read one by one before anything else was collected, which is how 33 category pages
+masquerading as products — each carrying a real, plausible price — were caught. See
+[`scrape/HANDREAD-200.md`](scrape/HANDREAD-200.md).
+
+## The original argument, for the record
 
 | Source | Why there is no API |
 |---|---|
 | **GeM** | No seller or catalogue API of any kind. Rate contracts are published as documents |
 | **Amazon / Flipkart** | *Seller* APIs. They authenticate as one shop and return that shop's own listings. There is no open "what does a cotton saree go for" endpoint — and our artisans have no seller account to authenticate with in the first place |
-| **indiahandmade** | Public catalogue, browsable without an account. **The best source we have**, and the one the current set came from |
+| **indiahandmade** | Public catalogue, browsable without an account. Best provenance of any source, and the only one that states a region as a field — but only 403 rows of the current set, because that field was the reason to collect it and 94 rows were enough to check the taxonomy |
+| **goswadeshi, itokri** | Open `/products.json`. 45,249 of the 45,652 rows. goswadeshi is GoCoop under its new name |
 
 ### Prefer indiahandmade.com
 
@@ -70,6 +93,12 @@ handicraft.dhokra,gem,2100,GeM rate contract RC/2026/…,2026-08-28
 ```
 
 ### How many
+
+> **2026-09-03: this target is met and exceeded, and more collection is not useful.** 274
+> categories hold 10 or more prices and 61 are at the seed's 200-price cap. `comps.py` shows an
+> artisan a couple of dozen comparables, so 22,445 of the rows collected can never reach a
+> screen. The remaining thin categories are thin because those crafts are rare, and scraping
+> more of the same shops will not find them.
 
 **At least 10 per category**, ideally 20–30. Below 10 the trim in `comps.market_range` can
 only drop one price from each end, and below 4 it drops none — a thin sample is a wide range,

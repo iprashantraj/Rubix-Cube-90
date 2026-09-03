@@ -114,4 +114,16 @@ The job table is process-local (`ai/enhance/jobs.py`): one worker thread, becaus
 Restarting the service loses in-flight jobs and their ids. `docs/decisions.md` #2's Redis+RQ
 is the fix and the swap surface is two functions.
 
+**F3 has a real dataset as of 2026-09-03.** `research/pricing/scrape/` collects goswadeshi,
+itokri and indiahandmade and normalises them into 45,652 labelled rows; the columns are
+documented in `research/pricing/scrape/DATASET.md` and the data itself is gitignored, so
+rebuild it with `normalise.py --model` rather than looking for it in the repo. 27,180 rows
+carry a weave-level key (`textiles.saree.sambalpuri`), and that resolution **changed the
+pricing verdict** rather than merely sharpening it — `research/RESULTS.md`, entry
+`pricing-dataset`. The model the PS asks for is not trained yet; `out/model.csv` is what it
+trains on, and `dup_group` / `vendor_group` are how it must be split.
+
+Do not collect more listings. The seed is capped at 200 prices a category and 61 categories
+are already at that cap.
+
 See `docs/Abhay/CHANGELOG.md` for what moved most recently and what is still blocked.
