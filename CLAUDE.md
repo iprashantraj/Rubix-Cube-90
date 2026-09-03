@@ -76,7 +76,7 @@ node app/src/screens/homeTodos.js  # /home "waiting for you" counts vs the tabs 
 node app/src/catalog/slots.js    # the interview: what is asked, what a harvest drops
 cd web/api && python3 test_uploads.py   # chunk assembly, no database or server
 web/api/.venv/bin/pytest web/api/test_catalog.py  # the /catalog proxy; needs fastapi
-cd ai && .venv/bin/pytest        # pricing, 15 tests. ai/.venv exists as of 2026-08-28
+cd ai && .venv/bin/pytest        # 130 tests; 6 fail without torch (F1 only). ai/.venv exists as of 2026-08-28
 cd ai && .venv/bin/pytest test_catalog.py  # F2 shaping in four scripts, and the self-checks
 cd ai && .venv/bin/python probe_dialects.py  # dialects vs the live model; needs a key, spends money
 cd ai && python3 test_gate.py    # server quality gate, 10 assertions, no venv or fixtures
