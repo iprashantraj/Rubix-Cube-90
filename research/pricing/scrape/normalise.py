@@ -197,7 +197,17 @@ def write_model_set(rows: list[dict]) -> None:
                                ensure_ascii=False) + "\n")
             kept += 1
 
+    # The same rows as CSV. Every column is a scalar, so this is a straight dump — it opens
+    # in a spreadsheet and pandas reads it without an argument.
+    csv_path = OUT / "model.csv"
+    with out_path.open(encoding="utf-8") as src, csv_path.open("w", newline="", encoding="utf-8") as dst:
+        records = [json.loads(line) for line in src]
+        w = csv.DictWriter(dst, fieldnames=list(records[0]))
+        w.writeheader()
+        w.writerows(records)
+
     print(f"{kept} rows in {len(keep)} classes -> {out_path}")
+    print(f"{kept} rows -> {csv_path}")
     print(f"  {len(rows) - kept} rows left out: unknown category, or a class under {MIN_CLASS}")
     print(f"  {kept} rows collapse to {len(groups)} independent listings — split on dup_group")
 
