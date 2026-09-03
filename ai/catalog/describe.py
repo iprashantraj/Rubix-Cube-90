@@ -79,6 +79,10 @@ short listing is a finished listing, not a failed one. Never pad with adjectives
 appearance or quality to reach a length.
 5. `title`: what it is, the material, the craft or region if given. No seller name, no \
 promotional words, no ALL CAPS, no exclamation marks.
+5b. NEVER name the maker, in any field, in either language, even when FIELDS contains their \
+name. Write "the artisan", "कारीगर" or nothing at all. GeM rejects any listing carrying \
+seller information, and a name TRANSLITERATED into the other script — "Utsav Mohanty" \
+written as "उत्सव मोहंती" — cannot be removed afterwards by matching the name we hold.
 6. `desc_en` in English and `desc_hi` in natural Hindi, ALWAYS, whatever language the \
 artisan spoke. `desc_hi` is written fresh in Hindi, not translated word for word from the \
 English. It carries the same facts and invents nothing the English does not say.

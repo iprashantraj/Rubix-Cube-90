@@ -113,6 +113,20 @@ def clip_bytes(text: str, limit: int) -> str:
     return raw[:limit].decode("utf-8", errors="ignore").rstrip().rstrip(",")
 
 
+# What counts as "inside a word" when deciding a name boundary.
+#
+# ⚠️ `\b` cannot do this job here. Python's `re` counts only letters, digits and `_` as word
+# characters, and every Indic vowel sign and anusvara is a COMBINING MARK (Mn/Mc) — so in
+# "मोहंती" the final "ी" is a non-word character, `\bमोहंती\b` never matches, and an artisan
+# whose surname ends in a matra kept their name in every GeM listing. Which is a rejection
+# condition. Caught on the first live run of POST /catalog; the unit test missed it because
+# it used "उत्सव", which happens to end in a bare consonant.
+#
+# 0900–0DFF covers Devanagari, Bengali, Odia, Tamil, Telugu, Kannada and Malayalam in one
+# range — every script this app accepts and several it does not yet.
+_WORDISH = r"[\w\u0300-\u036F\u0900-\u0DFF]"
+
+
 def strip_seller_identity(text: str, artisan_name: str | None) -> str:
     """Remove the seller's own name from listing copy.
 
@@ -133,8 +147,27 @@ def strip_seller_identity(text: str, artisan_name: str | None) -> str:
     for part in str(artisan_name).split():
         if len(part) < 4:
             continue
-        out = re.sub(rf"\b{re.escape(part)}\b", "", out, flags=re.IGNORECASE)
-    return re.sub(r"\s{2,}", " ", out).strip(" ,.-")
+        # The connector goes with the name, or the sentence keeps a hole where the name was.
+        # Deleting "Utsav Mohanty" alone left "Cotton Saree by" as a GeM title and "woven by
+        # . It is made of cotton" as its description — caught on the first live run, because
+        # a unit test asserting `"Utsav" not in title` passes happily on a dangling "by".
+        out = re.sub(
+            # English puts the connector BEFORE the name ("woven by Utsav") and Hindi and
+            # Odia put it after ("उत्सव द्वारा बुनी"), so both sides are optional and either
+            # may be absent. Only the last part of a name consumes the trailing postposition,
+            # but taking it on each pass is harmless — by then there is nothing left to take.
+            rf"(?:(?<!{_WORDISH})(?:by|from|d[vw]ara)\s+)?"
+            rf"(?<!{_WORDISH}){re.escape(part)}(?!{_WORDISH})"
+            rf"(?:\s+(?:द्वारा|କୃତ|कृत|d[vw]ara))?",
+            "",
+            out,
+            flags=re.IGNORECASE,
+        )
+    # Then the debris: a space before punctuation, a doubled space, an orphaned separator.
+    out = re.sub(r"\s+([.,;:!?])", r"\1", out)
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"([.,;:])\1+", r"\1", out)
+    return out.strip(" ,.-")
 
 
 def dedupe_keywords(keywords: list[str], title: str) -> list[str]:

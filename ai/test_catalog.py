@@ -222,3 +222,50 @@ def test_every_worked_example_teaches_a_slot_we_would_actually_keep():
         empty_seen = empty_seen or not body["slots"]
 
     assert empty_seen, "one example must show that finding nothing is a correct answer"
+
+
+# ---------------------------------------------------------------------------
+# the seller scrub, in the scripts artisans are actually named in
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text,name,gone,kept",
+    [
+        # `\b` does not work here: every Indic vowel sign is a combining mark, which Python's
+        # re counts as a NON-word character, so `\bमोहंती\b` never matches and the surname
+        # stayed in the listing. GeM rejects seller identity in any field, so this was a
+        # rejection an artisan could not have diagnosed. Found on the first live run.
+        ("उत्सव मोहंती द्वारा बुनी गई संबलपुरी साड़ी।", "उत्सव मोहंती", "मोहंती", "संबलपुरी"),
+        ("হাতে বোনা শাড়ি, শিল্পী রবীন্দ্র", "রবীন্দ্র", "রবীন্দ্র", "শাড়ি"),
+        ("கைத்தறி புடவை, நெசவாளர் முருகன்", "முருகன்", "முருகன்", "புடவை"),
+        ("ଉତ୍ସବ ମହାନ୍ତି ଙ୍କ ଦ୍ୱାରା ବୁଣା", "ମହାନ୍ତି", "ମହାନ୍ତି", "ବୁଣା"),
+    ],
+)
+def test_a_name_is_scrubbed_whatever_script_it_is_written_in(text, name, gone, kept):
+    out = seo.strip_seller_identity(text, name)
+    assert gone not in out, f"{gone} survived the scrub"
+    assert kept in out, "the product was scrubbed along with the name"
+
+
+@pytest.mark.parametrize(
+    "text,name,want",
+    [
+        ("Cotton Saree by Utsav Mohanty", "Utsav Mohanty", "Cotton Saree"),
+        ("This saree is woven by Utsav Mohanty. It is made of cotton.", "Utsav Mohanty",
+         "This saree is woven. It is made of cotton"),
+        ("उत्सव मोहंती द्वारा बुनी गई साड़ी।", "उत्सव मोहंती", "बुनी गई साड़ी।"),
+    ],
+)
+def test_the_connector_leaves_with_the_name(text, name, want):
+    """Removing "Utsav Mohanty" alone left "Cotton Saree by" as a GeM title and "woven by ."
+    as its description — a sentence with a hole where a name used to be. English puts the
+    connector before the name, Hindi and Odia after; both go."""
+    assert seo.strip_seller_identity(text, name) == want
+
+
+def test_a_name_that_is_the_start_of_a_product_word_is_still_safe():
+    """The boundary has to work in both directions — the lookarounds that made Indic names
+    match must not make Latin ones match too eagerly."""
+    assert seo.strip_seller_identity("Sambalpuri cotton saree", "Sambal") == "Sambalpuri cotton saree"
+    assert seo.strip_seller_identity("Kamal lotus painting", "Kamal Das") == "lotus painting"
