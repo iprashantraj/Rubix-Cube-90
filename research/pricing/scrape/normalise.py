@@ -21,7 +21,7 @@ Two rules from the request govern every decision below:
     Nothing here filters on price.
 """
 
-import argparse, csv, glob, json, pathlib, re, sys
+import argparse, csv, glob, hashlib, json, pathlib, re, sys
 from collections import Counter
 
 from gi_crafts import CATEGORIES, MATERIALS, TECHNIQUES, WEAVES
@@ -160,7 +160,49 @@ def normalise(row: dict) -> tuple[dict | None, str]:
     }, ""
 
 
-def run(write_observed: bool) -> None:
+MIN_CLASS = 30      # a category the model has too few examples of is noise, not a class
+
+
+def write_model_set(rows: list[dict]) -> None:
+    """The subset worth training on, separated from the bulk.
+
+    50,000 rows is far more than the app can use — `comps.py` shows an artisan a couple of
+    dozen comparables and the seed is capped at 200 a class. The surplus exists for the
+    model, and the model wants a different cut of it than the app does:
+
+      * a known category, in a class with at least MIN_CLASS examples;
+      * `dup_group`, because 944 rows are colour variants sharing one title and one price.
+        They are real listings, but a random split puts copies of the same listing on both
+        sides and the reported error comes out better than it is;
+      * `vendor_group`, for the same reason at a larger scale — two sellers are 16% of the
+        data, and a model can score well by learning a seller's price points instead of
+        anything about the product.
+
+    Split on those groups, not at random.
+    """
+    counts = Counter(r["category"] for r in rows if r["category_l1"] != "unknown")
+    keep = {c for c, n in counts.items() if n >= MIN_CLASS}
+
+    out_path = OUT / "model.jsonl"
+    kept, groups = 0, set()
+    with out_path.open("w", encoding="utf-8") as f:
+        for r in rows:
+            if r["category_l1"] == "unknown" or r["category"] not in keep:
+                continue
+            title_key = re.sub(r"\W+", " ", r["raw_title"].lower()).strip()
+            dup = hashlib.sha1(f"{title_key}|{r['price']}".encode()).hexdigest()[:12]
+            groups.add(dup)
+            f.write(json.dumps({**r, "dup_group": dup,
+                                "vendor_group": r["region_cluster"] or r["source"]},
+                               ensure_ascii=False) + "\n")
+            kept += 1
+
+    print(f"{kept} rows in {len(keep)} classes -> {out_path}")
+    print(f"  {len(rows) - kept} rows left out: unknown category, or a class under {MIN_CLASS}")
+    print(f"  {kept} rows collapse to {len(groups)} independent listings — split on dup_group")
+
+
+def run(write_observed: bool, write_model: bool = False) -> None:
     files = sorted(glob.glob(str(OUT / "listings.*.jsonl")))
     files = [f for f in files if "normalised" not in f]
     if not files:
@@ -202,6 +244,8 @@ def run(write_observed: bool) -> None:
     print(f"  region on {sum(1 for r in rows if r['region_state'])} rows")
     print(f"  category unknown on {sum(1 for r in rows if r['category_l1'] == 'unknown')} rows")
 
+    if write_model:
+        write_model_set(rows)
     if write_observed:
         merge_observed(rows)
 
@@ -288,6 +332,7 @@ def selfcheck() -> None:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--observed", action="store_true", help="merge into research/pricing/observed.csv")
+    ap.add_argument("--model", action="store_true", help="also write out/model.jsonl, the training subset")
     ap.add_argument("--selfcheck", action="store_true")
     a = ap.parse_args()
-    selfcheck() if a.selfcheck else run(a.observed)
+    selfcheck() if a.selfcheck else run(a.observed, a.model)

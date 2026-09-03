@@ -94,3 +94,35 @@ number in PROBE.md was the wrong one.
 
 At 2.5s per page a full crawl of this site is about **4.6 hours**. It is resumable and cached, so
 it can run in pieces.
+
+---
+
+# The GI table, checked against the sellers — 2026-09-03
+
+`gi_crafts.py` maps a craft name to a region, and until now nothing had tested it. indiahandmade
+states `State of Origin` as a field, so its rows can check the mapping: for every listing whose
+title names a weave *and* whose spec table states a state, does our inferred region match what
+the seller says?
+
+**On 94 such rows, the table agrees with the seller 81 times — 86%.**
+
+All thirteen disagreements are the same thing, and it is the behaviour the file documents rather
+than an error:
+
+| Craft | We say | The seller says |
+|---|---|---|
+| warli | Maharashtra | Karnataka, Jammu & Kashmir |
+| phulkari | Punjab | West Bengal, Jammu & Kashmir |
+| madhubani | Bihar | Jharkhand |
+| banarasi | Uttar Pradesh | Rajasthan |
+| chanderi, bagh | Madhya Pradesh | Punjab |
+
+A Warli painting made in Karnataka is still Warli — the tradition is Maharashtra's and the
+painter is not. `gi_crafts.py` says exactly this: the region is where the *style* belongs, not
+where the piece was made. The 86% is therefore a floor on the table's accuracy, not a measure of
+its error, and the 14% is the style-versus-maker distinction showing up in the data.
+
+**This is why the indiahandmade crawl was stopped at 694 rows** rather than run to 6,691. Its
+remaining value was volume in categories that are already at the seed's 200-price cap. The one
+thing only this site could give — a stated region to check the taxonomy against — is answered,
+and answering it again 6,000 more times would not change the number.
