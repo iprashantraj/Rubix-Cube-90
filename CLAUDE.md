@@ -73,8 +73,12 @@ If a task conflicts with these, stop and flag it. Do not silently resolve.
 cd app && npm test               # gate, mic lifecycle, query policy, /home's todo counts
 node app/src/camera/gate.js      # camera gate, 19 assertions, no device or framework
 node app/src/screens/homeTodos.js  # /home "waiting for you" counts vs the tabs they link to
+node app/src/catalog/slots.js    # the interview: what is asked, what a harvest drops
 cd web/api && python3 test_uploads.py   # chunk assembly, no database or server
-cd ai && .venv/bin/pytest        # pricing, 15 tests. ai/.venv exists as of 2026-08-28
+web/api/.venv/bin/pytest web/api/test_catalog.py  # the /catalog proxy; needs fastapi
+cd ai && .venv/bin/pytest        # 130 tests; 6 fail without torch (F1 only). ai/.venv exists as of 2026-08-28
+cd ai && .venv/bin/pytest test_catalog.py  # F2 shaping in four scripts, and the self-checks
+cd ai && .venv/bin/python probe_dialects.py  # dialects vs the live model; needs a key, spends money
 cd ai && python3 test_gate.py    # server quality gate, 10 assertions, no venv or fixtures
 cd ai && python3 test_segment.py # master downscale; skips the model half without a venv
 cd ai && python3 test_recipe.py  # recipe + renderer, 18 assertions, no venv

@@ -16,3 +16,6 @@ pyjwt
 cryptography
 # Image variant pipeline (api/images.py) — thumb/display derivation on upload.
 pillow
+
+# test_catalog.py. test_uploads.py still runs on plain python3 with none of this.
+pytest

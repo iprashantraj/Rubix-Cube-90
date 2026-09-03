@@ -8,6 +8,13 @@ import { Screen, BigButton, Card, YesNo, Spinner } from '../ui/kit';
 import { IconRetry } from '../ui/icons';
 
 /**
+ * Below this, the guess is not spoken at all. Tuned against the two ends we have measured
+ * rather than picked round: an underexposed pot reads 0.35 and a well-lit saree 0.95, and
+ * the failure this guards is silent — a wrong guess confirmed by a yes nobody meant.
+ */
+const PREFILL_MIN_CONFIDENCE = 0.5;
+
+/**
  * /catalog/prefill — the wait, the colour lock, and the vision shortcut. Spec §5.6, §6.4.
  *
  * Three things happen here, strictly one at a time (design law rule 4):
@@ -81,6 +88,20 @@ export default function CatalogPrefill() {
             useDraft.getState().setImages(job.images ?? []);
             return setStep('colour');
           }
+          if (job.status === 'failed') {
+            /*
+             * The job ran and died — no GPU, a model that would not load, a worker that
+             * crashed. Degrade NOW rather than polling out the remaining budget: the status
+             * is terminal, so every further poll is a second the artisan spends watching a
+             * spinner that is lying to them. Rule 3 says every failure degrades AND speaks,
+             * and `degrade()` is what speaks.
+             *
+             * Found by running the flow on a box without torch, where /enhance answers
+             * `{"status": "failed"}` on the first poll and this screen sat on "we are
+             * improving your photo, please wait" for the full sixty seconds.
+             */
+            return degrade();
+          }
           if (job.status === 'rejected') {
             // Rejected at the gate, no GPU spent. The reason is a message key precisely so
             // it can be spoken in their language — "resolution_below_1000px" is not.
@@ -134,7 +155,13 @@ export default function CatalogPrefill() {
     try {
       const p = await api.post(`/products/${productId}/prefill`, {});
       const words = [p.title ?? p.category, p.material].filter(Boolean).join(', ');
-      if (words) {
+      // A weak guess is worse than no guess. "Sahi hai?" invites a yes, and someone who
+      // did not hear it clearly gives one — so a guess we do not believe would put a
+      // detail nobody checked onto the listing under their apparent confirmation. Below
+      // the threshold we simply ask the questions, which is what we did before this
+      // endpoint existed. The server reports its own confidence honestly: a dark,
+      // underexposed pot came back at 0.35 and a clear saree at 0.95.
+      if (words && (p.confidence ?? 0) >= PREFILL_MIN_CONFIDENCE) {
         useDraft.getState().setPrefill(p);
         setGuess(words);
         return setStep('guess');

@@ -74,6 +74,12 @@ export const SLOTS = [
     rank: BLOCKS_PUBLISH,
     open: true,
     harvestedBy: 'what',
+    // Being harvested FROM as well as INTO is not a contradiction. `what` is asked first, so
+    // by the time this is asked it has already had its turn supplying others — and an
+    // artisan asked what a thing is made of answers "cotton, teen din laga" just as readily
+    // as they do the opening question. Only the slots still empty are ever filled, and
+    // absorb() will not let a harvest overwrite anything they said directly.
+    harvests: ['time', 'special', 'size'],
     // Weavers weave the same fibre for years. Second product onwards this is a confirmation.
     carriesForward: true,
   },
@@ -83,6 +89,11 @@ export const SLOTS = [
     rank: BLOCKS_PUBLISH,
     open: true,
     harvestedBy: 'what',
+    // The last of the four open questions to gain this, and the least obvious: a measurement
+    // rarely arrives alone. "saade chhe gaz, cotton ki, do din laga" is one answer to "how
+    // big is it", and every open slot now harvests every other one so that whichever
+    // question happens to be the one they answer generously, nothing is thrown away.
+    harvests: ['material', 'time', 'special'],
   },
   {
     // ⚠️ Needs a weighing scale. There is no way to derive this and no way to degrade past
@@ -129,12 +140,23 @@ export const SLOTS = [
     rank: IMPROVES_LISTING,
     open: true,
     harvestedBy: 'what',
+    // The most discursive question in the interview — "meri maa se sikha, tasar silk hai" is
+    // a normal answer to it — and the last one asked, so anything it supplies is a slot the
+    // artisan would otherwise have left empty.
+    harvests: ['material', 'time'],
   },
 ];
 
 const bySlot = Object.fromEntries(SLOTS.map((s) => [s.field, s]));
 
-/** A value that is present and not an empty string. `0` and `false` count as answers. */
+/**
+ * A value that is present and not an empty string. `0` and `false` count as answers.
+ *
+ * Deliberately still private: `plan`, `absorb` and `nextUnanswered` are the three places
+ * that need to know what "answered" means, and they all live here. A second definition
+ * somewhere else would drift, and the failure would be a question asked twice or a slot
+ * silently skipped while still empty.
+ */
 function has(bag, field) {
   const v = bag?.[field];
   return v !== undefined && v !== null && String(v).trim() !== '';
@@ -216,6 +238,28 @@ export function absorb(answers, harvested) {
     out[field] = String(value).trim();
   }
   return out;
+}
+
+/**
+ * The next question still worth putting to the artisan, starting at `from`.
+ *
+ * The interview's plan is frozen when it starts, so a slot filled by a harvest is still
+ * sitting in the queue with its turn coming. This is what walks past it. Returns an index
+ * past the end when everything left is answered, which is the signal to go to review.
+ *
+ * Only ANSWERED slots are skipped — never a slot that is merely guessable from the photo or
+ * from what this artisan said last time. Those are still asked, as one tap. The interview
+ * gets shorter because they told us, not because we assumed.
+ *
+ * @param {{field: string}[]} questions
+ * @param {number} from
+ * @param {Record<string, unknown>} answers
+ * @returns {number}
+ */
+export function nextUnanswered(questions, from, answers) {
+  let n = Math.max(0, from);
+  while (n < questions.length && has(answers, questions[n].field)) n += 1;
+  return n;
 }
 
 /** Which slots an answer to `field` might also supply, for the interpreter to look for. */
@@ -321,6 +365,56 @@ function demo() {
     'the broad opening question is the one allowed to supply others',
   );
   assert(harvestTargets('weight').length === 0, 'a number answer harvests nothing');
+
+  // Every open question harvests every other harvestable slot. Which question an artisan
+  // happens to answer generously is not something we get to choose, so none of the four may
+  // be the one that throws a sentence away.
+  const OPEN = SLOTS.filter((s) => s.open).map((s) => s.field);
+  assert(OPEN.join(',') === 'what,material,size,special', 'the four open questions');
+  for (const f of OPEN) {
+    assert(harvestTargets(f).length > 0, `${f} must harvest something`);
+    assert(!harvestTargets(f).includes(f), `${f} cannot harvest itself`);
+    assert(
+      harvestTargets(f).every((t) => bySlot[t] && t !== 'cost'),
+      `${f} harvests only real slots, and never cost`,
+    );
+  }
+  assert(harvestTargets('size').includes('material'), 'a measurement rarely arrives alone');
+
+  // ── the whole point: a harvested slot is not asked again, an empty one still is ────
+  //
+  // "yeh sambalpuri cotton saree hai, teen din laga" answers what, material and time. The
+  // interview that follows must be shorter by exactly those three and no more — weight and
+  // stock were never spoken and dropping them would publish a guess.
+  const afterHarvest = absorb({ what: 'saree' }, { material: 'cotton', time: 'teen din' });
+  const left = fields(plan({ answers: afterHarvest, channels: ['meesho'] }));
+  assert(!left.includes('material') && !left.includes('time'), 'answered slots are dropped');
+  assert(
+    left.includes('weight') && left.includes('stock') && left.includes('size'),
+    'a slot nobody answered is still asked, however much else that sentence contained',
+  );
+  assert(left.includes('cost'), 'the price floor is still asked; it is never harvested');
+
+  // ── walking the frozen queue past what a harvest already filled ───────────────────
+  const queue = plan({ channels: ['meesho'] });
+  const at = (from, ans) => nextUnanswered(queue, from, ans);
+  assert(at(0, {}) === 0, 'with nothing answered the first question stands');
+  assert(
+    queue[at(1, { material: 'cotton', size: '6 gaz' })].field === 'weight',
+    'two harvested slots in a row are both walked past',
+  );
+  assert(
+    queue[at(1, { material: 'cotton', weight: '' })].field === 'size',
+    'an empty string is not an answer and its question survives',
+  );
+  assert(
+    queue[at(1, { material: 'cotton', stock: 0 })].field === 'size',
+    'a zero IS an answer — nobody is asked their stock twice for saying none',
+  );
+  assert(
+    at(0, Object.fromEntries(queue.map((qq) => [qq.field, 'x']))) === queue.length,
+    'everything answered runs off the end, which is the cue for review',
+  );
 
   const absorbed = absorb({ what: 'saree' }, { material: 'cotton', time: '3 din' });
   assert(absorbed.material === 'cotton' && absorbed.time === '3 din', 'a harvest fills empty slots');

@@ -5,7 +5,7 @@ import { api, ApiError } from '../api/client';
 import { useDraft, useSession } from '../store';
 import { useVoice } from '../voice/useVoice';
 import { hoursFrom } from '../voice/numbers';
-import { t } from '../i18n/index';
+import { resolve, t } from '../i18n/index';
 import { Screen, BigButton, Card, Chip, Spinner } from '../ui/kit';
 import { IconYes, IconRetry, IconAlert } from '../ui/icons';
 
@@ -96,15 +96,26 @@ export default function Price() {
   // three separate figures at them.
   useEffect(() => {
     if (!quote) return;
-    const parts = [
+    /*
+     * `resolve`, not `t`: this text is spoken, and a bundle that does not carry `price.*`
+     * yet — Tamil and Bengali are drafted only along the photo-to-listing path — falls back
+     * to ENGLISH text. Speaking English words through a Tamil voice is unintelligible in
+     * both languages at once, which is the failure i18n/index.ts's own self-check exists to
+     * catch. So the voice tag comes from whichever bundle actually answered.
+     */
+    const spoken =
       lang === 'hi' && quote.breakdown_voice_hi
-        ? quote.breakdown_voice_hi
-        : t(lang, 'price.suggested', { price: quote.suggested_price }),
-    ];
+        ? { text: quote.breakdown_voice_hi, lang: 'hi' as const }
+        : resolve(lang, 'price.suggested', { price: quote.suggested_price });
+    const parts = [spoken.text];
     // The market will not pay what this cost to make. That is not a detail to bury in a
     // panel — it is the one thing they need to hear before they agree to anything.
-    if (quote.below_floor_warning) parts.push(t(lang, 'price.floor_warning', { floor: quote.floor }));
-    sayRaw(parts.join(' '));
+    if (quote.below_floor_warning) {
+      // Same bundle as the line above, so it resolves to the same language; joined into one
+      // utterance rather than two so the warning cannot be cut off by the first finishing.
+      parts.push(resolve(lang, 'price.floor_warning', { floor: quote.floor }).text);
+    }
+    sayRaw(parts.join(' '), spoken.lang);
   }, [quote, lang, sayRaw]);
 
   if (!productId) return <Navigate to="/camera" replace />;

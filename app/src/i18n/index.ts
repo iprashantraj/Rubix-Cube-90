@@ -1,11 +1,14 @@
 import en from './strings/en.json';
 import hi from './strings/hi.json';
 import or from './strings/or.json';
+import ta from './strings/ta.json';
+import bn from './strings/bn.json';
 
 /**
- * Launch languages. Spec §17 decision 8 is still open; these three cover the demo
- * (Odisha / Sambalpuri examples run through the whole spec) plus the two the PS names
- * explicitly. Adding a language is one JSON file and one row here — nothing else.
+ * Launch languages. Spec §17 decision 8 is still open. Hindi, Odia and English cover the
+ * demo (Odisha / Sambalpuri examples run through the whole spec) plus the two the PS names
+ * explicitly; Tamil and Bengali follow, and their bundles are partial — see below. Adding a
+ * language is one JSON file and one row here — nothing else.
  */
 export const LANGUAGES = [
   { code: 'hi', label: 'हिन्दी', bcp47: 'hi-IN', tts: 'hi-IN' },
@@ -28,6 +31,18 @@ export const LANGUAGES = [
    * device voice, not Sarvam's en-IN, is what speaks it.
    */
   { code: 'en', label: 'English', bcp47: 'en-IN', tts: 'en-US' },
+  /*
+   * Tamil and Bengali. Added for reach: between them they are the first language of more
+   * artisans than Hindi and Odia together, and the AI layer never needed changing for them —
+   * `ai/interpret.py` reads code-switched speech in whatever script it arrives in, and the
+   * listing still comes out in English and Hindi either way.
+   *
+   * `ta.json` and `bn.json` are LLM drafts and say so in their own `_note`. Every key they
+   * do not carry falls through to English IN AN ENGLISH VOICE, which is the behaviour
+   * resolve() exists to guarantee — see the self-check at the bottom of this file.
+   */
+  { code: 'ta', label: 'தமிழ்', bcp47: 'ta-IN', tts: 'ta-IN' },
+  { code: 'bn', label: 'বাংলা', bcp47: 'bn-IN', tts: 'bn-IN' },
 ];
 
 /**
@@ -45,10 +60,10 @@ export const LANGUAGES = [
  * this one.
  */
 /**
- * The three launch languages. A bare `string` would let a typo reach `BUNDLES[lang]` and
+ * The launch languages. A bare `string` would let a typo reach `BUNDLES[lang]` and
  * silently render English, which is the one failure this module exists to make loud.
  */
-export type Lang = 'hi' | 'or' | 'en';
+export type Lang = 'hi' | 'or' | 'ta' | 'bn' | 'en';
 
 /** Interpolation values for `{name}` placeholders. Numbers are formatted by `fill`. */
 export type Vars = Record<string, string | number | null | undefined>;
@@ -64,6 +79,8 @@ const BUNDLES: Record<Lang, Record<string, string>> = {
   en: ({ ...en } as unknown) as Record<string, string>,
   hi: ({ ...hi } as unknown) as Record<string, string>,
   or: ({ ...or } as unknown) as Record<string, string>,
+  ta: ({ ...ta } as unknown) as Record<string, string>,
+  bn: ({ ...bn } as unknown) as Record<string, string>,
 };
 
 for (const mod of Object.values(
@@ -167,4 +184,31 @@ if (import.meta.env.DEV) {
     t('or', 'photo.blurry') === resolve('or', 'photo.blurry').text,
     't() must be resolve().text — if they drift, screens and voice say different things',
   );
+  // Tamil and Bengali are partial by design: the photo-to-listing path is drafted and the
+  // rest falls back. Both halves of that have to hold, or the language is a menu entry that
+  // does nothing.
+  for (const lang of ['ta', 'bn'] as const) {
+    ok(resolve(lang, 'catalog.q_what').lang === lang, `${lang} must answer the interview`);
+    ok(resolve(lang, 'publish.title').lang === 'en', `${lang} falls back in an English voice`);
+  }
+  /*
+   * A placeholder dropped in translation is the failure mode of a partly-drafted bundle:
+   * `fill` leaves nothing behind, so "Question 3 of 6" silently becomes "Question of" and
+   * the artisan is told a number that is not there. Cheaper to catch here than on a phone.
+   */
+  for (const [code, bundle] of Object.entries(BUNDLES)) {
+    for (const [key, text] of Object.entries(bundle)) {
+      // `_reviewed` is an ARRAY and `_note` is prose — the translator metadata described at
+      // the top of this file. Calling .match() on the array threw on module load, which is
+      // a BLANK APP, from a check whose entire job is to be cheaper than finding out later.
+      // A dev-only guard that can break the app is worse than no guard.
+      if (key.startsWith('_') || typeof text !== 'string') continue;
+      const want: string[] = (BUNDLES.en[key] ?? '').match(/\{\w+\}/g) ?? [];
+      const got: string[] = text.match(/\{\w+\}/g) ?? [];
+      ok(
+        want.length === got.length && want.every((v) => got.includes(v)),
+        `${code}/${key} lost a placeholder: expected ${want.join(' ')} got ${got.join(' ')}`,
+      );
+    }
+  }
 }
