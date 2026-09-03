@@ -8,6 +8,10 @@ different vocabularies into one lives here, so it can be rewritten without refet
     python3 normalise.py --observed      # also merge into research/pricing/observed.csv
     python3 normalise.py --selfcheck
 
+`image_urls` is deliberately not carried through. The scrapers still store it, so it is one
+line to put back, but the image-derived half of the request — `design_density` and
+`colour_count` — is not being pursued and the normalised rows should not imply it is.
+
 Two rules from the request govern every decision below:
 
   * Never invent a number. A row whose price we cannot read is dropped and counted, never
@@ -148,7 +152,6 @@ def normalise(row: dict) -> tuple[dict | None, str]:
         "wholesale_flag": "wholesale" in tags,
         "weight_g": specs.get("grams") or None,
         "variant_prices_differ": bool(specs.get("variant_prices_differ")),
-        "image_urls": row.get("image_urls", []),
     }, ""
 
 

@@ -28,7 +28,7 @@ which is the entire argument for caching every page.
 |---|---|
 | Price median | **₹1,675** (min ₹60 fish-scale earrings, max ₹275,000 rosewood dining set) |
 | MRP present | 123/200, never equal to and never below the selling price — a clean `discount_pct` |
-| Images | every row, median 8 URLs — Abhay's half is unblocked |
+| Images | every row, median 8 URLs — kept in the raw rows, not carried into the normalised ones |
 | `State of Origin` | **195/200** |
 | Material or Fabric | 158/200 |
 | Duplicate titles | 0 |
