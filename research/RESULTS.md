@@ -258,16 +258,16 @@ That caveat is now answered, and it was right.
 
 ### What was collected
 
-34,459 listings across three marketplaces, replacing the 144 collected by hand:
+50,179 listings across three marketplaces, replacing the 144 collected by hand:
 
 | Source | Rows | How |
 |---|---|---|
 | goswadeshi.in | 25,000 | `/products.json` — this is gocoop under its new name |
-| itokri.com | 15,239 | `/products.json`, at the `Crawl-delay: 10` its robots.txt asks for |
+| itokri.com | 24,979 | `/products.json`, at the `Crawl-delay: 10` its robots.txt asks for |
 | indiahandmade.com | 200 | HTML, Magento spec tables |
 
-38,980 rows survive normalisation. **23,469 carry a weave-level label** — sambalpuri,
-pochampally, khandua, bomkai, nuapatna, baluchari, jamdani — of which 20,181 have that weave
+49,952 rows survive normalisation. **30,111 carry a weave-level label** — sambalpuri,
+pochampally, khandua, bomkai, nuapatna, baluchari, jamdani — of which 26,697 have that weave
 named in the seller's own title rather than inferred from a tag. The code is in
 `research/pricing/scrape/`; the collection notes are in `PROBE.md` and `HANDREAD-200.md`.
 
@@ -278,8 +278,8 @@ rate, giving **₹23,000** — checked against the same market, now labelled by 
 
 | Comparison class | n | median | p10 | p90 | verdict |
 |---|---|---|---|---|---|
-| `textiles.saree` (undifferentiated) | 4,683 | ₹5,740 | ₹1,680 | ₹14,200 | floor above the market |
-| **`textiles.saree.sambalpuri`** | **1,481** | **₹10,214** | ₹4,704 | ₹27,443 | **floor inside the spread** |
+| `textiles.saree` (undifferentiated) | 4,741 | ₹5,460 | ₹1,683 | ₹14,020 | floor above the market |
+| **`textiles.saree.sambalpuri`** | **1,492** | **₹10,214** | ₹4,799 | ₹27,443 | **floor inside the spread** |
 | `textiles.saree.banarasi` | 343 | ₹24,271 | ₹14,129 | ₹40,804 | floor inside the spread |
 | `textiles.saree.gadwal` | 141 | ₹19,600 | ₹13,590 | ₹26,900 | floor inside the spread |
 | `textiles.saree.paithani` | 140 | ₹18,500 | ₹4,890 | ₹32,000 | floor inside the spread |
@@ -294,11 +294,11 @@ undifferentiated category.
 The August finding is not withdrawn. At the ₹2,140 median it quoted, a 20-day saree still
 implies ₹8/hour, and there really are Sambalpuri-labelled sarees at ₹900. What changes is the
 claim we can make from it: **"handloom sarees are priced below cost" is not supportable at
-this resolution. "Sambalpuri sarees below about ₹4,700 cannot be paying a cluster wage for
+this resolution. "Sambalpuri sarees below about ₹4,800 cannot be paying a cluster wage for
 20 days' work" is** — and it is the more useful sentence, because it is the one the app can
 act on for a specific artisan with a specific product.
 
-Across all 299 comparison classes the floor still sits above the median in 293 of them. Most
+Across all 328 comparison classes the floor still sits above the median in 321 of them. Most
 of those are keychains, pouches and cushion covers, where 160 hours of labour is not the
 question being asked. The saree rows are the ones that bear on the premise.
 
