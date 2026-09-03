@@ -283,7 +283,8 @@ def demo() -> None:
     gem = shape("gem", listing, artisan_name="Utsav Mohanty")
     assert "Utsav" not in gem["title"], "GeM title carries no seller name"
     assert "Utsav" not in gem["desc_en"], "GeM description carries no seller name"
-    assert "उत्सव" not in gem["desc_hi"] or True, "hindi name handled where it matches"
+    # A Devanagari display name is scrubbed from Devanagari copy — see the parametrised
+    # case in test_catalog.py, which asserts it rather than passing an empty listing.
     assert "Sambalpuri" in gem["title"], "scrubbing removes the name and keeps the product"
 
     # A short name that is also an ordinary word is left alone: losing the word is worse.
@@ -297,7 +298,7 @@ def demo() -> None:
     assert len(amz["title"]) <= 75, "amazon title is capped"
     assert isinstance(amz["keywords"], str), "amazon keywords are one byte-capped string"
     assert len(amz["keywords"].encode("utf-8")) <= 249, "amazon keywords fit"
-    assert "Utsav" in amz["title"] or True, "amazon keeps the brand — only GeM forbids it"
+    assert "Utsav" in amz["title"], "amazon keeps the brand — only GeM forbids it"
 
     # ── Flipkart takes three, and not ones already in the title ───────────────────────
     fk = shape("flipkart", listing)

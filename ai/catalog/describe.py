@@ -39,7 +39,12 @@ ALLOWED_DESCRIBE_FIELDS = frozenset(
 MAX_FIELD_CHARS = 300
 MAX_FIELDS = 16
 
-LANGUAGES = frozenset({"hi", "or", "en"})
+# The language the artisan SPOKE. It selects nothing about the output: `desc_en` and
+# `desc_hi` are produced for every listing whatever this says, because the problem statement
+# names both and a listing with one of them is not finished. Kept in step with LANGUAGES in
+# interpret.py by hand — a language accepted by one and refused by the other is an interview
+# that half works.
+LANGUAGES = frozenset({"hi", "or", "ta", "bn", "en"})
 
 # Rules 2, 3 and 4 exist because a single instruction not to invent was not enough. Given
 # only "sambalpuri cotton saree" the model wrote "known for its intricate handwoven patterns
@@ -74,9 +79,12 @@ short listing is a finished listing, not a failed one. Never pad with adjectives
 appearance or quality to reach a length.
 5. `title`: what it is, the material, the craft or region if given. No seller name, no \
 promotional words, no ALL CAPS, no exclamation marks.
-6. `desc_en` in English and `desc_hi` in natural Hindi. `desc_hi` is written fresh in Hindi, \
-not translated word for word from the English. It carries the same facts and invents \
-nothing the English does not say.
+6. `desc_en` in English and `desc_hi` in natural Hindi, ALWAYS, whatever language the \
+artisan spoke. `desc_hi` is written fresh in Hindi, not translated word for word from the \
+English. It carries the same facts and invents nothing the English does not say.
+6b. FIELDS may be in Hindi, Odia, Tamil, Bengali or English, or mix them mid-sentence. \
+Read them all and write the listing in the two required languages. A fact you cannot read \
+is a fact you leave out — never guess at what a word might mean.
 7. `short_desc`: one line, under 120 characters, for a listing card.
 8. `keywords`: up to 10 search terms a buyer would actually type, and every one of them \
 supported by FIELDS. Include the craft or regional name if given (Sambalpuri, Madhubani, \
