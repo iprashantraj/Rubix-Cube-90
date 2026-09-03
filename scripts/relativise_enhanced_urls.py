@@ -24,8 +24,15 @@ urls, `file://` urls and anything already relative are left alone — the patter
 
 Idempotent: running it twice changes nothing the second time.
 
-    python3 scripts/relativise_enhanced_urls.py --dry-run   # count first
-    python3 scripts/relativise_enhanced_urls.py
+⚠️ Run it with the API's interpreter, not the system one — `sqlalchemy` and the settings
+this imports live in that virtualenv, and plain `python3` fails at the import.
+
+    web/api/.venv/bin/python scripts/relativise_enhanced_urls.py --dry-run   # count first
+    web/api/.venv/bin/python scripts/relativise_enhanced_urls.py
+
+Leave the servers running. This is one UPDATE; Postgres handles it concurrently and the API
+only reads these rows. Force-close the app afterwards, though — TanStack Query caches the
+product list and will keep painting the old urls until it refetches.
 """
 
 from __future__ import annotations
