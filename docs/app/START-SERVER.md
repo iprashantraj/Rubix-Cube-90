@@ -123,6 +123,44 @@ slower than that, one of these two is cold — not the model, and not the networ
 
 ---
 
+## 🎯 The address that does not move: run the hotspot from the LAPTOP
+
+**This is the recommended setup, and it is the one currently configured.**
+
+There are two ways to put the phone and the laptop on one network, and they are not equally
+stable:
+
+| Who hosts the WiFi | Laptop's address | Stable? |
+|---|---|---|
+| **The laptop** (NetworkManager "shared") | **always `10.42.0.1`** | ✅ **Fixed.** It is the gateway address of the shared connection, not a lease |
+| The phone's hotspot | whatever the phone's DHCP hands out | ❌ moves between sessions, and Android changes the subnet on some restarts |
+
+When the laptop shares its connection, **it is always `10.42.0.1`** — so `VITE_API_BASE` can
+be pinned once and never revisited. No lease to chase, no rebuild after reconnecting, and
+**no `adb reverse`**, which is the thing that kept silently dropping.
+
+```bash
+ip -4 -o addr show wlo1     # reads 10.42.0.1/24 while the laptop is the hotspot
+```
+
+Set it once:
+
+```
+VITE_API_BASE=http://10.42.0.1:8000/api
+```
+
+Then rebuild and reinstall once, and the cable is only ever needed for installing.
+
+> **Why this beats the cable.** `adb reverse` drops on every replug, adb-daemon restart,
+> phone reboot and USB re-authorisation — three times in one session while debugging this —
+> and each drop looks exactly like "no network" on a phone with full signal. The hotspot
+> address survives all of them.
+
+**Verified 2026-09-03:** with `adb reverse --remove-all` and the cable contributing nothing,
+the app made six successful API calls and zero failed fetches.
+
+---
+
 ## Finding the IPs — **untethered mode only**
 
 > ⏭️ **On USB? Skip this whole section.** With `VITE_API_BASE` unset the app dials
