@@ -18,6 +18,27 @@ function resolveSrc(url: string): string {
   return url.startsWith('/api/') ? apiUrl(url.slice('/api'.length)) : url;
 }
 
+/*
+ * Urls that answered 404, so they are asked for once per session and not once per render.
+ *
+ * 🐞 The AI service used to write renders under /tmp, which is swept while the machine is
+ * up. The `product_images` rows survive in Postgres, so every enhanced image from before a
+ * sweep points at a file that is gone. Each one 404s — and because this hook refetches
+ * whenever a component mounts, the shelf on /home and the list on /products re-asked for
+ * the same dead files on every navigation. The server log was hundreds of 404s for a
+ * handful of products, and the artisan's connection paid for all of them.
+ *
+ * The storage default is fixed, but rows written before it are unrecoverable: the bytes do
+ * not exist anywhere. So a miss has to be remembered rather than retried forever.
+ *
+ * Deliberately a Set and deliberately not persisted: a 404 here means "this render is
+ * gone", which is true for the session, and clearing on relaunch is the free retry for the
+ * case where the file comes back — re-running /enhance rewrites the row and the url changes
+ * anyway. Only 404 is remembered; a timeout or a 5xx is the network having a bad moment and
+ * must stay retryable, or one dropped packet would blank an image until the app restarts.
+ */
+const gone = new Set<string>();
+
 /**
  * Turn a server image url into something the WebView will actually paint.
  *
@@ -59,7 +80,9 @@ export function useDisplayImage(url?: string | null, fallback?: string | null) {
     // Not a server url — a blob: or data: url is already paintable, and the artisan's own
     // photo is the fallback in every other case. `/api/…` counts as a server url: it is how
     // enhanced renditions are stored, and resolveSrc turns it into a reachable one.
-    if (!url || !(/^https?:/.test(url) || url.startsWith('/api/'))) {
+    // A url already known to be gone: go straight to the fallback. Asking again costs the
+    // artisan data and the server a log line, and the answer will not have changed.
+    if (!url || gone.has(url) || !(/^https?:/.test(url) || url.startsWith('/api/'))) {
       setObjectUrl(null);
       return undefined;
     }
@@ -71,7 +94,13 @@ export function useDisplayImage(url?: string | null, fallback?: string | null) {
     setObjectUrl(null);
 
     fetch(resolveSrc(url))
-      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((res) => {
+        if (res.ok) return res.blob();
+        // 404 is "this render does not exist", which is permanent for this session. Any
+        // other status is the server or the network having a moment and stays retryable.
+        if (res.status === 404) gone.add(url);
+        throw new Error(`HTTP ${res.status}`);
+      })
       .then((blob) => {
         if (!alive) return;
         created = URL.createObjectURL(blob);
