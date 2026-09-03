@@ -83,6 +83,28 @@ def _load_rows() -> list[dict]:
     return clean
 
 
+SAMPLE_CAP = 200  # prices kept per category per source; see _sample()
+
+
+def _sample(prices: list[float]) -> list[int]:
+    """At most SAMPLE_CAP prices, evenly spaced through the sorted list.
+
+    Scraped sources put tens of thousands of prices in a single category, and the seed is a
+    committed file that ai/price/comps.py reads on every request. The cheapest and dearest
+    are always kept, so the range is exact; the quantiles between them move by about two
+    percent at the tail, which is far inside the honesty of an asking price in the first
+    place.
+
+    Evenly spaced rather than random: the same observed.csv has to produce the same seed,
+    or two people rebuilding it get different prices and neither can say why.
+    """
+    ordered = sorted(round(p) for p in prices)
+    if len(ordered) <= SAMPLE_CAP:
+        return ordered
+    step = (len(ordered) - 1) / (SAMPLE_CAP - 1)
+    return [ordered[round(i * step)] for i in range(SAMPLE_CAP)]
+
+
 def build(args) -> None:
     rows = _load_rows()
 
@@ -93,8 +115,9 @@ def build(args) -> None:
     seed = json.loads(SEED.read_text())
     seed["collected"] = max(r["seen_on"] for r in rows)
     seed["collector"] = args.collector
+    seed["sample_cap"] = SAMPLE_CAP
     seed["categories"] = {
-        cat: {src: sorted(prices) for src, prices in sorted(sources.items())}
+        cat: {src: _sample(prices) for src, prices in sorted(sources.items())}
         for cat, sources in sorted(by_cat.items())
     }
     SEED.write_text(json.dumps(seed, indent=2, ensure_ascii=False) + "\n")
@@ -159,6 +182,28 @@ def check(args) -> None:
     )
 
 
+def selfcheck() -> None:
+    """The sampler is the only non-obvious arithmetic in this file, and it decides which
+    observed prices an artisan is compared against."""
+    import statistics
+
+    assert _sample([3.0, 1.0, 2.0]) == [1, 2, 3], "short lists are kept whole and sorted"
+
+    prices = [float(p) for p in range(1, 4001)]
+    s = _sample(prices)
+    assert len(s) == SAMPLE_CAP
+    assert s == sorted(s)
+    assert s[0] == 1 and s[-1] == 4000, "the range must survive exactly"
+    assert abs(statistics.median(s) - statistics.median(prices)) < 20
+    assert _sample(prices) == _sample(prices[::-1]), "same input, same seed, every time"
+
+    # A long tail is where an evenly spaced sample is least comfortable. Two percent.
+    skewed = [float(i * i) for i in range(1, 5001)]
+    p90 = lambda xs: sorted(xs)[int(len(xs) * 0.9)]
+    assert abs(p90(_sample(skewed)) - p90(skewed)) / p90(skewed) < 0.02
+    print("selfcheck ok")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -166,6 +211,9 @@ def main() -> None:
     b = sub.add_parser("build", help="observed.csv -> ai/price/comps_seed.json")
     b.add_argument("--collector", default="", help="who collected it, for the record")
     b.set_defaults(func=build)
+
+    s_ = sub.add_parser("selfcheck", help="check the sampling, no data needed")
+    s_.set_defaults(func=lambda a: selfcheck())
 
     c = sub.add_parser("check", help="does the cost-up floor land near real prices?")
     c.add_argument("--material-cost", type=float, default=800)

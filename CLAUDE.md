@@ -83,6 +83,8 @@ cd ai && python3 test_gate.py    # server quality gate, 10 assertions, no venv o
 cd ai && python3 test_segment.py # master downscale; skips the model half without a venv
 cd ai && python3 test_recipe.py  # recipe + renderer, 18 assertions, no venv
 cd ai && .venv/bin/pytest test_service.py  # the /enhance contract end to end; needs fastapi
+python3 research/pricing/pricing.py selfcheck    # the comps seed sampler, no data needed
+python3 research/pricing/scrape/normalise.py --selfcheck  # weave/category labelling, no network
 python3 images/check.py --resume && python3 images/calibrate.py   # thresholds vs the fixture set
 ```
 
