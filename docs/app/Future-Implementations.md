@@ -187,7 +187,12 @@ from that first request and changes nothing else.
 - **`POST /catalog/interpret` is not rate-limited.** It is authenticated, so it is not an
   open relay, but an artisan id is currently used only for identification. It spends money
   per call.
-- ~~**`ai/catalog/nlp.py`, `ai/enhance/`, `ai/price/` are still stubs.**~~ Stale. As of
-  2026-09-02 the only `NotImplementedError` left in `ai/service.py` is
-  `POST /catalog/prefill` (§1 above). `enhance/` runs end to end and `price/` is
-  deterministic — see the "Current state" section of `CLAUDE.md`.
+- ~~**`ai/catalog/nlp.py`, `ai/enhance/`, `ai/price/` are still stubs.**~~ Stale twice over.
+  `enhance/` runs end to end apart from its colour stages — `white_balance()`, `tone()` and
+  `denoise_sharpen()` are unwritten, skipped explicitly, and named in every response — and
+  `price/` is deterministic. On the F2 side `catalog/interpret`, `catalog/harvest`,
+  `catalog/prefill` and `POST /catalog` are all built. `ai/catalog/nlp.py` was the original
+  stub sketch for F2 and was deleted on 2026-09-03: `interpret.py`, `catalog/describe.py`,
+  `catalog/prefill.py` and `catalog/seo.py` are what got built instead, and
+  `transcribe`/`speak` live in `web/api/routers/voice.py`, not in that service at all. See
+  the "Current state" section of `CLAUDE.md`.

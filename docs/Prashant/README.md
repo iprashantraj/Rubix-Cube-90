@@ -221,6 +221,9 @@ every number above.
 | 2026-08-28 | [`research/RESULTS.md`](../../research/RESULTS.md) | **The verdict** — 144 listings collected, and what they say about the floor |
 | 2026-08-28 | [F3-floor-persistence-and-clusters.md](F3-floor-persistence-and-clusters.md) | Two written safeguards that did nothing: an unsaved floor, and cluster wage rates no artisan could reach |
 | 2026-08-28 | [dev-setup-and-theme-check.md](dev-setup-and-theme-check.md) | Not F3: a self-check that failed on every page load, and the undocumented Python 3.10+ requirement |
+| 2026-09-01 | [F2-first-live-run.md](F2-first-live-run.md) | Not F3: F2's first run against a live model — four faults in a row on one code path, all degrading silently into the fallback, a prompt that fabricated, a **server TTS that had been dead behind its own fallback**, and `/catalog/prefill` built — the last unwritten piece of F2 |
+| 2026-09-03 | [F2-shippable.md](F2-shippable.md) | Not F3: the six changes that made F2 shippable — a **`POST /catalog` route the app called and nobody had written**, self-checks that existed but no runner collected, a frozen question queue that asked for facts the artisan had already given, Tamil and Bengali, and two stub files deleted |
+| 2026-09-03 | [F2-dialects.md](F2-dialects.md) | Not F3: does the interpreter read Bhojpuri? Measured, not assumed — **a confident wrong answer on the interview's first question**, and the two prompt rules that fixed it |
 
 Commits: `c2c58dd` · `819aa3c` · `8633a0c` · `6e955bc` · `cb63fa2`, plus `40fb279` (a missing migration
 that broke `POST /api/products` on any fresh clone) and `7b4101d`.

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useDraft, useSession } from '../store';
 import { api } from '../api/client';
@@ -8,7 +8,7 @@ import { useVoice } from '../voice/useVoice';
 import { record, transcribe, type RecHandle } from '../voice/listen';
 import { interpretAnswer } from '../voice/interpret';
 import { numberFrom } from '../voice/numbers';
-import { plan, absorb, harvestTargets } from '../catalog/slots';
+import { plan, absorb, harvestTargets, nextUnanswered } from '../catalog/slots';
 import { norm, recordCorrection } from '../catalog/corrections';
 import { t } from '../i18n/index';
 import { Screen, BigButton, Card, MicButton, Heard } from '../ui/kit';
@@ -127,6 +127,9 @@ export default function CatalogVoice() {
   const photoUrl = useDraft((s) => s.photoUrl);
   const images = useDraft((s) => s.images);
   const answer = useDraft((s) => s.answer);
+  // Subscribed, not read once: a harvest lands asynchronously and the question it
+  // answered has to disappear when it does.
+  const answers = useDraft((s) => s.answers);
   const prefill = useDraft((s) => s.prefill);
 
   // Up here rather than next to the <img> that uses it: two `<Navigate>` early returns sit
@@ -177,6 +180,32 @@ export default function CatalogVoice() {
       channels: targetChannels(channels, sellsOn),
     });
   }, [prefill, defaults, channels, sellsOn]);
+
+  /*
+   * Walk past anything that got answered without being asked.
+   *
+   * The plan is frozen so the dots cannot count backwards, which means the QUEUE still
+   * contains slots a harvest filled two questions ago. Without this the artisan says "yeh
+   * sambalpuri cotton saree hai, teen din laga", we correctly store material and time — and
+   * then ask them what it is made of and how long it took anyway. They told us. Asking
+   * again is the thing they notice and the thing that makes the app feel deaf.
+   *
+   * Only while `ask` is on screen. Advancing during rec/busy/heard would move the question
+   * out from under an answer in flight, and the `heard` panel would be confirming a
+   * sentence against a prompt that had already changed.
+   *
+   * ⚠️ Only ANSWERED slots are skipped. A slot the harvest did not fill is still asked, and
+   * a `confirm` (a guess from the photo or from history) is not an answer — the artisan
+   * still gets asked, as one tap. Nothing here shortens the interview by assuming.
+   *
+   * The walk itself is `nextUnanswered` in slots.js, next to the plan it walks and next to
+   * the rule for what counts as answered. It is asserted there against the real queue.
+   */
+  useEffect(() => {
+    if (phase !== 'ask') return;
+    const n = nextUnanswered(questions, i, answers);
+    if (n !== i) setI(n);
+  }, [phase, i, answers, questions]);
 
   if (!productId) return <Navigate to="/camera" replace />;
 
@@ -400,6 +429,11 @@ export default function CatalogVoice() {
   function saveTyped() {
     const v = typed.trim();
     if (v) answer(q.field, v);
+    // Typed answers are harvested too. The keyboard is the escape hatch for when ASR is
+    // down, not a lesser kind of answer — somebody who types "cotton saree, teen din laga"
+    // has said exactly as much as somebody who spoke it, and throwing that away because it
+    // arrived through a textarea would make the fallback path quietly worse.
+    if (v && q.open && harvestTargets(q.field).length) void harvestFrom(v, q.field);
     next();
   }
 
