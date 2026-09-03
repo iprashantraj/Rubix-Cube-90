@@ -63,7 +63,19 @@ class TTSRequest(BaseModel):
 # Sarvam speaks BCP-47, our app speaks two-letter codes. Unknown languages fall back to
 # Hindi rather than erroring: the artisan hears the wrong language, which is bad, but they
 # hear *something*, which beats a dead screen while a new language is being added.
-SARVAM_LANGS = {"hi": "hi-IN", "or": "od-IN", "en": "en-IN"}
+SARVAM_LANGS = {
+    "hi": "hi-IN",
+    "or": "od-IN",
+    "ta": "ta-IN",
+    "bn": "bn-IN",
+    "en": "en-IN",
+}
+
+# ⚠️ Odia is the odd one: Sarvam writes it `od-IN`, not the ISO `or-IN` the rest of the
+# world uses. Tamil and Bengali are the ordinary spelling, which is why they look like they
+# need no comment and why this one is here — the next language added will be checked against
+# Sarvam's own list rather than assumed, because `or-IN` failing silently would fall back to
+# Hindi under the .get() above and be heard as "the Odia voice is broken".
 
 # ⚠️ en-IN is right for ASR — our English speakers are Indian — and is the only English
 # Sarvam's bulbul model offers for TTS. The app deliberately SPEAKS English with a

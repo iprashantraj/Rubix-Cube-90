@@ -94,5 +94,10 @@ onboarding depend on a network round trip.
 - **`POST /catalog/interpret` is not rate-limited.** It is authenticated, so it is not an
   open relay, but an artisan id is currently used only for identification. It spends money
   per call.
-- **`ai/catalog/nlp.py`, `ai/enhance/`, `ai/price/` are still stubs.** Only
-  `catalog/interpret` is implemented in that service.
+- **`ai/enhance/` is missing its colour stages.** `white_balance()`, `tone()` and
+  `denoise_sharpen()` are unwritten and skipped explicitly, and every response names them.
+  Everything else in that service is implemented: `catalog/interpret`, `catalog/harvest`,
+  `catalog/prefill`, `POST /catalog` and the whole of `price/`. (`ai/catalog/nlp.py` was the
+  original stub sketch for F2 and was deleted on 2026-09-03 — `interpret.py`,
+  `catalog/describe.py`, `catalog/prefill.py` and `catalog/seo.py` are what got built, and
+  `transcribe`/`speak` live in `web/api/routers/voice.py`, not in that service at all.)

@@ -142,11 +142,6 @@ def fetch(source, category, material, size):
         return []
 
 
-def normalize(listings):
-    """LLM: messy titles -> {material, size, technique} so we compare like with like."""
-    raise NotImplementedError
-
-
 def market_range(category, material, size):
     prices = []
     for source in SOURCES:
