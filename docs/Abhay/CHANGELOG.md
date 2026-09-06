@@ -967,7 +967,7 @@ artisan typed. `AI_OBSERVE=0` switches it off, `AI_OBSERVE_LOG` moves it, and ev
 inside `observe.py` is swallowed — an enhancement that fails because a log directory is
 read-only would be a far worse outcome than a lost row.
 
-**Prashant — the signal I cannot see is the retake, and it is the most valuable one here.**
+**Web side — the signal I cannot see is the retake, and it is the most valuable one here.**
 A refusal followed by a retake that passes is a *correct* refusal. A refusal followed by
 three more and then silence is a false one that cost us a seller. That lives in the web
 side's records; `product_id` is on every row so the two join. If you can record "this upload
