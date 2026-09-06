@@ -114,7 +114,7 @@ def enhance(req: dict, response: Response):
         # degrade path — it keeps the artisan's own photo and carries on.
         raise HTTPException(502, {"reason": str(e), "message_key": "enhance.failed"})
 
-    rejection = pipeline.gate(image)
+    rejection = pipeline.gate(image, product_id)
     if rejection:
         response.status_code = 200
         return {"status": "rejected", **rejection}

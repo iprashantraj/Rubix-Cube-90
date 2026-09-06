@@ -889,3 +889,91 @@ against real infrastructure with a real phone. The square-fixture blind spot in 
 are null rather than absent, so recipes written today keep rendering once they land. Colour
 remains the largest quality gap, and §9.2's `white_ref` rect is still the open question that
 decides whether white balance can be anything better than gray-world.
+
+---
+
+## 2026-09-07 — Tone: the first stage that changes how a photograph looks
+
+`ai/enhance/colour.py` is new, and `pipeline.tone()` is no longer `NotImplementedError`. It
+follows step 5's shape: `tone()` measures and returns parameters into `recipe["clahe"]`,
+`renderer.render()` applies them. So a tone correction replays, undoes and re-renders
+exactly like a tier change, and costs no GPU to redo.
+
+Two corrections, both on the **L channel of LAB and never on a or b**. Black and white
+points are percentiles of the product's own lightness taken inside the mask, then CLAHE for
+local contrast. Measured on two indoor fixtures:
+
+    textile-weaver-indoor-02    mean L 25.4 -> 33.2   contrast sd 29.2 -> 31.3
+    pottery-potter-indoor-04    mean L 38.3 -> 46.4   contrast sd 21.2 -> 26.4
+                                hue shift 0.25 and 0.33 degrees, max chroma rise 0.84
+
+**Colour cannot move, and that is enforced rather than intended.** `a` and `b` come out of
+`to_lab` and go back into `to_rgb` bit-for-bit. `to_rgb_in_gamut()` exists because a plain
+per-channel clip walked a deep maroon toward orange by up to 16.5 of a/b — out-of-gamut
+pixels now lose chroma and keep hue, so the answer is always a less saturated version of the
+same colour, never a different one.
+
+**The stretch is capped at 1.35x.** A dark product photographed in a dim room is a dark
+product; pulling it wide until it looks studio-lit invents an appearance the object does not
+have, which is rule 1 whether a diffusion model or arithmetic does it.
+
+**The mask edge needed a measurement nobody had taken.** `matte()` is a no-op because
+BiRefNet's alpha ramps over 3-4px, which RESULTS.md established is soft enough for fringes.
+It is not soft enough for a brightness change: on `pottery-potter-indoor-04` an 11.1 L
+correction across that ramp is **3.3 L per pixel**, which draws a visible line around the
+product on tier C, where the background is not replaced. `renderer._tone_weight()` softens
+the weight — never the mask, so compositing keeps every thread — to ~8px and 1.39 L/px.
+`tone_edge_blur_px: 4` is the only number in the tone block that is measured rather than
+copied from the spec.
+
+**What the tests prove, and what they do not.** Hue preserved, chroma never raised, cap
+held, background untouched, edge not a seam. Every one is a safety property: they show the
+stage cannot do harm. **None of them shows it does good**, because there is no ground truth
+for "correctly exposed" the way `degrade.py` gives ground truth for "blurred". The tone
+thresholds are still the spec's numbers, and the threshold file says so.
+
+**Still unwritten:** `white_balance()` and `denoise_sharpen()`. A maroon saree under a
+tungsten bulb still ships orange — tone fixes brightness, not colour cast, and §9.2's
+`white_ref` rect remains the open question. The `wb-v1` fixture set is declared in
+`images/MANIFEST.md` and empty; it needs photographs, not code.
+
+---
+
+## 2026-09-07 (2) — One line per upload, so the thresholds can be re-tuned on real traffic
+
+`ai/enhance/observe.py`. `gate()`, `run()` and `rerender()` now append a JSON row each.
+
+Every number in `thresholds.json` was calibrated against `images/raw` — 591 files, but only
+**93 distinct scenes**, and mostly stock photographs rather than an artisan's phone in an
+artisan's workshop. That set cannot answer what production will ask: *if the blur cutoff
+moved to 90, how many real uploads stop being refused, and were they any good?* Only real
+traffic answers that, and only if it was written down at the time. This is in before launch
+because the alternative is arguing from 93 scenes after 50,000 uploads have passed through
+unrecorded.
+
+    {"event":"gate","product_id":"p1","blur":303.1,"mean":89.9,"verdict":null}
+    {"event":"enhanced","product_id":"p1","tier":"A","confidence":1.0,"toned":true}
+    {"event":"gate","product_id":"p2","blur":1.8,"verdict":"blur_below_reject"}
+
+**Accepted photographs are logged too**, and that is the half worth insisting on: a cutoff
+can only be argued down if you know the distribution of what already passes.
+
+**Tier share is now countable.** Tier C keeps the background, so its share is the share of
+listings that do not meet the marketplace white-background rule — a number to watch rather
+than discover.
+
+**Numbers, never pixels.** A row is a few hundred bytes, holds no photograph and nothing an
+artisan typed. `AI_OBSERVE=0` switches it off, `AI_OBSERVE_LOG` moves it, and every failure
+inside `observe.py` is swallowed — an enhancement that fails because a log directory is
+read-only would be a far worse outcome than a lost row.
+
+**Prashant — the signal I cannot see is the retake, and it is the most valuable one here.**
+A refusal followed by a retake that passes is a *correct* refusal. A refusal followed by
+three more and then silence is a false one that cost us a seller. That lives in the web
+side's records; `product_id` is on every row so the two join. If you can record "this upload
+was a retry of that one", the gate becomes tunable on evidence instead of on 93 photographs.
+
+**Suite: 118 passed** (gate 16, recipe 28, segment 34, service 10, price 30). `test_gate.py`
+and `test_recipe.py` still run on plain `python3` with nothing installed; the seam test needs
+the model and skips without it. Test files set `AI_OBSERVE=0` so a test run can never append
+to a real log.

@@ -13,10 +13,14 @@ the unhappy ones — the app degrades to the artisan's own photo on failure, and
 do that if failures arrive in the shape it expects.
 """
 
+import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# This drives the whole pipeline; it must not append to a real observation log.
+os.environ.setdefault("AI_OBSERVE", "0")
 
 HERE = Path(__file__).resolve().parent
 RAW = HERE.parent / "images" / "raw"

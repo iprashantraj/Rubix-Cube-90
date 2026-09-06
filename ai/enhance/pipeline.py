@@ -17,7 +17,7 @@ from . import metrics, storage
 #   shadows on white           ->  composite()
 
 
-def gate(image):
+def gate(image, product_id="unknown"):
     """Reject before GPU: resolution, blur, extreme exposure. Thresholds from ../thresholds.json.
 
     Returns None when the photo is worth processing, or the rejection body from
@@ -45,27 +45,35 @@ def gate(image):
     t = metrics.thresholds()
 
     w, h = image.size
+    blur = None
+    exp = {}
+
+    def refuse(reason, message_key):
+        _observe_gate(product_id, w, h, blur, exp, reason)
+        return _reject(reason, message_key)
+
     if min(w, h) < t["resolution_min_px"]:
         # Not a coaching problem — no amount of holding still adds pixels that were never
         # captured, and upscaling to a 2000px listing image invents detail we are not
         # allowed to invent.
-        return _reject(f"resolution_below_{t['resolution_min_px']}px", "photo.too_small")
+        return refuse(f"resolution_below_{t['resolution_min_px']}px", "photo.too_small")
 
     blur, exp = metrics.full_res(image)
 
     # Light first: every other measurement is meaningless in the dark.
     if exp["mean"] < t["brightness_mean_min"]:
-        return _reject("brightness_below_min", "photo.too_dark")
+        return refuse("brightness_below_min", "photo.too_dark")
     if exp["mean"] > t["brightness_mean_max"]:
-        return _reject("brightness_above_max", "photo.too_bright")
+        return refuse("brightness_above_max", "photo.too_bright")
     if exp["blown"] > t["blown_pixel_fraction_max"]:
-        return _reject("blown_highlights", "photo.too_bright")
+        return refuse("blown_highlights", "photo.too_bright")
     if exp["crushed"] > t["crushed_pixel_fraction_max"]:
-        return _reject("crushed_shadows", "photo.too_dark")
+        return refuse("crushed_shadows", "photo.too_dark")
 
     if blur < t["blur_laplacian_variance_reject_min"]:
-        return _reject("blur_below_reject", "photo.blurry")
+        return refuse("blur_below_reject", "photo.blurry")
 
+    _observe_gate(product_id, w, h, blur, exp, None)
     return None
 
 
@@ -77,6 +85,16 @@ def _reject(reason: str, message_key: str) -> dict:
     is for us, in the logs, when a threshold looks wrong.
     """
     return {"reason": reason, "message_key": message_key}
+
+
+def _observe_gate(product_id, w, h, blur, exp, verdict):
+    """One row per upload, refused or not. **The accepted ones matter as much as the
+    refusals** — a threshold can only be moved if you know what moving it would let in, and
+    that is a distribution over the photographs that passed. See `observe.py`."""
+    from . import observe
+
+    observe.write("gate", product_id, w=w, h=h, blur=blur, verdict=verdict,
+                  mean=exp.get("mean"), blown=exp.get("blown"), crushed=exp.get("crushed"))
 
 
 def segment(image):
@@ -338,8 +356,66 @@ def white_balance(image):
 
 
 def tone(image, mask):
-    """Auto-levels, shadow lift, CLAHE — product region only."""
-    raise NotImplementedError
+    """Measure the tone correction. **Returns parameters, not an image.**
+
+    Like every stage since step 5, this computes and `renderer.render()` applies. What comes
+    back goes into `recipe["clahe"]` and can be replayed, undone, or re-applied against a
+    better mask without touching the original.
+
+    Two corrections, both on the L channel of LAB and neither touching a or b — see
+    `colour.py`. Contrast changes; colour provably does not.
+
+    **The black and white points are percentiles of the product's own lightness**, taken
+    inside the mask and nowhere else. Measuring the whole frame would let a dark floor or a
+    bright window decide how the product is exposed. Percentiles rather than min and max
+    because one blown speck or one dead pixel would otherwise set the whole range.
+
+    **The stretch is capped at `tone_max_stretch`.** A dark product photographed in a dim
+    room is *a dark product* — pulling its lightness range wide until it looks like studio
+    lighting is inventing an appearance the object does not have, which is rule 1 whether it
+    is done by a diffusion model or by arithmetic. The cap is what keeps this an exposure
+    correction rather than a re-lighting.
+
+    Returns None when there is no product region to measure, which leaves the recipe field
+    null and the render untouched.
+    """
+    import numpy as np
+
+    from . import colour
+
+    t = metrics.thresholds()
+    a = np.asarray(mask, dtype=np.float32)
+    inside = a > 0.5
+    if not inside.any():
+        return None
+
+    lab = colour.to_lab(np.asarray(image.convert("RGB")))
+    lightness = lab[..., 0][inside]
+    black = float(np.percentile(lightness, t["tone_black_percentile"]))
+    white = float(np.percentile(lightness, t["tone_white_percentile"]))
+    if white - black < 1.0:
+        # A nearly flat product — a swatch filling the frame. Stretching this amplifies
+        # sensor noise into visible grain and improves nothing.
+        return None
+
+    # Cap the stretch, keeping the midpoint fixed so the correction brightens and darkens
+    # symmetrically rather than dragging the whole product one way.
+    span = white - black
+    max_span_gain = float(t["tone_max_stretch"])
+    if 100.0 / span > max_span_gain:
+        mid = (white + black) / 2.0
+        span = 100.0 / max_span_gain
+        black, white = mid - span / 2.0, mid + span / 2.0
+
+    # Round outward, never inward: a wider window is a *smaller* stretch, so rounding can
+    # only ever move further inside `tone_max_stretch`. Rounding both to nearest shaved
+    # 0.004 off the window and put the capped case 1.35007 over its own cap.
+    return {
+        "black": float(np.floor(black * 100) / 100),
+        "white": float(np.ceil(white * 100) / 100),
+        "clip_limit": float(t["clahe_clip_limit"]),
+        "tiles": int(t["clahe_tiles"]),
+    }
 
 
 def denoise_sharpen(image, mask):
@@ -591,6 +667,7 @@ def run(image, targets, product_id="unknown"):
         matte      currently a no-op, see its docstring
         tier       confidence decides how much of the mask we are willing to use
         crop_plan  geometry as numbers
+        tone       needs the mask: "how bright is the product" has no answer without one
         recipe     everything above, written down
         render     the one call that produces pixels
         export     per-channel JPEGs
@@ -603,14 +680,14 @@ def run(image, targets, product_id="unknown"):
     The alpha is written to storage under the recipe's `mask_version`, because a re-render
     that had to segment again would buy nothing.
 
-    **`white_balance()`, `tone()` and `denoise_sharpen()` are not called, because they are
-    not written.** Their recipe fields are null, which is why an old recipe keeps rendering
+    **`white_balance()` and `denoise_sharpen()` are not called, because they are not
+    written.** Their recipe fields are null, which is why an old recipe keeps rendering
     once they land. Colour is the significant absence: a maroon saree under a tungsten bulb
     still leaves here photographing orange.
     """
     from . import recipe as recipe_mod, renderer, storage
 
-    rejection = gate(image)
+    rejection = gate(image, product_id)
     if rejection:
         return {"status": "rejected", **rejection}
 
@@ -624,11 +701,21 @@ def run(image, targets, product_id="unknown"):
         tier=tier_name, confidence=score, mask_signals=signals,
         crop_box=plan["source_box"], canvas=t["listing_canvas_px"],
         fill=t["crop_fill_target"],
+        clahe=tone(master, alpha),
     )
     storage.write_mask(alpha, product_id, rec["mask_version"])
 
     squared = renderer.render(master, alpha, rec)
     images = export(squared, targets, product_id)
+
+    # The second row for this upload, joined to the gate's by product_id. Answers what the
+    # fixture set cannot: which tier does real traffic land in? **Tier C keeps the
+    # background**, so its share is the share of listings that do not meet the marketplace
+    # white-background rule — a number worth watching rather than discovering.
+    from . import observe
+    observe.write("enhanced", product_id, tier=tier_name, confidence=round(score, 3),
+                  upscale=round(plan["upscale"], 3), degraded=plan["degraded"],
+                  toned=rec["clahe"] is not None, **signals)
 
     return {
         "status": "done",
@@ -638,8 +725,9 @@ def run(image, targets, product_id="unknown"):
         "confidence": round(score, 2),
         "mask": signals,
         "recipe": rec,
-        "stages": ["gate", "master", "segment", "matte", f"tier_{tier_name}", "render", "export"],
-        "skipped": ["white_balance", "tone", "denoise_sharpen"],
+        "stages": ["gate", "master", "segment", "matte",
+                   f"tier_{tier_name}", "tone", "render", "export"],
+        "skipped": ["white_balance", "denoise_sharpen"],
     }
 
 
@@ -671,6 +759,13 @@ def rerender(image, targets, product_id, rec):
 
     squared = renderer.render(master, alpha, rec)
     images = export(squared, targets, product_id)
+
+    # **An artisan overruling the tier is the only opinion in this pipeline that comes from
+    # someone who can see the actual object.** If a tier is overruled often the confidence
+    # thresholds are wrong, and no fixture set will ever say so.
+    from . import observe
+    observe.write("rerender", product_id, tier=rec["tier"],
+                  tier_source=rec.get("tier_source"), toned=rec.get("clahe") is not None)
 
     return {
         "status": "done",
