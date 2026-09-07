@@ -977,3 +977,68 @@ was a retry of that one", the gate becomes tunable on evidence instead of on 93 
 and `test_recipe.py` still run on plain `python3` with nothing installed; the seam test needs
 the model and skips without it. Test files set `AI_OBSERVE=0` so a test run can never append
 to a real log.
+
+---
+
+## 2026-09-07 (3) — White balance: the stage rule 4 exists to police
+
+`pipeline.white_balance()` is written. It returns gains, `renderer._apply_white_balance()`
+applies them, and it runs **before** tone in both the measurement and the render — tone
+measures the lightness the corrected channels produce, so correcting after it would leave a
+permanent mismatch between the recipe's numbers and the picture.
+
+**Two methods, and the accurate one still needs one tap from the app.**
+
+*patch* — `white_ref`, the normalized rect from the artisan's tap on the white paper, now an
+optional field on `POST /enhance` and documented in `contracts.md`. That patch is a direct
+reading of the light. Blown or shadowed, it is refused rather than guessed at.
+
+*neutral* — no rect. **Deliberately not gray-world**, though §4's recipe sketch names that
+method: §5 finding 2 is right that gray-world pulls a maroon Sambalpuri toward orange, so
+only the *least chromatic slice* of the frame votes on the illuminant. A ranked slice rather
+than a fixed chroma cutoff, because a fixed cutoff fails exactly where it is needed — under a
+strong cast the genuinely grey wall photographs orange, fails the cutoff, and the estimate
+comes back "nothing to correct" on the photograph that most needed correcting. A frame where
+even the least coloured fifth is strongly coloured is **declined**, not guessed.
+
+**Measured — `images/wb_check.py`, 179 fixtures, three synthetic casts:**
+
+    cast ratio   uncorrected   corrected   declined   made worse
+    1.24               7.70        1.92          7           15
+    1.52              15.29        4.48         18            0
+    1.99              20.39        9.94         93            0
+
+Mean |chroma error| against the untouched original. **`wb_max_gain_ratio` is 1.3, and it is
+not the sweep's minimum.** No single cap is optimal at every cast strength — the minimum
+tracks the cast, which makes it circular. 1.6 scores better on the medium set (2.36) and puts
+30 of 172 mild-cast fixtures *further* from the truth than leaving them alone. Rule 1 makes
+that the wrong trade: under-correcting leaves the photograph closer to as-photographed,
+over-correcting invents. 1.3 is within noise of the mild-cast optimum, cuts error roughly
+threefold on the medium set and twofold on the strong one, and made nothing worse on either.
+
+**The ground truth is synthetic, and that bounds what the table means.** A known cast applied
+to a fixture measures whether the method recovers a *known* illuminant. It cannot say whether
+the method is right about a real bulb in a real workshop, because `images/raw` holds no
+photograph with a recorded illuminant. **`wb-v1` is what would** — the same object shot with
+and without a sheet of white paper — and `images/MANIFEST.md` has declared it empty since
+August. It needs a phone, printer paper and an afternoon, not code.
+
+**Rule 4 is wired.** Past `wb_warn_ratio` the response carries the warning `contracts.md` has
+promised since before the stage existed, and it **survives a re-render** — the artisan does
+not stop needing to confirm the colour because they changed the background.
+
+Gains are normalised so none exceeds 1, so the correction can only ever darken a channel and
+can never clip one into a colour the photograph did not hold. The brightness that costs is
+what tone's levels stretch is for, which is the other reason for the order.
+
+**Suite: 127 passed** (gate 16, recipe 37, segment 34, service 10, price 30).
+
+**Web side — `white_ref` is the last thing this stage is waiting on.** One tap on the review
+screen, one optional field, shape in `contracts.md`. Absent, nothing breaks and the neutral
+path runs exactly as it does today; present, the correction stops being an inference. It is
+also the only way past the honest ceiling above: a reference-free method cannot tell warm
+light from a warm object, and no threshold fixes that.
+
+**Still unwritten:** `denoise_sharpen()`, and the `shadow` recipe field. A cutout on flat
+white with no contact shadow reads as pasted on, and that is now the largest visible gap
+between our output and a marketplace listing photograph.

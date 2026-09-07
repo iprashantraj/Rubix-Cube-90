@@ -119,7 +119,9 @@ def enhance(req: dict, response: Response):
         response.status_code = 200
         return {"status": "rejected", **rejection}
 
-    job_id = jobs.submit(pipeline.run, image, targets, product_id)
+    # `white_ref` is the artisan's tap on the white paper, normalized. Optional: absent, the
+    # pipeline falls back to the neutral-pixel path, which is exactly today's behaviour.
+    job_id = jobs.submit(pipeline.run, image, targets, product_id, req.get("white_ref"))
     response.status_code = 202
     return {"job_id": job_id, "status": "queued"}
 

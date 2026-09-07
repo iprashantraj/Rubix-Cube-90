@@ -45,5 +45,13 @@
   "tone_max_stretch": 1.35,
   "_tone_edge_blur": "How far the tone correction fades out across the mask edge, in pixels at the 2000px master. The one tone number that IS measured: BiRefNet's alpha ramps over 3-4px, and on pottery-potter-indoor-04 an 11.1 L correction across that ramp is 3.3 L per pixel, which draws a visible line around the product on tier C. At 4 the ramp is ~11px and the same correction is ~1 L/px. Guarded by test_the_tone_edge_is_not_a_visible_seam, which needs the model and skips without it. Deliberately NOT pipeline.FEATHER_PX: that is tier B's edge treatment and answers a different question.",
   "tone_edge_blur_px": 4,
-  "saturation_boost_max": 1.10
+  "saturation_boost_max": 1.10,
+
+  "_white_balance": "The stage rule 4 exists to police — the only one that moves colour on purpose. The neutral-pixel path is deliberately NOT gray-world (PIPELINE-RECONCILIATION §5 finding 2 names gray-world as the method that pulls a maroon Sambalpuri toward orange): only the least-chromatic slice votes, so a saree filling the frame gets no vote on its own colour, and a frame with nothing plausibly grey is declined rather than guessed. Measured by images/wb_check.py over 179 fixtures against three synthetic casts — the ground truth is synthetic because images/raw holds no photograph with a recorded illuminant, so this bounds the method's error and does not confirm its accuracy. wb-v1 in images/MANIFEST.md is what would, and it is still empty.",
+  "_wb_max_gain_ratio": "How far colour may move, as the ratio between the largest and smallest gain. No single value is optimal at every cast strength — the sweep's minimum tracks the cast — so this is chosen on risk, not on the minimum. At 1.3: mean |chroma error| 1.92 vs 7.70 uncorrected on a mild cast, 4.48 vs 15.29 on a medium one, 9.94 vs 20.39 on a strong one, and NO fixture made worse on the medium or strong sets. At 1.6 the medium set is better (2.36) and the mild set puts 30 of 172 fixtures further from the truth than leaving them alone. Rule 1 makes that the wrong trade: under-correcting leaves the photograph closer to as-photographed, over-correcting invents. Re-run: python3 images/wb_check.py --sweep [--cast r,g,b]",
+  "wb_max_gain_ratio": 1.3,
+  "wb_neutral_percentile": 20,
+  "wb_neutral_chroma_max": 30.0,
+  "wb_neutral_min_fraction": 0.02,
+  "wb_warn_ratio": 1.15
 }

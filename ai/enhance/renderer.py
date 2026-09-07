@@ -48,6 +48,11 @@ def render(original: Image.Image, mask, rec: dict) -> Image.Image:
             f"{(master.height, master.width)} — re-segment rather than rescale"
         )
 
+    # White balance first: it changes the ratios between channels, and tone measures the
+    # lightness those ratios produce. Measuring tone against uncorrected pixels and applying
+    # it to corrected ones would be a small, permanent mismatch. `pipeline.run()` measures in
+    # the same order for the same reason.
+    master = _apply_white_balance(master, rec.get("white_balance"))
     master = _apply_tone(master, mask, rec.get("clahe"))
 
     tier = rec["tier"]
@@ -59,6 +64,31 @@ def render(original: Image.Image, mask, rec: dict) -> Image.Image:
         composited = pipeline.composite(master, alpha)
 
     return _crop_to(composited, rec["crop"])
+
+
+def _apply_white_balance(image: Image.Image, params) -> Image.Image:
+    """Scale the three channels by the recipe's gains. **The whole colour correction is
+    these three numbers**, which is what makes it replayable, inspectable and undoable.
+
+    Null params means `white_balance()` declined — no reference patch it could trust, or
+    nothing in the frame plausibly neutral. The image is returned exactly as photographed,
+    which is why the field is null rather than absent.
+
+    `pipeline.white_balance()` normalises the gains so none exceeds 1, so this can only
+    darken a channel. Nothing here can push a channel past 255 and invent a colour at the
+    top end that the photograph never held.
+    """
+    if not params:
+        return image
+
+    import numpy as np
+
+    gains = np.asarray(params["gains"], dtype=np.float32)
+    if gains.shape != (3,):
+        raise ValueError(f"white_balance gains must be three numbers, got {params['gains']}")
+
+    rgb = np.asarray(image.convert("RGB"), dtype=np.float32) * gains
+    return Image.fromarray(np.clip(rgb + 0.5, 0, 255).astype(np.uint8), "RGB")
 
 
 def _apply_tone(image: Image.Image, mask, params) -> Image.Image:

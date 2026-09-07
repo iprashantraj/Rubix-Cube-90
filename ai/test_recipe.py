@@ -371,6 +371,122 @@ def test_the_tone_edge_is_not_a_visible_seam():
         f"blur the weight in renderer._apply_tone()")
 
 
+# ------------------------------------------------------------------ white balance
+#
+# The one stage that moves colour on purpose, so it is the one rule 4 exists to police.
+
+
+# Deliberately inside `wb_max_gain_ratio` (1.25 against a cap of 1.3), so a test of whether
+# the method reads the light measures that and not the cap. The cap has its own test, with a
+# cast violent enough to trip it.
+WARM = np.array([1.15, 1.0, 0.92], np.float32)
+IDEAL = (1 / WARM) / (1 / WARM).max()                # the gains that would undo it exactly
+
+
+def _cast(img, gains=WARM):
+    return Image.fromarray(
+        np.clip(np.asarray(img, np.float32) * np.asarray(gains, np.float32), 0, 255).astype(np.uint8))
+
+
+def _mean_chroma(img):
+    lab = colour.to_lab(np.asarray(img))
+    return float(np.hypot(lab[..., 1], lab[..., 2]).mean())
+
+
+def _scene(seed=11):
+    """A photograph with something plausibly neutral in it, which is the case both methods
+    are for. Pure noise has no grey and neither method should pretend otherwise."""
+    rng = np.random.default_rng(seed)
+    a = np.full((300, 300, 3), 150, np.uint8)
+    a[:120] = rng.integers(30, 90, (120, 300, 3))            # a dark object
+    a[120:] = 140 + rng.integers(-10, 10, (180, 300, 3))     # a plain wall
+    return Image.fromarray(a)
+
+
+def test_the_tapped_patch_recovers_the_illuminant():
+    """The accurate path, and the reason the `white_ref` rect is worth one tap on the review
+    screen: the patch is a direct reading of the light rather than an assumption about it."""
+    a = np.asarray(_scene(), np.float32).copy()
+    a[10:60, 10:60] = 175                                    # the paper. Not blown.
+    img = _cast(Image.fromarray(a.astype(np.uint8)))
+    p = pipeline.white_balance(img, {"x": 0.03, "y": 0.03, "w": 0.16, "h": 0.16})
+    assert p["method"] == "patch", p
+    assert np.abs(np.asarray(p["gains"]) - IDEAL).max() < 0.15, (p["gains"], IDEAL)
+
+
+def test_a_blown_reference_patch_is_refused():
+    """Every channel reads 255 whatever the light was. Calibrating off that would invent a
+    colour, and rule 1 does not care that arithmetic rather than a model did it."""
+    flat = Image.fromarray(np.full((200, 200, 3), 254, np.uint8))
+    assert pipeline.white_balance(flat, {"x": 0.1, "y": 0.1, "w": 0.3, "h": 0.3}) is None
+
+
+def test_a_product_filling_the_frame_is_refused_not_guessed():
+    """**The failure gray-world is named for.** A maroon Sambalpuri filling the frame makes
+    "the average of this scene is grey" false in exactly the direction that pulls a natural
+    dye toward orange — PIPELINE-RECONCILIATION §5 finding 2. Declining leaves the colour as
+    photographed, which is right far more often than a guess is."""
+    rng = np.random.default_rng(3)
+    maroon = np.array([120, 25, 45]) + rng.integers(-12, 12, (300, 300, 3))
+    assert pipeline.white_balance(Image.fromarray(maroon.clip(0, 255).astype(np.uint8))) is None
+
+
+def test_the_neutral_path_corrects_a_cast_it_can_see():
+    """No rect, but a wall in frame. Weaker than the patch and still a real correction."""
+    scene = _scene()
+    cast = _cast(scene)
+    p = pipeline.white_balance(cast)
+    assert p["method"] == "neutral", p
+    out = renderer._apply_white_balance(cast, p)
+    assert _mean_chroma(out) < _mean_chroma(cast), "the cast was not reduced"
+
+
+def test_gains_never_exceed_one():
+    """The correction may only darken a channel. A gain above 1 could push a channel past
+    255 and clip it into a colour the photograph never held."""
+    p = pipeline.white_balance(_cast(_scene()))
+    assert max(p["gains"]) <= 1.0, p["gains"]
+
+
+def test_the_correction_is_capped():
+    """An extreme reading is far more often a bad measurement than a genuinely extreme
+    illuminant, and being wrong costs the artisan the return."""
+    violent = _cast(_scene(), [1.9, 1.0, 0.45])
+    p = pipeline.white_balance(violent)
+    assert p["ratio"] <= T["wb_max_gain_ratio"] + 1e-6, p
+
+
+def test_null_white_balance_renders_unchanged():
+    """Declined, or a recipe written before the stage existed. Both must still render."""
+    src = _photo()
+    assert renderer._apply_white_balance(src, None) is src
+
+
+def test_a_colour_shift_warns_and_the_warning_survives_a_rerender():
+    """Rule 4. Nothing publishes without `colour_confirmed`, and the artisan does not stop
+    needing to confirm the colour because they changed the background."""
+    wb = {"method": "patch", "gains": [0.6, 0.8, 1.0], "ratio": 1.67}
+    assert any("colour shifted" in w for w in pipeline._warnings_for("A", None, wb))
+    assert pipeline._warnings_for("A", None, None) == []
+    assert pipeline._warnings_for("A", None, {"ratio": 1.0}) == []
+
+
+def test_white_balance_is_applied_before_tone():
+    """Tone measures the lightness the corrected channels produce, so the render has to
+    correct colour first. Applied in the other order the recipe's numbers would describe a
+    picture the renderer never makes."""
+    src = _photo()
+    a = np.ones((src.height, src.width), np.float32)
+    wb = {"method": "patch", "gains": [0.7, 0.85, 1.0], "ratio": 1.43}
+    rec = _rec(tier="C", box=(0, 0, src.width, src.height))
+    rec["white_balance"] = wb
+    balanced = renderer._apply_white_balance(src, wb)
+    rec["clahe"] = pipeline.tone(balanced, a)
+    expected = renderer._apply_tone(balanced, a, rec["clahe"])
+    got = renderer.render(src, a, rec)
+    assert np.array_equal(np.asarray(got), np.asarray(renderer._crop_to(expected, rec["crop"])))
+
+
 def main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = skipped = 0
