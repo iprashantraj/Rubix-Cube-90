@@ -1042,3 +1042,71 @@ light from a warm object, and no threshold fixes that.
 **Still unwritten:** `denoise_sharpen()`, and the `shadow` recipe field. A cutout on flat
 white with no contact shadow reads as pasted on, and that is now the largest visible gap
 between our output and a marketplace listing photograph.
+
+---
+
+## 2026-09-07 (4) — 34 real photographs, three bugs, and one reversal
+
+Abhay went to Ekamra Haat in Bhubaneswar and photographed artisan stalls. **They are the
+first fixtures in this project that are not stock photography from the web**, and in two
+hours they found more than 591 synthetic ones did in two weeks. They live in `images/haat/`
+as `haat-v1`, deliberately outside `raw/` so `gate-v1`'s numbers stay attributable. Pixels
+gitignored, rows in `images/MANIFEST.md`, **consent column unfilled and it is a real
+blocker** before any of them appears in a presentation.
+
+Sambalpuri and ikat textiles, tussar silk, batik on mannequins, framed pattachitra, dhokra
+lost-wax brass, terracotta. Three categories the segmentation set had none of.
+
+**1. We could not open an iPhone photograph.** All 17 originals raised
+`UnidentifiedImageError` in `storage.open_image()` before a stage ran. iPhones shoot HEIC by
+default. `pillow-heif` is now a requirement, registered where uploads are opened, and a
+machine without it gets an honest refusal instead of a message that blames the photograph.
+This one would have been found on stage.
+
+**2. The blur test was measuring megapixels.** Five sharp photographs refused. Laplacian
+variance is not scale-invariant and we were measuring it at whatever size the phone produced:
+`dhokra-ganesha-01` scores **16.4** at 24MP against a threshold of 20, **436** at 2000px, and
+its product region alone scores 525. Every fixture in `gate-v1` is about 2MP, so the set could
+never expose it. Blur is now measured at a fixed 2000px; exposure still runs over every pixel,
+because a clipping fraction *is* scale-invariant. Recalibrated on the unchanged 591:
+**24/93 good refused, 278/498 caught** (was 25 and 291). The threshold stayed at 20 on purpose
+— the metric's meaning changed in this pass and moving the number too would leave neither
+attributable. Full tables in RESULTS.md.
+
+**3. Sharing a photograph through a phone app destroys it.** The other 17 files are the same
+afternoon after being shared: metadata stripped, downscaled to 720x1280, under the 1000px
+floor. All 17 refused. **If artisans send photographs through a messaging app before
+uploading, not one will ever pass.** That is a question for the app side, not a bug here.
+
+### And the reversal: white balance is off
+
+Entry (3) above shipped white balance and called it a win on 179 fixtures. **On real
+photographs the neutral path damaged 11 of the 16 it corrected.** Every dhokra piece lost
+43-62% of its chroma — gold went pewter — and a cream pattachitra cloth moved 29.6 degrees
+of hue toward green. Abhay spotted it by eye in a side-by-side before any test did.
+
+**The test was the problem.** `wb_check.py` only ever asked "given a known cast, can the stage
+undo it?" — so it could only ever reward correcting. It never asked "given a photograph that
+is already right, does the stage leave it alone?" `--control` mode is that missing half, and
+it measures inside the product mask, because a brass figure on a blue cloth is mostly blue
+cloth and the frame average hides everything.
+
+`wb_neutral_enabled` is **false**. White balance runs only from a tapped `white_ref`. A second
+attempt — estimating from outside the product mask, so the object cannot vote on its own
+colour — took the damage from 11 to 3 and made every brass piece decline honestly, but 3 in 8
+is still too many when one of them is a 47 degree hue shift. Kept, measured, off.
+`wb_neutral_background_only` records it.
+
+The cause is not fixable by a threshold: **no reference-free method can separate warm light
+from a warm object.** Brass really is gold.
+
+**What this changes for the app side.** It is the opposite of what this repo said twelve hours
+ago. The `white_ref` tap is no longer an accuracy improvement over a working fallback — there
+is no working fallback, and the tap is the only way the stage runs at all. But **do not build
+it yet**: `wb-v1` (the same object shot with and without a sheet of paper) costs an afternoon
+and no code, and it is what should decide whether the tap is worth anyone's time.
+
+**Suite: 128 passed** (gate 16, recipe 38, segment 34, service 10, price 30).
+
+Reproduce: `python3 images/check.py && python3 images/calibrate.py`, and
+`python3 images/wb_check.py --control images/haat`.

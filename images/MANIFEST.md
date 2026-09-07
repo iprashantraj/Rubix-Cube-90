@@ -21,6 +21,7 @@ against a moving folder.
 | `gate-v1` | 591 | Calibrates the capture and server quality gates. The whole of `raw/` — 93 originals plus 498 synthetic degradations. Verdict in `research/RESULTS.md` |
 | `seg-v1` | 41 | Benchmarks segmentation models (decisions.md #1). Membership is `research/segmentation/seg-v1.txt`, reasoning is `seg-v1.md` alongside it |
 | `wb-v1` | — | Paired with/without white paper, for the white-balance path |
+| `haat-v1` | 34 | **The first real fixtures.** Artisan stalls at Ekamra Haat, Bhubaneswar, 2026-09-06. Lives in `images/haat/`, deliberately NOT in `raw/` — folding it into `gate-v1` would move the numbers RESULTS.md quotes at the same time as a code change, and then neither could be attributed. Everything before it is stock photography from the web. Verdict in `research/RESULTS.md` |
 | `pottery-terracotta-darkfloor-01.jpg` | terracotta | darkfloor | web | fusion-of-horizons | BY 2.0 | [source](https://www.flickr.com/photos/9019841@N08/14758735498) |
 | `pottery-terracotta-darkfloor-02.jpg` | terracotta | darkfloor | web | john bonham2 | BY-SA 2.0 | [source](https://www.flickr.com/photos/95205391@N05/9024859706) |
 | `pottery-terracotta-darkfloor-03.jpg` | terracotta | darkfloor | web | Daderot | CC0 | [source](https://commons.wikimedia.org/wiki/File:Amphora_depicting_a_lion,_Attic_black_figure,_c._570_BC,_terracotta_-_Spurlock_Museum,_UIUC_-_DSC05902.jpg) |
@@ -621,3 +622,44 @@ framing statistics, and never needed the subject to match the name. They would h
 silently corrupted `seg-v1`, where the subject is the whole point. All five are excluded
 from `seg-v1` and should be renamed or dropped before the set is reused for anything
 content-dependent.
+
+---
+
+## `haat-v1` — Ekamra Haat, Bhubaneswar, 2026-09-06
+
+Shot by Abhay on an iPhone 17 between 15:37 and 16:21. **Two conditions in one visit, and the
+difference between them is itself a finding:** the `.heic` files are originals straight off
+the phone at 12-24MP, and the `-shared.jpeg` files are the same afternoon after passing
+through a sharing app, which stripped every tag and downscaled them to 720x1280 — under the
+gate's 1000px floor, so all 17 are refused on resolution alone.
+
+**Consent is unfilled and blocks nothing technical.** Every row below is a photograph of
+another person's goods, and the rule at the top of this file applies to all of them. Fill the
+column before any of these appear in a presentation.
+
+| File | Subject | Condition it proves | Device | Shot by | Consent | Notes |
+|---|---|---|---|---|---|---|
+| `textile-pattachitra-cloth-01.heic` | printed cloth, fish and boita motifs | hanging, cluttered stall behind | iPhone 17 | Abhay | _unfilled_ | tier A |
+| `textile-tussar-painted-01.heic` | tussar silk, elephant and tree motifs | pale product, low contrast | iPhone 17 | Abhay | _unfilled_ | tier B, mask covers the frame |
+| `textile-shawl-tassel-01.heic` | patterned shawl with tassels | fringe and tassel edges | iPhone 17 | Abhay | _unfilled_ | tier B, mask covers the frame |
+| `textile-sambalpuri-flat-01.heic` | purple sambalpuri, white motifs | flat fabric filling the frame | iPhone 17 | Abhay | _unfilled_ | tier B; white balance declined — nothing neutral in frame |
+| `textile-batik-mannequin-01.heic` | red batik kurti | on a mannequin | iPhone 17 | Abhay | _unfilled_ | tier A |
+| `textile-ikat-mannequin-01.heic` | maroon ikat kurti, elephant panel | mannequin, stacked fabric behind | iPhone 17 | Abhay | _unfilled_ | tier A |
+| `textile-ikat-mannequin-02.heic` | ikat kurta | mannequin, very busy shop behind | iPhone 17 | Abhay | _unfilled_ | tier A |
+| `textile-ikat-hangers-01.heic` | three ikat fabrics | several products in one frame | iPhone 17 | Abhay | _unfilled_ | tier A |
+| `textile-mirrorwork-wall-01.heic` | green fabric, mirror work | plain wall, small specular mirrors | iPhone 17 | Abhay | _unfilled_ | **false blur reject at full resolution** |
+| `brass-bowl-01.heic` | bell-metal bowl | specular metal on blue cloth | iPhone 17 | Abhay | _unfilled_ | **false blur reject at full resolution** |
+| `brass-bowl-hand-02.heic` | two bowls and a pestle | a hand in frame | iPhone 17 | Abhay | _unfilled_ | tier A |
+| `dhokra-keyholder-01.heic` | dhokra key rack, horse form | fine open lattice | iPhone 17 | Abhay | _unfilled_ | tier A |
+| `dhokra-handles-01.heic` | dhokra door handles | five separate objects | iPhone 17 | Abhay | _unfilled_ | tier B, 5 blobs |
+| `dhokra-ganesha-01.heic` | dhokra Ganesha figure | thin protruding limbs | iPhone 17 | Abhay | _unfilled_ | **false blur reject at full resolution** |
+| `dhokra-fish-01.heic` | dhokra fish | small product in the frame | iPhone 17 | Abhay | _unfilled_ | **false blur reject at full resolution** |
+| `brass-mermaid-handle-01.heic` | brass mermaid handle | polished specular brass | iPhone 17 | Abhay | _unfilled_ | tier A |
+| `brass-rickshaw-inlay-01.heic` | brass rickshaws, turquoise inlay | tiny repeated detail | iPhone 17 | Abhay | _unfilled_ | **false blur reject at full resolution** |
+| `pattachitra-framed-01..08-shared.jpeg` | framed pattachitra paintings | glass glare, frame edges | iPhone 17 | Abhay | _unfilled_ | all 720x1280, refused on resolution |
+| `terracotta-cups-basket-01..02-shared.jpeg` | terracotta cups in a cane basket | many identical objects | iPhone 17 | Abhay | _unfilled_ | 720x1280, refused on resolution |
+| `textile-*-shared.jpeg` (7) | kurtis, shirts, sambalpuri on hangers | shop interiors | iPhone 17 | Abhay | _unfilled_ | 720x1280, refused on resolution |
+
+**Categories `gate-v1` has none of:** pattachitra on glass, dhokra lost-wax brass, and a
+mannequin. Eight of the 34 are framed paintings behind glass, which is a specular surface the
+segmentation set never contained.

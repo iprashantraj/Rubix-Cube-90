@@ -2,6 +2,10 @@ fastapi
 uvicorn[standard]
 pydantic
 pillow
+# iPhones shoot HEIC by default and Pillow cannot read it alone. Without this every upload
+# from an iPhone fails in storage.open_image() before any stage runs — found on 17 real
+# photographs from Ekamra Haat, all of which raised UnidentifiedImageError.
+pillow-heif
 opencv-python-headless
 numpy
 anthropic

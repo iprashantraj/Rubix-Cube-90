@@ -421,38 +421,60 @@ def test_a_blown_reference_patch_is_refused():
     assert pipeline.white_balance(flat, {"x": 0.1, "y": 0.1, "w": 0.3, "h": 0.3}) is None
 
 
+def _paper(img, box=(10, 10, 60, 60), value=175):
+    """A white reference in frame. Not blown — a patch at 255 holds no colour."""
+    a = np.asarray(img, np.float32).copy()
+    a[box[1]:box[3], box[0]:box[2]] = value
+    return Image.fromarray(a.astype(np.uint8))
+
+
+REF = {"x": 0.03, "y": 0.03, "w": 0.16, "h": 0.16}
+
+
+def test_no_white_reference_means_no_correction():
+    """**The default, and it is measured rather than cautious.** On 33 real photographs from
+    Ekamra Haat with nothing wrong with them, the neutral path damaged 20 — every dhokra
+    piece lost 43-62% of its chroma and a cream cloth moved 29.6 degrees of hue. No
+    reference-free method separates warm light from a warm object, and the crafts are warm.
+    `images/wb_check.py --control images/haat`."""
+    assert pipeline.white_balance(_cast(_scene())) is None
+    assert T["wb_neutral_enabled"] is False
+
+
 def test_a_product_filling_the_frame_is_refused_not_guessed():
-    """**The failure gray-world is named for.** A maroon Sambalpuri filling the frame makes
-    "the average of this scene is grey" false in exactly the direction that pulls a natural
-    dye toward orange — PIPELINE-RECONCILIATION §5 finding 2. Declining leaves the colour as
-    photographed, which is right far more often than a guess is."""
+    """**The failure gray-world is named for**, and the neutral path's own guard against it:
+    a maroon Sambalpuri filling the frame makes "the average of this scene is grey" false in
+    exactly the direction that pulls a natural dye toward orange. Tested at the level of the
+    estimator, since the path above it is off by default."""
     rng = np.random.default_rng(3)
     maroon = np.array([120, 25, 45]) + rng.integers(-12, 12, (300, 300, 3))
-    assert pipeline.white_balance(Image.fromarray(maroon.clip(0, 255).astype(np.uint8))) is None
+    rgb = maroon.clip(0, 255).astype(np.float32)
+    assert pipeline._neutral_means(rgb, T) is None
 
 
-def test_the_neutral_path_corrects_a_cast_it_can_see():
-    """No rect, but a wall in frame. Weaker than the patch and still a real correction."""
-    scene = _scene()
-    cast = _cast(scene)
-    p = pipeline.white_balance(cast)
-    assert p["method"] == "neutral", p
-    out = renderer._apply_white_balance(cast, p)
-    assert _mean_chroma(out) < _mean_chroma(cast), "the cast was not reduced"
+def test_the_neutral_estimator_still_reads_a_cast_it_can_see():
+    """Kept because the method is sound where a cast is *known* to exist, and because it is
+    what the white-reference path will be measured against."""
+    means = pipeline._neutral_means(np.asarray(_cast(_scene()), np.float32), T)
+    assert means is not None
+    # Warm cast: the red channel reads high and the blue low, which is what gets equalised.
+    assert means[0] > means[2], means
 
 
 def test_gains_never_exceed_one():
     """The correction may only darken a channel. A gain above 1 could push a channel past
     255 and clip it into a colour the photograph never held."""
-    p = pipeline.white_balance(_cast(_scene()))
+    p = pipeline.white_balance(_cast(_paper(_scene())), REF)
     assert max(p["gains"]) <= 1.0, p["gains"]
 
 
 def test_the_correction_is_capped():
     """An extreme reading is far more often a bad measurement than a genuinely extreme
     illuminant, and being wrong costs the artisan the return."""
-    violent = _cast(_scene(), [1.9, 1.0, 0.45])
-    p = pipeline.white_balance(violent)
+    # The paper is dim on purpose: at 175 a 1.9x red gain clips the patch, and a blown
+    # reference is refused before the cap is ever reached.
+    violent = _cast(_paper(_scene(), value=120), [1.9, 1.0, 0.45])
+    p = pipeline.white_balance(violent, REF)
     assert p["ratio"] <= T["wb_max_gain_ratio"] + 1e-6, p
 
 

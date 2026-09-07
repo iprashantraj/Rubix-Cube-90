@@ -57,6 +57,13 @@ images/raw/*
 images/out/*
 !images/raw/.gitkeep
 !images/out/.gitkeep
+
+# images/haat/ — photographs of other artisans' goods, taken at Ekamra Haat. Same rule as
+# above and one more on top of it: MANIFEST.md requires recorded permission before another
+# person's product appears anywhere, and that column is not filled in yet. The manifest rows
+# and every number measured from them are committed; the pixels stay on the machine.
+images/haat/*
+!images/haat/.gitkeep
 ai/.venv/
 
 # research/segmentation/out/ — the benchmark's per-image dumps. Five models x 41

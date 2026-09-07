@@ -149,8 +149,13 @@ def test_the_calibration_set_still_says_what_results_md_says():
         return  # pixels are gitignored; see images/README.md
     good_refused, bad_caught, n_good = _replay()
     assert n_good == 93, f"fixture set changed: {n_good} good photographs, expected 93"
-    assert good_refused == 25, f"good photographs refused: {good_refused}, RESULTS.md says 25"
-    assert bad_caught == 291, f"degraded fixtures caught: {bad_caught}, RESULTS.md says 291"
+    # Moved 2026-09-07 with the blur measurement's scale, not with any threshold: blur is now
+    # measured at a fixed 2000px instead of at whatever size the phone produced. One fewer
+    # good photograph refused, thirteen fewer degraded ones caught, and the number finally
+    # means the same thing on a 2MP feature phone and a 24MP flagship. RESULTS.md,
+    # "Blur was measuring megapixels".
+    assert good_refused == 24, f"good photographs refused: {good_refused}, RESULTS.md says 24"
+    assert bad_caught == 278, f"degraded fixtures caught: {bad_caught}, RESULTS.md says 278"
 
 
 # ------------------------------------------------------------------- observation

@@ -30,6 +30,12 @@ THRESHOLDS = Path(__file__).resolve().parent.parent / "thresholds.json"
 # working set stays in the tens of megabytes on any image a phone can produce.
 BAND_ROWS = 256
 
+# The size blur is measured at. Deliberately the same 2000px long edge as
+# `segmenter.MASTER_LONG_EDGE`, and not imported from there: this module must stay importable
+# without torch, which is what lets `test_gate.py` run the gate's calibration on a bare
+# machine. Two copies of one number is a smell; a gate that cannot be checked is worse.
+BLUR_LONG_EDGE = 2000
+
 
 @lru_cache(maxsize=1)
 def thresholds() -> dict:
@@ -88,44 +94,45 @@ def _band_luma(rgb: np.ndarray) -> np.ndarray:
 
 
 def full_res(img: Image.Image) -> tuple[float, dict]:
-    """Blur score and exposure at full resolution, in bounded memory.
+    """Blur score and exposure. Exposure over every pixel; **blur at a fixed size.**
 
-    Returns exactly what `blur_score(to_gray(img))` and `exposure(to_gray(img))` return —
-    the band split is an implementation detail, not a different measurement. The Laplacian
-    bands carry the previous band's last two rows so the kernel is never split across a
-    seam, and the interiors tile rows 1..h-2 once each with no gap and no overlap.
+    The two halves are measured differently because they scale differently.
+
+    Exposure is a fraction and a mean, so it is the same number whatever the resolution, and
+    it is taken over every pixel in bounded memory — a clipped highlight is a clipped
+    highlight and no downscale may average one away.
+
+    **Blur is not scale-invariant, and measuring it at whatever size the phone produced was
+    a bug.** Laplacian variance falls as an image is enlarged, because neighbouring pixels in
+    an oversampled photograph are nearly identical. Measured on real iPhone 17 uploads from
+    Ekamra Haat: a sharp 24MP photograph scored **16.4** against a reject threshold of 20,
+    while the same photograph at 2000px scored **436**, and the product region alone scored
+    525. Every fixture the threshold was calibrated on is around 2MP, which is why this was
+    invisible for the whole life of the gate: it was refusing megapixels, not blur.
+
+    So blur is measured at `BLUR_LONG_EDGE`, the size everything else in the pipeline uses.
+    That makes the number mean the same thing for a 2MP feature phone and a 48MP flagship,
+    which is the only way one threshold can serve both.
     """
     rgb = np.asarray(img.convert("RGB"))
-    h, w = rgb.shape[0], rgb.shape[1]
+    h = rgb.shape[0]
 
     q_n = q_sum = blown = crushed = 0          # exposure, over every pixel
-    n = 0                                       # Laplacian, over the interior only
-    s_lap = ss_lap = 0.0
-    tail: np.ndarray | None = None
-
     for top in range(0, h, BAND_ROWS):
         g = _band_luma(rgb[top:min(top + BAND_ROWS, h)])
-
         q = np.clip(g, 0, 255).astype(np.uint8)
         q_n += q.size
         q_sum += int(q.sum(dtype=np.int64))
         blown += int(np.count_nonzero(q >= 250))
         crushed += int(np.count_nonzero(q <= 5))
-        del q
+        del g, q
 
-        block = g if tail is None else np.vstack((tail, g))
-        if block.shape[0] >= 3 and w >= 3:
-            c = block[1:-1, 1:-1]
-            lap = block[:-2, 1:-1] + block[2:, 1:-1] + block[1:-1, :-2] + block[1:-1, 2:] - 4 * c
-            n += lap.size
-            s_lap += float(lap.sum(dtype=np.float64))
-            ss_lap += float(np.square(lap).sum(dtype=np.float64))
-            del c, lap
-        tail = g[-2:].copy()
-        del g, block
+    small = img
+    if max(img.size) > BLUR_LONG_EDGE:
+        small = img.copy()
+        small.thumbnail((BLUR_LONG_EDGE, BLUR_LONG_EDGE), Image.LANCZOS)
+    blur = blur_score(to_gray(small))
 
-    mean_lap = s_lap / n if n else 0.0
-    blur = (ss_lap / n - mean_lap * mean_lap) if n else 0.0
     return max(blur, 0.0), {
         "mean": q_sum / q_n if q_n else 0.0,
         "blown": blown / q_n if q_n else 0.0,

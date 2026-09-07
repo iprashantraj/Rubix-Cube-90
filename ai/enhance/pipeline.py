@@ -345,7 +345,7 @@ def feather(alpha):
     return np.asarray(soft, np.float32) / 255.0
 
 
-def white_balance(image, white_ref=None):
+def white_balance(image, white_ref=None, mask=None):
     """Measure the illuminant. **Returns gains, not an image**, like every stage since step 5.
 
     A maroon saree shot under a tungsten bulb photographs orange. The buyer returns it, the
@@ -366,17 +366,32 @@ def white_balance(image, white_ref=None):
     That patch is a direct reading of the illuminant, so the correction is a measurement
     rather than an assumption. This is the accurate path and the one worth having.
 
-    **neutral** — no rect. **Deliberately not gray-world**, though §4's recipe sketch names
-    that method: gray-world assumes the average of the scene is grey, and a Sambalpuri saree
-    filling the frame makes that assumption false in exactly the direction that pulls a
-    natural dye off-colour. The reconciliation says so itself in finding 2. So only pixels
-    that are *already nearly neutral* vote on the illuminant — a wall, a floor, a white
-    fabric edge — and a maroon that fills the frame gets no vote on its own colour.
+    **neutral** — no rect. Only pixels that are *already nearly neutral* vote on the
+    illuminant. **It is off by default (`wb_neutral_enabled`), and the reason is measured.**
 
-    Returns None when it cannot measure honestly: a blown or shadowed reference patch, or a
-    photograph with too few plausibly-neutral pixels. **A declined correction leaves the
-    colour exactly as photographed**, which is the right answer far more often than a guess
-    is; the recipe field stays null and the render is unchanged.
+    Run against 33 real photographs from artisan stalls at Ekamra Haat — no synthetic cast,
+    nothing wrong with them, the correct answer being to change nothing — it damaged **20**.
+    Every dhokra brass piece lost between 43% and 62% of the product's chroma:
+
+        dhokra-keyholder-01   chroma 3.7 -> 1.4      dhokra-handles-01   7.6 -> 3.4
+        dhokra-ganesha-01     chroma 3.4 -> 1.5      brass-mermaid-01    7.4 -> 4.2
+        textile-pattachitra-cloth-01   chroma 19.2 -> 10.6, hue moved 29.6 degrees
+
+    Gold went pewter and a cream cloth went green. **No reference-free method can tell warm
+    light from a warm object** — brass really is gold, undyed cotton really is cream — and
+    Odisha's crafts are mostly warm, so the guess is wrong here more often than it is right.
+    `images/wb_check.py --control images/haat` is the run; it took real photographs to find,
+    because the synthetic sweep could only ever reward correcting.
+
+    The code stays because the method is sound where a cast is *known* to exist, and because
+    it is what the white-reference tap will be measured against. It does not run on an
+    artisan's photograph on a guess.
+
+    Returns None when it cannot measure honestly: no reference and the neutral path disabled,
+    a blown or shadowed reference patch, or a photograph with too few plausibly-neutral
+    pixels. **A declined correction leaves the colour exactly as photographed**, which is the
+    right answer far more often than a guess is; the recipe field stays null and the render is
+    unchanged.
     """
     import numpy as np
 
@@ -386,9 +401,11 @@ def white_balance(image, white_ref=None):
     if white_ref:
         means = _patch_means(rgb, white_ref)
         method = "patch"
-    else:
-        means = _neutral_means(rgb, t)
+    elif t.get("wb_neutral_enabled"):
+        means = _neutral_means(rgb, t, mask if t.get("wb_neutral_background_only") else None)
         method = "neutral"
+    else:
+        return None
     if means is None:
         return None
 
@@ -439,23 +456,34 @@ def _patch_means(rgb, ref):
     return med
 
 
-def _neutral_means(rgb, t):
+def _neutral_means(rgb, t, mask=None):
     """Per-channel means over pixels that are already nearly neutral, or None if too few.
 
     Measured on a downscale: an illuminant is a property of the light, not of fine detail,
     and this runs on every upload.
+
+    **`mask` excludes the product**, and that is the whole point of passing it. The measured
+    failure on `haat-v1` was the product voting on its own colour: brass is gold, so the
+    estimator concluded the light was gold and took the gold away. The segmentation mask
+    already exists by the time this runs, so the product can be removed from the electorate —
+    a wall or a floor can still lie about the light, but the object being corrected is no
+    longer the thing describing it.
     """
     import numpy as np
 
     from . import colour
 
-    small = rgb[::4, ::4] if max(rgb.shape[:2]) > 800 else rgb
+    step = 4 if max(rgb.shape[:2]) > 800 else 1
+    small = rgb[::step, ::step]
     lab = colour.to_lab(small.astype(np.uint8))
     chroma = np.hypot(lab[..., 1], lab[..., 2])
 
     # Clipped pixels have lost their ratios and near-black ones are noise; neither can say
     # anything about the light.
     usable = (small.max(axis=-1) < 250) & (small.min(axis=-1) > 20)
+    if mask is not None:
+        m = np.asarray(mask, dtype=np.float32)[::step, ::step]
+        usable = usable & (m[:usable.shape[0], :usable.shape[1]] < 0.5)
     if float(np.count_nonzero(usable)) / max(usable.size, 1) < float(t["wb_neutral_min_fraction"]):
         return None
 

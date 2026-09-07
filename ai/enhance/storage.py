@@ -28,9 +28,41 @@ from urllib.parse import unquote, urlparse
 
 from PIL import Image
 
+# **iPhones shoot HEIC by default**, and Pillow cannot read it on its own: every photograph
+# from an iPhone raised `UnidentifiedImageError` here, before a single stage ran. Found on
+# 17 real uploads from Ekamra Haat, all of which failed at this line.
+#
+# Registered here rather than at every call site because this module is where uploads are
+# opened, and `contracts.md` is explicit that `image_url` is opened through something that
+# handles every scheme rather than by parsing the string. Format is the same promise.
+#
+# Guarded, because `test_gate.py` and `test_segment.py` run on a bare machine with nothing
+# installed and must keep doing so. Without the package, HEIC gets the honest refusal in
+# `open_image()` instead of a stack trace.
+try:
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    HEIF = True
+except ImportError:  # pragma: no cover — depends on the machine, not on the code
+    HEIF = False
+
 # Where rendered listing images go. Same shape as web/api's STORAGE_DIR and overridable
 # for tests; in dev both services share a machine and therefore a filesystem.
 OUTPUT_DIR = Path(os.environ.get("AI_OUTPUT_DIR", "/tmp/rubix-ai-out"))
+
+
+def _refuse_unreadable_heic(url: str) -> None:
+    """Say what is actually wrong when the HEIC decoder is missing.
+
+    Pillow's own answer is `UnidentifiedImageError`, which reads as "this file is corrupt"
+    and sends whoever is debugging it at the artisan's photograph instead of at our
+    requirements file. The photograph is fine; the machine is missing `pillow-heif`.
+    """
+    if not HEIF and url.split("?")[0].lower().endswith((".heic", ".heif")):
+        raise SourceError(
+            "HEIC upload but pillow-heif is not installed — this machine cannot decode "
+            "iPhone photographs. Install it from requirements.txt; the file is not damaged.")
 
 
 class SourceError(Exception):
@@ -41,6 +73,7 @@ class SourceError(Exception):
 
 def open_image(url: str) -> Image.Image:
     """Load whatever `image_url` points at. Raises `SourceError` on anything unreadable."""
+    _refuse_unreadable_heic(url)
     parsed = urlparse(url)
 
     if parsed.scheme in ("", "file"):

@@ -242,3 +242,125 @@ data end to end**, and that the gap between listed prices and any plausible fair
 enough to be the story rather than a rounding error.
 
 Reproduce: `python3 research/pricing/pricing.py check --material-cost 800 --labour-hours 160`.
+
+---
+
+## camera-thresholds — blur was measuring megapixels, 2026-09-07
+
+Found by `haat-v1`, the first fixtures in this project that are not stock photography: 34
+photographs from artisan stalls at Ekamra Haat, Bhubaneswar, shot on an iPhone 17.
+
+**Five sharp photographs were refused as blurry**, and the products in them are not remotely
+blurry:
+
+| fixture | whole frame | the product region alone | threshold |
+|---|---|---|---|
+| `dhokra-fish-01` | 7.6 | 644.6 | 20 |
+| `brass-bowl-01` | 12.3 | 182.7 | 20 |
+| `textile-mirrorwork-wall-01` | 14.7 | 175.4 | 20 |
+| `dhokra-ganesha-01` | 16.4 | 525.0 | 20 |
+| `brass-rickshaw-inlay-01` | 15.5 | 187.7 | 20 |
+
+**Laplacian variance is not scale-invariant, and the gate was measuring it at whatever size
+the phone produced.** Neighbouring pixels in an oversampled photograph are nearly identical,
+so the variance falls as the image grows:
+
+| fixture | at full resolution | at 2000px | at 1000px |
+|---|---|---|---|
+| `dhokra-ganesha-01` (24.5MP) | 16.4 | 436.1 | 1068.7 |
+| `brass-bowl-01` (24.5MP) | 12.3 | 310.0 | 710.5 |
+| `textile-shawl-fringe-01` (1.9MP, existing fixture) | 2259.5 | 2259.5 | — |
+
+Every fixture in `gate-v1` is around 2MP, which is why this survived a full calibration: the
+set never contained an image large enough to expose it. A 2026 phone shoots 6–12× more
+pixels than the photographs the threshold was set on. **The number was refusing megapixels,
+not blur.**
+
+### The fix, and what it cost
+
+`metrics.full_res()` now measures blur at a fixed 2000px — the same long edge
+`segmenter.MASTER_LONG_EDGE` uses, so one threshold can serve a feature phone and a flagship.
+Exposure still runs over every pixel at full resolution: a clipping fraction *is*
+scale-invariant, and a downscale could average a blown highlight away.
+
+Whole-gate effect on the unchanged 591-fixture set, threshold held at 20:
+
+| | good photographs refused | degraded fixtures caught |
+|---|---|---|
+| full resolution (before) | 25/93 | 291/498 |
+| fixed 2000px (after) | **24/93** | **278/498** |
+
+Blur alone: 114/166 blurred fixtures flagged against 2/93 good photographs refused, improved
+from 128/166 against 3/93. **All 52 misses are motion, none are defocus** — the same split as
+before, and the same conclusion: closing it needs a directional measure, not a lower number.
+
+**The threshold did not move, deliberately.** The sweep now favours 30 (26 good refused, 293
+caught — 15 extra catches for 2 extra refusals, a better exchange rate than the 1:1 that
+argued for 20). It is left at 20 because the metric's *meaning* changed in this pass, and
+moving the number in the same breath would leave neither attributable. 30 is the candidate
+for a follow-up with its own fixture.
+
+### Two more findings from the same set, neither about blur
+
+**HEIC could not be opened at all.** Every one of the 17 iPhone originals raised
+`UnidentifiedImageError` in `storage.open_image()` before a single stage ran. iPhones shoot
+HEIC by default. `pillow-heif` is now a requirement and registered where uploads are opened.
+
+**Sharing an image through a phone app breaks it.** The other 17 files are the same afternoon
+after being shared: every tag stripped and downscaled to 720×1280, under the 1000px floor.
+All 17 refused on resolution. If artisans send photographs through a messaging app before
+uploading, none of them will ever pass.
+
+Reproduce: `python3 images/check.py && python3 images/calibrate.py --sweep`.
+
+---
+
+## whitebalance — the neutral path damages real photographs, 2026-09-07
+
+**The first thing `haat-v1` measured, and it reversed a decision made the same day.**
+
+`images/wb_check.py` said the white-balance stage was a clear win: 179 fixtures, three
+synthetic cast strengths, mean chroma error cut from 15.29 to 4.48. That test asks one
+question — *given a photograph with a known cast, can the stage undo it?*
+
+It never asks the opposite. **Handed a photograph that is already correct, does the stage
+leave it alone?** Every image the sweep scores has been given a cast that wants undoing, so
+the sweep can only ever reward correcting. `--control` mode is that missing half: no cast
+applied, correct answer is to change nothing.
+
+Run against the 33 readable `haat-v1` photographs, measured **inside the product mask** —
+measuring the whole frame hides it, because a dhokra figure on a blue cloth is mostly blue
+cloth:
+
+| fixture | product chroma | hue moved |
+|---|---|---|
+| `dhokra-keyholder-01` | 3.7 → **1.4** | 5.1° |
+| `dhokra-ganesha-01` | 3.4 → **1.5** | 8.0° |
+| `dhokra-handles-01` | 7.6 → **3.4** | 3.9° |
+| `brass-mermaid-handle-01` | 7.4 → **4.2** | 3.7° |
+| `textile-pattachitra-cloth-01` | 19.2 → **10.6** | **29.6°** |
+
+**20 of 33 damaged.** Every dhokra piece lost between 43% and 62% of its chroma: gold went
+pewter. A cream pattachitra cloth moved 29.6° of hue, from warm orange-cream to yellow-green,
+and that one is visible at a glance in a side-by-side.
+
+The cause is not a bug in the estimator. **No reference-free method can separate warm light
+from a warm object.** Brass really is gold and undyed cotton really is cream; the method sees
+warm pixels, concludes the light was warm, and neutralises them. Odisha's crafts are
+overwhelmingly warm, so the guess is wrong here more often than it is right.
+
+### What changed
+
+`wb_neutral_enabled` is **false**. White balance now runs only from a tapped white reference
+(`white_ref`), where the correction is a reading rather than an inference. Without one the
+stage declines and the colour is left exactly as photographed.
+
+The estimator is kept and still tested: the method is sound where a cast is *known* to exist,
+and it is the baseline the white-reference path will be measured against.
+
+**This reverses the recommendation made earlier the same day** that the `white_ref` tap was
+not worth building until `wb-v1` existed. It is now the only way this stage runs at all.
+`PIPELINE-RECONCILIATION.md` §5 finding 2 asked for that tap on 2026-08-27; this is the
+evidence for it.
+
+Reproduce: `python3 images/wb_check.py --control images/haat`.
