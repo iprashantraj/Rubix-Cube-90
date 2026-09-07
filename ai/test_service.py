@@ -139,7 +139,11 @@ def test_response_says_which_stages_ran():
     body = _run(_fixture("a4a1cece-21bc-4bc4-b445-2eaa42bb44f1.jpeg"), ("amazon",))
     assert "segment" in body["stages"]
     assert "white_balance" in body["stages"], "white balance is written now"
-    assert "denoise_sharpen" in body["skipped"]
+    # Every stage in the spec is written. A field is null because the photograph did not
+    # need it, which is a different statement from "we have not built this yet", and the
+    # response has to keep those two apart.
+    assert "sharpen" in body["stages"]
+    assert body["skipped"] == [], body["skipped"]
 
 
 def test_a_demoted_mask_warns_in_words_an_artisan_hears():

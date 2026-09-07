@@ -43,7 +43,7 @@ def mask_version() -> str:
 
 def new(*, tier, confidence, crop_box, canvas, fill, mask_signals=None,
         tier_source="auto", mask_ver=None, clahe=None, white_balance=None,
-        shadow=None) -> dict:
+        shadow=None, sharpen=None) -> dict:
     """Build a recipe. Keyword-only — these are all short values of similar type and a
     positional call would be one transposition away from a wrong listing image."""
     return {
@@ -62,6 +62,7 @@ def new(*, tier, confidence, crop_box, canvas, fill, mask_signals=None,
         "clahe": clahe,
         "gamma": None,
         "shadow": shadow,
+        "sharpen": sharpen,
     }
 
 

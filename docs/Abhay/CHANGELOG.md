@@ -1178,3 +1178,66 @@ still runs on plain `python3`.
 **Still unwritten:** `denoise_sharpen()`. Tier B and C get no shadow, so a catalogue mixing
 tiers will not look uniform — that is the honest cost of not trusting a mask, and the fix is
 a better mask rather than a braver shadow.
+
+---
+
+## 2026-09-07 (6) — Sharpening, and the metric that measured the wrong thing twice
+
+`denoise_sharpen()` is written. **`skipped` is now empty**: every stage in the spec exists.
+A null recipe field no longer means "not built", it means the photograph did not need it —
+white balance without a reference, tone on a flat product, a shadow below Tier A, sharpening
+on an already-crisp photograph.
+
+**The denoise half is deliberately not built, and the name keeps the record of why.** Spec
+§5.5 allows "no denoise strong enough to smooth weave texture" and the reconciliation is
+blunter: without a ceiling it "will smooth the weave away". A weave *is* high-frequency
+detail and nothing in a denoiser can tell it from sensor grain, so the two pull on the same
+pixels in opposite directions. The safe ceiling is a strength of zero.
+
+Unsharp mask **on the L channel only**, product region only, weighted by the same softened
+mask the tone stage uses so there is no seam. `a` and `b` are untouched: sharpening RGB per
+channel pulls the three apart at every edge and paints coloured fringes along it, which is
+the colour lock's problem arriving through a different door.
+
+`sharpen_max_overshoot` is the documented ceiling §2 asked for. An unsharp mask brightens one
+side of an edge and darkens the other; past about ten L units that stops reading as crispness
+and starts reading as a bright rim, which is detail the photograph does not contain.
+
+### The measurement was wrong, and `haat-v1` said so
+
+The first version scaled the amount by the product's Laplacian variance — soft photograph,
+more sharpening. It does not measure focus. **It measures how patterned the subject is**, and
+`blur_score()`'s own docstring says as much. Across the nine textiles in `haat-v1`:
+
+    textile-mirrorwork-wall-01      176      plain green cloth
+    textile-ikat-mannequin-01    10819      fine ikat, same phone, same afternoon
+
+A 60x range set by the weave, not the lens. Used directly it sharpened plain products hard
+and refused busy ones — a decision about the subject rather than the photograph, and two of
+the three textiles it was asked to sharpen declined.
+
+**Dividing by the same measurement after a 1px blur removes the subject.** A sharp photograph
+loses a great deal to that blur and a soft one loses little, whatever it is a photograph of.
+Medians across brass, dhokra and textile:
+
+    raw variance     262 / 586 / 1061      set by the subject
+    the ratio        5.9 / 6.9 / 5.7       flat, which is the property this needs
+
+`sharpen_skip_above` is 12 on that ratio. The two visibly crispest photographs in the set
+decline; everything else gets between 0.03 and 0.37. `test_the_amount_does_not_depend_on_how_
+patterned_the_subject_is` is the regression test, and it fails on the version that shipped
+first.
+
+**That is the third time today** a number was measured at the wrong scale or against the
+wrong variable — full-resolution blur, a 400px shadow test, and now this. Anything measured
+in this pipeline needs asking what *else* moves the number.
+
+Checked by eye at 2x on pattachitra line work, tussar slub weave and brass inlay: texture
+comes forward, no halos, no coloured fringes.
+
+**Suite: 142 passed** (gate 16, recipe 52, segment 34, service 10, price 30). `test_recipe.py`
+still runs on plain `python3`.
+
+**Not calibrated**, and the threshold file says so: nothing in `images/` has a known-correct
+sharpening to score against. What *is* measured is the content-independence of the metric,
+which is the property that was actually wrong.

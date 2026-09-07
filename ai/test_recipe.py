@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -63,7 +63,7 @@ def test_unwritten_stages_are_null_not_absent():
     """Null means 'not applied'. Absent would be indistinguishable from 'this recipe
     predates the stage', and then a reader cannot tell which."""
     r = _rec()
-    for k in ("white_balance", "clahe", "gamma", "shadow"):
+    for k in ("white_balance", "clahe", "gamma", "shadow", "sharpen"):
         assert k in r and r[k] is None, k
 
 
@@ -369,6 +369,90 @@ def test_the_tone_edge_is_not_a_visible_seam():
     assert per_px < SEAM_L_PER_PX, (
         f"tone edge is {per_px:.2f} L/px ({strength:.1f} L across {width:.1f}px) — "
         f"blur the weight in renderer._apply_tone()")
+
+
+# ----------------------------------------------------------------------- sharpen
+#
+# Texture is what signals handmade. Spec §5.5: a mild unsharp mask, and no denoise at all.
+
+
+def _texture(w=600, h=600, seed=4, busy=True):
+    """A photograph-like patch. `busy` controls how much detail it holds, which is the
+    variable the first version of this stage mistook for focus."""
+    rng = np.random.default_rng(seed)
+    if busy:
+        a = rng.integers(60, 200, (h, w, 3)).astype(np.uint8)
+    else:
+        a = np.full((h, w, 3), 150, np.uint8)
+        a[:, ::40] = 90                                  # a few edges, little else
+    return Image.fromarray(a)
+
+
+def _full(img):
+    return np.ones((img.height, img.width), np.float32)
+
+
+def test_sharpen_declines_when_there_is_no_product():
+    assert pipeline.denoise_sharpen(_texture(), np.zeros((600, 600), np.float32)) is None
+
+
+def test_sharpen_declines_on_an_already_sharp_photograph():
+    """More would only be halos around detail that is already there."""
+    crisp = _texture()                                   # pixel noise: as sharp as it gets
+    assert pipeline.denoise_sharpen(crisp, _full(crisp)) is None
+
+
+def test_a_soft_photograph_gets_a_real_amount():
+    soft = _texture().filter(ImageFilter.GaussianBlur(2))
+    p = pipeline.denoise_sharpen(soft, _full(soft))
+    assert p is not None and p["amount"] > 0.05, p
+
+
+def test_the_amount_does_not_depend_on_how_patterned_the_subject_is():
+    """**The regression test for the bug this stage shipped with.** Laplacian variance alone
+    measures pattern, not focus: across `haat-v1` it spans 176 for a plain cloth to 10819 for
+    a fine ikat, so it would sharpen plain products hard and refuse busy ones. Two patches
+    blurred identically must ask for a similar amount however much detail they hold."""
+    blur = ImageFilter.GaussianBlur(2)
+    busy = _texture(busy=True).filter(blur)
+    plain = _texture(busy=False).filter(blur)
+    a = pipeline.denoise_sharpen(busy, _full(busy))
+    b = pipeline.denoise_sharpen(plain, _full(plain))
+    assert a and b, (a, b)
+    assert abs(a["amount"] - b["amount"]) < 0.15, (a["amount"], b["amount"])
+
+
+def test_sharpening_never_moves_a_pixel_past_the_ceiling():
+    """An unsharp mask brightens one side of an edge and darkens the other. Past a few L
+    units that is a halo — detail the photograph does not contain — and rule 1 does not care
+    that arithmetic rather than a model put it there."""
+    soft = _texture().filter(ImageFilter.GaussianBlur(3))
+    p = pipeline.denoise_sharpen(soft, _full(soft))
+    out = renderer._apply_sharpen(soft, _full(soft), p)
+    moved = np.abs(colour.to_lab(np.asarray(out))[..., 0]
+                   - colour.to_lab(np.asarray(soft))[..., 0]).max()
+    # One 8-bit step of slack for the LAB round trip, which is not the sharpening.
+    assert moved <= p["max_overshoot"] + 0.5, moved
+
+
+def test_sharpening_does_not_move_colour():
+    """On the L channel only, like tone. Sharpening RGB per channel pulls the three apart at
+    every edge and paints coloured fringes along it."""
+    soft = _texture(seed=8).filter(ImageFilter.GaussianBlur(2))
+    p = pipeline.denoise_sharpen(soft, _full(soft))
+    out = renderer._apply_sharpen(soft, _full(soft), p)
+    l0, l1 = colour.to_lab(np.asarray(soft)), colour.to_lab(np.asarray(out))
+    c = np.hypot(l0[..., 1], l0[..., 2])
+    keep = (c > 10) & (np.hypot(l1[..., 1], l1[..., 2]) > 10)
+    h0 = np.arctan2(l0[..., 2], l0[..., 1])[keep]
+    h1 = np.arctan2(l1[..., 2], l1[..., 1])[keep]
+    d = np.abs(np.degrees(np.arctan2(np.sin(h1 - h0), np.cos(h1 - h0))))
+    assert d.mean() < 3.0, f"mean hue shift {d.mean():.2f} deg"
+
+
+def test_null_sharpen_renders_unchanged():
+    img = _texture()
+    assert renderer._apply_sharpen(img, _full(img), None) is img
 
 
 # ------------------------------------------------------------------------ shadow

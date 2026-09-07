@@ -65,5 +65,12 @@
   "shadow_offset_px": 18,
   "shadow_from_fraction": 0.667,
   "_shadow_squash": "How flat the shadow lies, as a fraction of the height of the mask's bottom third. The spec's recipe has no squash and draws the shadow behind the product, where the (1 - mask) term that protects the product deletes nearly all of it — the result is a fringe invisible at listing size. Flattening it toward the contact line is what puts it on the ground, under the object, where it can be seen.",
-  "shadow_squash": 0.22
+  "shadow_squash": 0.22,
+
+  "_sharpen": "Mild unsharp mask on the L channel only, product region only. Spec §5.5: no sharpening beyond a mild unsharp mask, and no denoise strong enough to smooth weave texture — so the denoise half is not built at all, because a weave IS high-frequency detail and no denoiser can tell it from grain. sharpen_max_overshoot is the ceiling PIPELINE-RECONCILIATION §2 asked for: an unsharp mask brightens one side of an edge and darkens the other, and past a few L units that stops being contrast and becomes a halo, which is detail the photograph does not contain. The amount tapers to zero as the product's own sharpness approaches sharpen_skip_above, because sharpening an already-crisp photograph only adds halos. NOT calibrated: nothing in images/ has a known-correct sharpening to score against.",
+  "sharpen_max_amount": 0.55,
+  "sharpen_radius_px": 2,
+  "_sharpen_skip_above": "On the RATIO of Laplacian variance before and after a 1px blur, not on the variance itself. The variance alone measures how patterned the subject is: across haat-v1's textiles it spans 176 to 10819, a 60x range set by the weave and not the lens, so using it would sharpen plain products hard and refuse busy ones. The ratio divides the subject out — medians across brass, dhokra and textile go from 262/586/1061 to 5.9/6.9/5.7. At 12 the two visibly crispest photographs in the set decline and everything else gets a mild amount.",
+  "sharpen_skip_above": 12.0,
+  "sharpen_max_overshoot": 10.0
 }

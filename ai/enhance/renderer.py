@@ -54,6 +54,10 @@ def render(original: Image.Image, mask, rec: dict) -> Image.Image:
     # the same order for the same reason.
     master = _apply_white_balance(master, rec.get("white_balance"))
     master = _apply_tone(master, mask, rec.get("clahe"))
+    # Sharpening last of the three, because it amplifies whatever contrast it is handed and
+    # tone's CLAHE has just changed that contrast. Sharpening first would sharpen a picture
+    # the artisan never receives.
+    master = _apply_sharpen(master, mask, rec.get("sharpen"))
 
     tier = rec["tier"]
     if tier == "C":
@@ -163,6 +167,50 @@ def _tone_weight(mask):
     # tier B's edge treatment and answers a different question. One knob, one meaning.
     soft = Image.fromarray((w * 255).astype(np.uint8)).filter(ImageFilter.BoxBlur(radius))
     return np.asarray(soft, np.float32) / 255.0
+
+
+def _apply_sharpen(image: Image.Image, mask, params) -> Image.Image:
+    """Unsharp mask on lightness, product region only. Spec §5.5, "mild" and no more.
+
+    Null params means the stage declined — no product, or a photograph already sharp enough
+    that the honest amount is nothing. Both render unchanged.
+
+    **On the L channel of LAB and nowhere else**, for the same reason `tone()` is: sharpening
+    RGB per channel pulls the three apart at every edge and paints coloured fringes along it,
+    which is the colour lock's problem arriving through a different door. `a` and `b` come out
+    of `to_lab` and go back into `to_rgb_in_gamut` untouched.
+
+    **`max_overshoot` is the ceiling the reconciliation asked for.** An unsharp mask works by
+    brightening one side of an edge and darkening the other; past a few L units that stops
+    reading as crispness and starts reading as a bright rim — a white halo around a dark pot
+    is detail the photograph does not contain, and rule 1 does not care that arithmetic rather
+    than a model put it there. The correction is clipped, so no pixel can move further than
+    the ceiling however soft the original was.
+
+    Weighted by `_tone_weight()`, the same softened mask the tone stage uses, so the product
+    is sharpened and the background is not, with no line between them.
+    """
+    if not params or params.get("amount", 0) <= 0:
+        return image
+
+    import numpy as np
+    from PIL import ImageFilter
+
+    from . import colour
+
+    lab = colour.to_lab(np.asarray(image.convert("RGB")))
+    L = lab[..., 0]
+
+    blurred = np.asarray(
+        Image.fromarray(np.clip(L * 2.55 + 0.5, 0, 255).astype(np.uint8)).filter(
+            ImageFilter.GaussianBlur(int(params["radius_px"]))), np.float32) / 2.55
+
+    ceiling = float(params["max_overshoot"])
+    correction = np.clip((L - blurred) * float(params["amount"]), -ceiling, ceiling)
+
+    w = _tone_weight(mask)
+    lab[..., 0] = np.clip(L + correction * w, 0.0, 100.0)
+    return Image.fromarray(colour.to_rgb_in_gamut(lab), "RGB")
 
 
 def _apply_shadow(image: Image.Image, mask, params) -> Image.Image:

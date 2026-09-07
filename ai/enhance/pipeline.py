@@ -614,8 +614,73 @@ def shadow(alpha, tier):
 
 
 def denoise_sharpen(image, mask):
-    """Texture is the selling point in handicraft. Weave, knot and grain must pop."""
-    raise NotImplementedError
+    """Measure the sharpening. **Returns parameters, not an image**, and does no denoising.
+
+    Texture is the selling point in handicraft: weave, knot work and clay grain are what
+    signal handmade, and they are what a buyer is paying for over a factory copy.
+
+    **The denoise half is deliberately not built, and the name is kept as the record of that
+    decision.** Spec §5.5 allows "no denoise strong enough to smooth weave texture", and
+    PIPELINE-RECONCILIATION §2 is blunter: without a documented ceiling it "will smooth the
+    weave away". Denoising and this stage's purpose pull in opposite directions on exactly the
+    same pixels — a weave *is* high-frequency detail, and nothing in a denoiser can tell it
+    from sensor grain. The ceiling that keeps it safe is a strength of zero.
+
+    **The amount is measured, not fixed.** A photograph that is already crisp needs nothing,
+    and sharpening it only adds halos; a soft one has something to recover. The amount tapers
+    to zero as measured sharpness approaches `sharpen_skip_above`.
+
+    **What is measured is a ratio, and the first attempt at this was wrong.** Laplacian
+    variance on its own does not measure focus, it measures how *patterned* the subject is —
+    `blur_score()`'s own docstring says so, and `haat-v1` proves it: across nine textiles it
+    spans 176 for a plain green cloth to 10819 for a fine ikat, a 60x range driven by the
+    weave and not by the lens. Used directly it would sharpen plain products hard and refuse
+    busy ones, which is a decision about the subject rather than the photograph.
+
+    Dividing by the same measurement after a 1px blur removes the subject. A sharp photograph
+    loses a great deal to that blur and a soft one loses little, whatever it is a photograph
+    of. Across `haat-v1` the raw number's medians are 262 / 586 / 1061 for brass, dhokra and
+    textile; the ratio's are 5.9 / 6.9 / 5.7 — flat, which is the property this needs.
+
+    Returns None when there is no product region, or when the photograph is already sharp
+    enough that the honest amount is nothing.
+    """
+    import numpy as np
+    from PIL import ImageFilter
+
+    t = metrics.thresholds()
+    a = np.asarray(mask, dtype=np.float32)
+    inside = a > 0.5
+    if not inside.any():
+        return None
+
+    # Product region only: the background is often a plain wall, and a plain wall would argue
+    # for sharpening a product that does not need it.
+    inner = inside[1:-1, 1:-1]
+    if not inner.any():
+        return None
+
+    def lap_var(g):
+        return float(((g[:-2, 1:-1] + g[2:, 1:-1] + g[1:-1, :-2] + g[1:-1, 2:]
+                       - 4 * g[1:-1, 1:-1])[inner]).var())
+
+    grey = image.convert("L")
+    raw = lap_var(np.asarray(grey, np.float32))
+    softened = lap_var(np.asarray(grey.filter(ImageFilter.GaussianBlur(1)), np.float32))
+    sharpness = raw / max(softened, 1e-6)
+
+    skip_above = float(t["sharpen_skip_above"])
+    if sharpness >= skip_above:
+        # Already crisp. More would only be halos around detail that is already there.
+        return None
+
+    # Full strength on a soft photograph, tapering to nothing at the skip point.
+    amount = float(t["sharpen_max_amount"]) * (1.0 - sharpness / skip_above)
+    return {
+        "amount": round(amount, 3),
+        "radius_px": int(t["sharpen_radius_px"]),
+        "max_overshoot": float(t["sharpen_max_overshoot"]),
+    }
 
 
 WHITE = 255
@@ -871,6 +936,7 @@ def run(image, targets, product_id="unknown", white_ref=None):
         tier       confidence decides how much of the mask we are willing to use
         crop_plan  geometry as numbers
         wb         the illuminant, from the tapped white patch or from neutral pixels
+        sharpen    how much unsharp the product needs, from how sharp it already is
         shadow     Tier A only: a contact shadow, so the cutout sits on the page
         tone       needs the mask: "how bright is the product" has no answer without one,
                    and needs the white balance, because it measures the lightness the
@@ -887,8 +953,9 @@ def run(image, targets, product_id="unknown", white_ref=None):
     The alpha is written to storage under the recipe's `mask_version`, because a re-render
     that had to segment again would buy nothing.
 
-    **`denoise_sharpen()` is not called, because it is not written.** Its recipe field is
-    null, which is why an old recipe keeps rendering once it lands.
+    **Every stage in the spec is now written.** The recipe fields that stay null are the ones
+    a photograph did not need: white balance without a reference, tone on a flat product,
+    a shadow below Tier A, sharpening on an already-crisp photograph.
 
     `white_ref` is the optional normalized rect from `POST /enhance` — the artisan's tap on
     the white paper. Absent, white balance falls back to the neutral-pixel path and is a
@@ -917,6 +984,7 @@ def run(image, targets, product_id="unknown", white_ref=None):
         white_balance=wb,
         clahe=tone(renderer._apply_white_balance(master, wb), alpha),
         shadow=shadow(alpha, tier_name),
+        sharpen=denoise_sharpen(master, alpha),
     )
     storage.write_mask(alpha, product_id, rec["mask_version"])
 
@@ -943,8 +1011,8 @@ def run(image, targets, product_id="unknown", white_ref=None):
         "mask": signals,
         "recipe": rec,
         "stages": ["gate", "master", "segment", "matte", f"tier_{tier_name}",
-                   "white_balance", "tone", "shadow", "render", "export"],
-        "skipped": ["denoise_sharpen"],
+                   "white_balance", "tone", "sharpen", "shadow", "render", "export"],
+        "skipped": [],
     }
 
 
