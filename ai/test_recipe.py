@@ -19,7 +19,11 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from enhance import metrics, pipeline, recipe, renderer, storage  # noqa: E402
+# These exercise the pipeline; none of them may append to a real observation log.
+import os as _os  # noqa: E402
+_os.environ.setdefault("AI_OBSERVE", "0")
+
+from enhance import colour, metrics, pipeline, recipe, renderer, storage  # noqa: E402
 
 T = metrics.thresholds()
 
@@ -203,6 +207,284 @@ def test_missing_mask_is_a_source_error_not_a_crash():
     except storage.SourceError:
         return
     raise AssertionError("missing mask did not raise SourceError")
+
+
+# ------------------------------------------------------------------ tone/colour
+
+
+def _photo(w=200, h=200, seed=3):
+    rng = np.random.default_rng(seed)
+    base = rng.integers(40, 210, (h, w, 3)).astype(np.uint8)
+    return Image.fromarray(base, "RGB")
+
+
+def test_lab_round_trip_is_exact():
+    """Every tone correction goes through this. A lossy round trip would shift colour on
+    photographs the stage decided not to change at all."""
+    rng = np.random.default_rng(0)
+    a = rng.integers(0, 256, (64, 64, 3), dtype=np.uint8)
+    assert np.array_equal(colour.to_rgb(colour.to_lab(a)), a)
+
+
+def test_gamut_mapping_is_a_passthrough_when_nothing_is_out_of_gamut():
+    rng = np.random.default_rng(2)
+    a = rng.integers(60, 200, (32, 32, 3), dtype=np.uint8)
+    lab = colour.to_lab(a)
+    assert np.array_equal(colour.to_rgb_in_gamut(lab), colour.to_rgb(lab))
+
+
+def test_tone_never_raises_chroma():
+    """Rule 1. The stage may make a colour less saturated to fit sRGB; it may never make a
+    product more colourful than it was."""
+    src = _photo()
+    a = np.ones((src.height, src.width), np.float32)
+    params = pipeline.tone(src, a)
+    out = renderer._apply_tone(src, a, params)
+    c0 = np.hypot(*[colour.to_lab(np.asarray(src))[..., i] for i in (1, 2)])
+    c1 = np.hypot(*[colour.to_lab(np.asarray(out))[..., i] for i in (1, 2)])
+    assert (c1 <= c0 + 1.0).all(), f"chroma rose by {float((c1 - c0).max()):.2f}"
+
+
+def test_tone_preserves_hue():
+    """Measured on real fixtures at mean 0.4-0.8 degrees. A per-channel clip instead of
+    gamut mapping moved a/b by up to 16.5, which walks a deep maroon toward orange."""
+    src = _photo(seed=5)
+    a = np.ones((src.height, src.width), np.float32)
+    out = renderer._apply_tone(src, a, pipeline.tone(src, a))
+    l0, l1 = colour.to_lab(np.asarray(src)), colour.to_lab(np.asarray(out))
+    c = np.hypot(l0[..., 1], l0[..., 2])
+    keep = (c > 10) & (np.hypot(l1[..., 1], l1[..., 2]) > 10)
+    h0 = np.arctan2(l0[..., 2], l0[..., 1])[keep]
+    h1 = np.arctan2(l1[..., 2], l1[..., 1])[keep]
+    d = np.abs(np.degrees(np.arctan2(np.sin(h1 - h0), np.cos(h1 - h0))))
+    assert d.mean() < 3.0, f"mean hue shift {d.mean():.2f} deg"
+
+
+def test_tone_declines_on_a_flat_product():
+    """A swatch filling the frame has nothing to stretch, and stretching it amplifies
+    sensor noise into visible grain."""
+    flat = Image.new("RGB", (80, 80), (128, 128, 128))
+    assert pipeline.tone(flat, np.ones((80, 80), np.float32)) is None
+
+
+def test_tone_declines_when_there_is_no_product():
+    assert pipeline.tone(_photo(), np.zeros((200, 200), np.float32)) is None
+
+
+def test_tone_caps_the_stretch():
+    """A dark product photographed in a dim room is a dark product. Pulling it wide until
+    it looks studio-lit invents an appearance the object does not have."""
+    dark = Image.fromarray(
+        (np.random.default_rng(7).integers(10, 45, (120, 120, 3))).astype(np.uint8), "RGB")
+    p = pipeline.tone(dark, np.ones((120, 120), np.float32))
+    span = p["white"] - p["black"]
+    assert 100.0 / span <= metrics.thresholds()["tone_max_stretch"] + 1e-6, span
+
+
+def test_null_tone_renders_unchanged():
+    """Recipes written before this stage existed must keep rendering."""
+    src = _photo()
+    a = np.ones((src.height, src.width), np.float32)
+    assert renderer._apply_tone(src, a, None) is src
+
+
+def test_tone_only_touches_the_product():
+    """Background stays as photographed — visible on tier C, where it is not replaced."""
+    src = _photo(seed=9)
+    a = np.zeros((src.height, src.width), np.float32)
+    a[50:150, 50:150] = 1.0
+    out = np.asarray(renderer._apply_tone(src, a, pipeline.tone(src, a)))
+    before = np.asarray(src)
+    assert np.array_equal(out[0:40, 0:40], before[0:40, 0:40]), "background was modified"
+
+
+# The seam threshold. A brightness change spread over several pixels reads as shading; the
+# same change delivered in one pixel reads as a line. Somewhere around 1-2 L units per pixel
+# is where one becomes the other on photographic content, so this is a smoke alarm, not a
+# measurement of perception — if it trips, look at the picture before touching the number.
+SEAM_L_PER_PX = 2.0
+
+
+def _model_available():
+    try:
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def test_the_tone_edge_is_not_a_visible_seam():
+    """Tone corrects inside the mask and not outside. **On tier C the background survives**,
+    so that boundary is in the delivered image, and a correction that arrives too abruptly
+    reads as a halo tracing the product.
+
+    This needs a real BiRefNet mask, because the softness under test is the model's. A
+    synthetic mask would measure the fixture. `matte()` is a no-op on the strength of that
+    softness (3-4px band, RESULTS.md), and this is the half of that argument RESULTS.md did
+    not make: soft enough for fringes was established, soft enough to hide a tone step
+    was not.
+
+    Measures the full correction strength, the width of the alpha ramp that has to deliver
+    it, and the ratio.
+    """
+    if not _model_available():
+        raise Skip("no torch/transformers")
+    from enhance import segmenter
+
+    fixture = Path(__file__).resolve().parent.parent / "images" / "raw" / "pottery-potter-indoor-04.jpg"
+    if not fixture.exists():
+        raise Skip("fixture pixels are gitignored")
+
+    master = segmenter.to_master(Image.open(fixture).convert("RGB"))
+    alpha = pipeline.matte(master, pipeline.segment(master))
+    params = pipeline.tone(master, alpha)
+    if params is None:
+        raise Skip("tone declined on this fixture")
+
+    before = colour.to_lab(np.asarray(master))[..., 0]
+    after = colour.to_lab(np.asarray(renderer._apply_tone(master, alpha, params)))[..., 0]
+    delta = after - before
+
+    solid = alpha > 0.95
+    assert solid.any(), "no solid product region"
+    # Outside is weighted to zero, so the ramp carries the whole correction.
+    strength = float(np.abs(delta[solid]).mean())
+
+    # Measured on the weight the renderer actually uses, not on the raw alpha: softening
+    # that weight is exactly the fix this test exists to demand, and a test that could not
+    # see the fix would fail forever.
+    weight = renderer._tone_weight(alpha)
+
+    # Ramp width as area over perimeter: the soft band is a ribbon one perimeter long, so
+    # its area divided by its length is its thickness.
+    soft = (weight > 0.05) & (weight < 0.95)
+    inside = weight > 0.5
+    perimeter = int((inside[:, :-1] != inside[:, 1:]).sum() + (inside[:-1] != inside[1:]).sum())
+    assert perimeter > 0, "mask has no boundary"
+    width = soft.sum() / perimeter
+
+    per_px = strength / max(width, 1e-6)
+    print(f"        strength {strength:.1f} L over {width:.1f}px = {per_px:.2f} L/px", end="")
+    assert per_px < SEAM_L_PER_PX, (
+        f"tone edge is {per_px:.2f} L/px ({strength:.1f} L across {width:.1f}px) — "
+        f"blur the weight in renderer._apply_tone()")
+
+
+# ------------------------------------------------------------------ white balance
+#
+# The one stage that moves colour on purpose, so it is the one rule 4 exists to police.
+
+
+# Deliberately inside `wb_max_gain_ratio` (1.25 against a cap of 1.3), so a test of whether
+# the method reads the light measures that and not the cap. The cap has its own test, with a
+# cast violent enough to trip it.
+WARM = np.array([1.15, 1.0, 0.92], np.float32)
+IDEAL = (1 / WARM) / (1 / WARM).max()                # the gains that would undo it exactly
+
+
+def _cast(img, gains=WARM):
+    return Image.fromarray(
+        np.clip(np.asarray(img, np.float32) * np.asarray(gains, np.float32), 0, 255).astype(np.uint8))
+
+
+def _mean_chroma(img):
+    lab = colour.to_lab(np.asarray(img))
+    return float(np.hypot(lab[..., 1], lab[..., 2]).mean())
+
+
+def _scene(seed=11):
+    """A photograph with something plausibly neutral in it, which is the case both methods
+    are for. Pure noise has no grey and neither method should pretend otherwise."""
+    rng = np.random.default_rng(seed)
+    a = np.full((300, 300, 3), 150, np.uint8)
+    a[:120] = rng.integers(30, 90, (120, 300, 3))            # a dark object
+    a[120:] = 140 + rng.integers(-10, 10, (180, 300, 3))     # a plain wall
+    return Image.fromarray(a)
+
+
+def test_the_tapped_patch_recovers_the_illuminant():
+    """The accurate path, and the reason the `white_ref` rect is worth one tap on the review
+    screen: the patch is a direct reading of the light rather than an assumption about it."""
+    a = np.asarray(_scene(), np.float32).copy()
+    a[10:60, 10:60] = 175                                    # the paper. Not blown.
+    img = _cast(Image.fromarray(a.astype(np.uint8)))
+    p = pipeline.white_balance(img, {"x": 0.03, "y": 0.03, "w": 0.16, "h": 0.16})
+    assert p["method"] == "patch", p
+    assert np.abs(np.asarray(p["gains"]) - IDEAL).max() < 0.15, (p["gains"], IDEAL)
+
+
+def test_a_blown_reference_patch_is_refused():
+    """Every channel reads 255 whatever the light was. Calibrating off that would invent a
+    colour, and rule 1 does not care that arithmetic rather than a model did it."""
+    flat = Image.fromarray(np.full((200, 200, 3), 254, np.uint8))
+    assert pipeline.white_balance(flat, {"x": 0.1, "y": 0.1, "w": 0.3, "h": 0.3}) is None
+
+
+def test_a_product_filling_the_frame_is_refused_not_guessed():
+    """**The failure gray-world is named for.** A maroon Sambalpuri filling the frame makes
+    "the average of this scene is grey" false in exactly the direction that pulls a natural
+    dye toward orange — PIPELINE-RECONCILIATION §5 finding 2. Declining leaves the colour as
+    photographed, which is right far more often than a guess is."""
+    rng = np.random.default_rng(3)
+    maroon = np.array([120, 25, 45]) + rng.integers(-12, 12, (300, 300, 3))
+    assert pipeline.white_balance(Image.fromarray(maroon.clip(0, 255).astype(np.uint8))) is None
+
+
+def test_the_neutral_path_corrects_a_cast_it_can_see():
+    """No rect, but a wall in frame. Weaker than the patch and still a real correction."""
+    scene = _scene()
+    cast = _cast(scene)
+    p = pipeline.white_balance(cast)
+    assert p["method"] == "neutral", p
+    out = renderer._apply_white_balance(cast, p)
+    assert _mean_chroma(out) < _mean_chroma(cast), "the cast was not reduced"
+
+
+def test_gains_never_exceed_one():
+    """The correction may only darken a channel. A gain above 1 could push a channel past
+    255 and clip it into a colour the photograph never held."""
+    p = pipeline.white_balance(_cast(_scene()))
+    assert max(p["gains"]) <= 1.0, p["gains"]
+
+
+def test_the_correction_is_capped():
+    """An extreme reading is far more often a bad measurement than a genuinely extreme
+    illuminant, and being wrong costs the artisan the return."""
+    violent = _cast(_scene(), [1.9, 1.0, 0.45])
+    p = pipeline.white_balance(violent)
+    assert p["ratio"] <= T["wb_max_gain_ratio"] + 1e-6, p
+
+
+def test_null_white_balance_renders_unchanged():
+    """Declined, or a recipe written before the stage existed. Both must still render."""
+    src = _photo()
+    assert renderer._apply_white_balance(src, None) is src
+
+
+def test_a_colour_shift_warns_and_the_warning_survives_a_rerender():
+    """Rule 4. Nothing publishes without `colour_confirmed`, and the artisan does not stop
+    needing to confirm the colour because they changed the background."""
+    wb = {"method": "patch", "gains": [0.6, 0.8, 1.0], "ratio": 1.67}
+    assert any("colour shifted" in w for w in pipeline._warnings_for("A", None, wb))
+    assert pipeline._warnings_for("A", None, None) == []
+    assert pipeline._warnings_for("A", None, {"ratio": 1.0}) == []
+
+
+def test_white_balance_is_applied_before_tone():
+    """Tone measures the lightness the corrected channels produce, so the render has to
+    correct colour first. Applied in the other order the recipe's numbers would describe a
+    picture the renderer never makes."""
+    src = _photo()
+    a = np.ones((src.height, src.width), np.float32)
+    wb = {"method": "patch", "gains": [0.7, 0.85, 1.0], "ratio": 1.43}
+    rec = _rec(tier="C", box=(0, 0, src.width, src.height))
+    rec["white_balance"] = wb
+    balanced = renderer._apply_white_balance(src, wb)
+    rec["clahe"] = pipeline.tone(balanced, a)
+    expected = renderer._apply_tone(balanced, a, rec["clahe"])
+    got = renderer.render(src, a, rec)
+    assert np.array_equal(np.asarray(got), np.asarray(renderer._crop_to(expected, rec["crop"])))
 
 
 def main():

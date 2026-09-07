@@ -10,8 +10,17 @@ Async. Returns a job id; enhancement takes ~20s.
 
 Request
 ```json
-{ "product_id": "p_123", "image_url": "s3://raw/abc.jpg", "targets": ["amazon", "gem", "whatsapp"] }
+{ "product_id": "p_123", "image_url": "s3://raw/abc.jpg", "targets": ["amazon", "gem", "whatsapp"],
+  "white_ref": { "x": 0.61, "y": 0.78, "w": 0.12, "h": 0.09 } }
 ```
+
+`white_ref` is **optional** and is the one field the app still owes this endpoint. It is the
+artisan's tap on the white paper on the review screen, normalized to 0..1 against the image
+they were shown. Present, the illuminant is read straight off that patch. Absent, the
+pipeline falls back to estimating it from whatever in the frame is already nearly neutral —
+which is a real correction but a weaker one, and it declines outright on a photograph where
+a dyed product fills the frame. This is the request in `PIPELINE-RECONCILIATION.md` §5
+finding 2; the AI side is built and waiting for the tap.
 
 ⚠️ `image_url` is whatever `POST /uploads/{id}/complete` returned. Today that is a
 `file://` URI into `web/api`'s `STORAGE_DIR`, not `s3://` — object storage is not wired up
@@ -33,6 +42,11 @@ GET /enhance/{job_id}
   "warnings": ["colour shifted during white balance — confirm with artisan before publishing"]
 }
 ```
+
+That warning is emitted whenever white balance moved colour past `wb_warn_ratio`, and it is
+**rule 4's hook**: nothing publishes without `colour_confirmed`, because white balance is the
+one stage that moves colour on purpose and only the person holding the object can say whether
+it is still true. It survives a re-render — the stored gains are the same gains.
 
 Rejected at the gate (no GPU spent):
 ```json
