@@ -20,7 +20,9 @@ they were shown. Present, the illuminant is read straight off that patch. Absent
 pipeline falls back to estimating it from whatever in the frame is already nearly neutral —
 which is a real correction but a weaker one, and it declines outright on a photograph where
 a dyed product fills the frame. This is the request in `PIPELINE-RECONCILIATION.md` §5
-finding 2; the AI side is built and waiting for the tap.
+finding 2; the AI side is built and waiting for the tap. The **web hop forwards it** as of
+2026-09-07 — `POST /api/products/{id}/enhance` takes the same optional field and bounds-checks
+it — so what is missing is only the gesture on the review screen.
 
 ⚠️ `image_url` is whatever `POST /uploads/{id}/complete` returned. Today that is a
 `file://` URI into `web/api`'s `STORAGE_DIR`, not `s3://` — object storage is not wired up

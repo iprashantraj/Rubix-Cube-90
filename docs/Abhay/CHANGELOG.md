@@ -6,6 +6,42 @@ repeats in `PIPELINE-RECONCILIATION.md` §9.
 
 ---
 
+## 2026-09-07 (4) — both of your open web-side requests are answered *(from the app/web side)*
+
+`origin/abhay/recipe-system` is merged. Tone, white balance and the observation log are in.
+The two things entries (2) and (3) asked the web side for:
+
+| You asked for | State |
+|---|---|
+| `white_ref` on `POST /enhance` | **Web hop only.** `POST /api/products/{id}/enhance` takes an optional `white_ref` and forwards it in the contract shape. Bounds-checked here, not trusted. The **tap is not built** — see below |
+| "this upload was a retry of that one" | **Done.** `products.retry_of`, migration `a1b6d3e40f92`, self-referential and indexed. Set by the app only when the *server gate* refused the previous shot |
+
+**Why the tap is not built, and it is a decision rather than a backlog item.** The pipe is
+open, so building it later is a UI change and nothing else. What stopped it is that the
+reference-free path is what every artisan gets today and it is not obviously the loser: your
+own table says 1.3 was chosen partly because 1.6 made 30 of 172 mild-cast fixtures worse, and
+the ground truth behind all of it is synthetic. A tap needs a spoken instruction in five
+languages telling an artisan to hold up printer paper, and we would be asking for that on the
+strength of a measurement `images/MANIFEST.md` says has not been taken. **Shoot `wb-v1`** —
+same object, with and without the paper — and the tap follows the week the numbers do.
+
+**`retry_of` is narrower than "a retake" on purpose.** Only a gate refusal sets it. A
+voluntary retake of a photograph we accepted proves nothing about the thresholds and would
+dilute exactly the signal you asked for. Write-once by construction: it is on the create
+model and not on `ProductIn`, which `PATCH` shares, so nothing can restate it afterwards.
+
+**One bug found while wiring it.** After a gate refusal the primary button relabelled itself
+`common.retry` and re-ran the upload with the same bytes, at a gate that is deterministic —
+identical refusal, another abandoned product row, another multi-megabyte upload over a rural
+tower, forever. The button is gone on a refusal now; retake is the only thing on screen that
+can succeed. It would also have poisoned `retry_of` with chains whose "retake" was the same
+photograph.
+
+Checks: `web/api/test_white_ref.py` and `web/api/test_retry_chain.py`, both listed in
+`CLAUDE.md`. Neither needs a server, a database or the AI service.
+
+---
+
 ## 2026-08-27 (8) — the server gate is built; step 3 of the list is done
 
 First working stage in `ai/enhance/`. `gate()` decides whether a photograph is worth

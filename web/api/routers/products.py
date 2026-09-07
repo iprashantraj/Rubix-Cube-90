@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -63,12 +63,26 @@ class ProductIn(BaseModel):
     quantity: int = 1
 
 
+class ProductCreate(ProductIn):
+    """Creation only. `retry_of` is deliberately NOT on `ProductIn`, which `PATCH` also
+    takes: a retake chain records what happened, and a field that can be rewritten later
+    records what somebody decided afterwards. Write-once by construction."""
+    retry_of: str | None = None
+
+
 @router.post("/products")
 def create(
-    body: ProductIn,
+    body: ProductCreate,
     db: Session = Depends(get_db),
     artisan: Artisan = Depends(current_artisan),
 ) -> dict:
+    # A chain may not point outside the caller's own catalogue. Unchecked, a product id is
+    # the one thing an artisan can guess about someone else's account, and the foreign key
+    # would happily accept it — which would put another artisan's id in a row they own and
+    # make the retake evidence read across accounts.
+    if body.retry_of is not None:
+        _own(body.retry_of, db, artisan)
+
     product = Product(artisan_id=artisan.id, **body.model_dump(exclude={"quantity"}))
     db.add(product)
     db.flush()
@@ -397,9 +411,45 @@ async def _ai_get(path: str) -> dict:
         return res.json()
 
 
+class WhiteRef(BaseModel):
+    """The artisan's tap on the white paper, normalized 0..1 against the image they saw.
+
+    `ai/contracts.md` §POST /enhance. Optional everywhere: absent, `white_balance()` falls
+    back to its neutral-pixel estimate, which is what shipped before this field existed.
+
+    Bounds are checked here rather than trusted, because this is a client-supplied rect that
+    ends up indexing a numpy array. `_patch_means` clamps too, but a trust boundary is the
+    wrong place to rely on the far side clamping.
+    """
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    w: float = Field(gt=0, le=1)
+    h: float = Field(gt=0, le=1)
+
+
+class EnhanceIn(BaseModel):
+    white_ref: WhiteRef | None = None
+
+
+def _enhance_payload(product_id: str, source: str, body: "EnhanceIn | None") -> dict:
+    """The `POST /enhance` body. Extracted so the white_ref hand-off is testable without a
+    database, an artisan or a running AI service."""
+    payload = {
+        "product_id": product_id, "image_url": source,
+        "targets": ["amazon", "gem", "whatsapp"],
+    }
+    # Only send the key when there is a rect. `white_balance()` branches on truthiness, so an
+    # explicit null costs nothing there, but it reads as "the app tried and failed" to anyone
+    # reading the AI's observation log, where method=patch vs method=neutral is the signal.
+    if body is not None and body.white_ref is not None:
+        payload["white_ref"] = body.white_ref.model_dump()
+    return payload
+
+
 @router.post("/products/{product_id}/enhance")
 async def enhance(
     product_id: str,
+    body: EnhanceIn | None = None,
     db: Session = Depends(get_db),
     artisan: Artisan = Depends(current_artisan),
 ) -> dict:
@@ -436,10 +486,7 @@ async def enhance(
                 # be refused for size, but the artisan hears a real reason either way.
                 log.warning("could not sign full variant for %s: %s", up.id, e)
 
-    job = await _ai("/enhance", {
-        "product_id": p.id, "image_url": source,
-        "targets": ["amazon", "gem", "whatsapp"],
-    })
+    job = await _ai("/enhance", _enhance_payload(p.id, source, body))
     # Bind the job to this product so the poll below can check ownership. Recorded before
     # the response leaves, or the app is handed a job id nothing on this side recognises.
     if job.get("job_id"):

@@ -76,6 +76,8 @@ node app/src/screens/homeTodos.js  # /home "waiting for you" counts vs the tabs 
 node app/src/catalog/slots.js    # the interview: what is asked, what a harvest drops
 cd web/api && python3 test_uploads.py   # chunk assembly, no database or server
 web/api/.venv/bin/pytest web/api/test_catalog.py  # the /catalog proxy; needs fastapi
+cd web && api/.venv/bin/python3 api/test_white_ref.py    # the white_ref hand-off to /enhance
+cd web && api/.venv/bin/python3 api/test_retry_chain.py  # products.retry_of; sqlite in memory
 cd ai && .venv/bin/pytest        # 130 tests; 6 fail without torch (F1 only). ai/.venv exists as of 2026-08-28
 cd ai && .venv/bin/pytest test_catalog.py  # F2 shaping in four scripts, and the self-checks
 cd ai && .venv/bin/python probe_dialects.py  # dialects vs the live model; needs a key, spends money
@@ -95,9 +97,24 @@ returns 202; `GET /enhance/{job_id}` polls; the job runs gate → 2000px master 
 tier → crop → per-target JPEG. Start it with `uvicorn service:app` — `worker.py` is not
 needed yet and says so.
 
-Three stages inside that sequence are still unwritten and are **skipped explicitly**, with
-every response naming them: `white_balance()`, `tone()`, `denoise_sharpen()`. Colour is the
-significant absence.
+`white_balance()` and `tone()` were written on 2026-09-07 and run before the tier work —
+white balance first, because tone measures the lightness the corrected channels produce.
+Both return parameters into the recipe and `renderer.py` applies them, so either replays
+without a GPU. One stage is still unwritten and is **skipped explicitly**, with every
+response naming it: `denoise_sharpen()`. The `shadow` recipe field is the other gap — a
+cutout on flat white with no contact shadow reads as pasted on.
+
+`POST /enhance` takes an optional `white_ref` — the artisan's tap on white paper, normalized
+— and `POST /api/products/{id}/enhance` forwards it. **Nothing in the app sends one yet**, so
+white balance runs its reference-free neutral estimate, which declines outright rather than
+guessing when a dyed product fills the frame. The tap is deliberately not built: see
+`docs/Abhay/CHANGELOG.md` 2026-09-07 (3) for what it buys and what `images/MANIFEST.md`'s
+empty `wb-v1` set would have to prove first.
+
+Every gate and enhance call appends one JSON row via `ai/enhance/observe.py` — numbers, never
+pixels, `AI_OBSERVE=0` to switch off. `products.retry_of` is the web half of that: it records
+which product is the artisan's retake of one the gate refused, which is the only thing that
+says whether a refusal was right.
 
 **F2 and F3 are no longer stubs.** `/catalog/interpret` turns one spoken sentence into one
 field value, `/catalog/harvest` fills whatever other slots that same sentence happened to

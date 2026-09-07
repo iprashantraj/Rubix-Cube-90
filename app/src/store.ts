@@ -151,6 +151,13 @@ type Draft = {
   photoBlob: Blob | null;
   photoUrl: string | null;
   enhanceJobId: string | null;
+  /**
+   * The product whose photograph the server gate just refused, carried across the retake so
+   * the next `POST /products` can say what it is a second try at. Cleared as soon as it is
+   * spent — a chain of one retake is evidence, and a value left lying around would attach
+   * the next unrelated listing to it.
+   */
+  retryOf: string | null;
   images: { url: string }[] | null;
   colourConfirmed: boolean;
   prefill: Record<string, unknown> | null;
@@ -161,6 +168,7 @@ type Draft = {
   setPhoto: (blob: Blob | null, url: string | null) => void;
   setMode: (mode: 'standing' | 'flat') => void;
   setEnhance: (id: string | null) => void;
+  setRetryOf: (id: string | null) => void;
   setImages: (images: { url: string }[] | null) => void;
   confirmColour: () => void;
   setPrefill: (p: Record<string, unknown> | null) => void;
@@ -175,6 +183,7 @@ export const useDraft = create<Draft>((set) => ({
   photoBlob: null,
   photoUrl: null,
   enhanceJobId: null,
+  retryOf: null,
   images: null,
   colourConfirmed: false,
   prefill: null,
@@ -186,6 +195,7 @@ export const useDraft = create<Draft>((set) => ({
   setPhoto: (photoBlob, photoUrl) => set({ photoBlob, photoUrl }),
   setMode: (mode) => set({ mode }),
   setEnhance: (enhanceJobId) => set({ enhanceJobId }),
+  setRetryOf: (retryOf) => set({ retryOf }),
   setImages: (images) => set({ images }),
   confirmColour: () => set({ colourConfirmed: true }),
   setPrefill: (prefill) => set({ prefill }),
@@ -217,6 +227,7 @@ export const useDraft = create<Draft>((set) => ({
       photoBlob: null,
       photoUrl: p.image ?? null,
       enhanceJobId: null,
+      retryOf: null,
       images: p.image ? [{ url: p.image }] : null,
       // The server's answer, not an assumption. An undefined flag means the row predates
       // the column; treating that as "confirmed" would walk the colour lock.
@@ -233,6 +244,7 @@ export const useDraft = create<Draft>((set) => ({
       photoBlob: null,
       photoUrl: null,
       enhanceJobId: null,
+      retryOf: null,
       images: null,
       colourConfirmed: false,
       prefill: null,

@@ -224,6 +224,21 @@ class Product(Base):
     # that come back. Replaced on every new enhance.
     enhance_job_id: Mapped[str | None] = mapped_column(String(64), index=True)
 
+    # The product this one is a retake of, when the gate refused the first photograph.
+    #
+    # 🔑 This is the only evidence that says whether a refusal was RIGHT. Every threshold in
+    # `ai/thresholds.json` was calibrated against 93 distinct scenes of mostly stock
+    # photography, and `ai/enhance/observe.py` now logs one row per upload so they can be
+    # re-tuned on real traffic. But a row only records what the gate decided, never whether
+    # the artisan agreed: refused-then-retaken-then-passed is a correct refusal that saved a
+    # bad listing, and refused-three-times-then-silence is a false one that cost a seller.
+    # Those two look identical in the AI's log. The chain lives here, and `product_id` on
+    # every observation row is the join. Requested in `docs/Abhay/CHANGELOG.md`,
+    # 2026-09-07 (2).
+    #
+    # Self-referential and nullable: the overwhelming majority of products are a first try.
+    retry_of: Mapped[str | None] = mapped_column(ForeignKey("products.id"), index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     artisan: Mapped[Artisan] = relationship(back_populates="products")
