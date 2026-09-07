@@ -57,5 +57,13 @@
   "wb_neutral_percentile": 20,
   "wb_neutral_chroma_max": 30.0,
   "wb_neutral_min_fraction": 0.02,
-  "wb_warn_ratio": 1.15
+  "wb_warn_ratio": 1.15,
+
+  "_shadow": "Contact shadow, Tier A only. Spec §6.4's numbers, at the 2000px master they were written for: bottom third of the mask, heavy blur, small downward offset, multiplied at low opacity. Tier A only because the shadow is drawn from the mask's own outline, so a mask we do not trust would draw a shadow we cannot trust either — and Tier C keeps the real background, which already has the real shadow. NOT calibrated against fixtures: nothing in images/ has a known-correct shadow to score against, so these are the spec's numbers and an eye. The one hard constraint is measured and tested: the listing's corners must stay exactly 255,255,255, because marketplaces reject near-white.",
+  "shadow_opacity": 0.25,
+  "shadow_blur_px": 40,
+  "shadow_offset_px": 18,
+  "shadow_from_fraction": 0.667,
+  "_shadow_squash": "How flat the shadow lies, as a fraction of the height of the mask's bottom third. The spec's recipe has no squash and draws the shadow behind the product, where the (1 - mask) term that protects the product deletes nearly all of it — the result is a fringe invisible at listing size. Flattening it toward the contact line is what puts it on the ground, under the object, where it can be seen.",
+  "shadow_squash": 0.22
 }

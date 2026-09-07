@@ -1110,3 +1110,71 @@ and no code, and it is what should decide whether the tap is worth anyone's time
 
 Reproduce: `python3 images/check.py && python3 images/calibrate.py`, and
 `python3 images/wb_check.py --control images/haat`.
+
+---
+
+## 2026-09-07 (5) — The contact shadow, and why the spec's recipe did not work
+
+`pipeline.shadow()` measures, `renderer._apply_shadow()` draws, `recipe["shadow"]` is no
+longer null. Spec §6.4, which the reconciliation calls "best visual gain per line in the
+pipeline" — and it is, at about thirty lines and no model.
+
+Without it a cutout reads as pasted onto the page. With it the object sits on the surface.
+It was the largest remaining visible difference between our output and a marketplace listing.
+
+**Tier A only, and that is safety rather than taste.** The shadow is drawn from the mask's
+own outline, so a mask we do not trust would draw a shadow we cannot trust — and tiers B and
+C exist precisely because the mask is not trusted there. Tier C keeps the photograph's real
+background, which already has whatever shadow the object really cast.
+
+**Nothing here touches a product pixel.** The darkness is applied only where the mask says
+background, on a pure white background we substituted ourselves. Rule 1 forbids inventing how
+the *product* looks; there is a test asserting not one product pixel loses a single level.
+
+### §6.4's recipe, built exactly, is invisible
+
+"Bottom third of the mask → blur ~40px → offset down ~18px → multiply at ~25%." Built as
+written, and the result could not be seen at listing size.
+
+The reason is the term that protects the product. An object occludes its own shadow, so the
+darkness is multiplied by `(1 - mask)` — and the spec's shadow is drawn *behind* the product,
+exactly where that term deletes it. On `brass-rickshaw-inlay-01` the peak darkness is 0.25
+and almost none of it survives; what is left is a fringe a few pixels wide.
+
+**The fix is a squash the spec does not have.** A real shadow lies on the surface the object
+stands on, so the silhouette is flattened toward the contact line first (`shadow_squash`,
+0.22) and then emerges *below* the object instead of hiding behind it. Everything else is
+§6.4's.
+
+### Checked on every tier A photograph in `haat-v1`
+
+Thirteen of the seventeen originals land in tier A, and all thirteen were rendered and
+looked at — brass bowls, dhokra figures, a mannequin kurti, hanging ikat, a flat green
+sari. Darkest background pixel about **35/255**: present, gentle, and wrong on none of them.
+**All four corners exactly 255,255,255 on all thirteen**, which is the one hard constraint —
+marketplaces reject near-white, and that is also why the shadow is drawn after `composite()`
+rather than inside it, where the invariant is asserted.
+
+**Not calibrated, and the threshold file says so.** Nothing in `images/` has a known-correct
+shadow to score against, so `shadow_squash` and `shadow_opacity` are the spec's numbers plus
+an eye on thirteen photographs. Unlike blur and white balance, there is no measurement here
+that could have said "wrong".
+
+### A near-repeat of the same day's other bug
+
+The first test used a 400px image and reported the shadow at 8/255 — apparently broken. It
+was not: `shadow_blur_px` is 40 pixels **at the 2000px master**, the same convention as
+`FEATHER_PX` and `tone_edge_blur_px`, and a 40px blur on a 400px image spreads the shadow to
+nothing. The test now runs at the master's real size.
+
+That is the second time in one day that a number in absolute pixels meant nothing without a
+fixed scale — the first cost us five false blur rejections on real photographs. Anything
+measured in pixels in this pipeline is measured at 2000px, and a test at any other size is
+testing the test.
+
+**Suite: 135 passed** (gate 16, recipe 45, segment 34, service 10, price 30). `test_recipe.py`
+still runs on plain `python3`.
+
+**Still unwritten:** `denoise_sharpen()`. Tier B and C get no shadow, so a catalogue mixing
+tiers will not look uniform — that is the honest cost of not trusting a mask, and the fix is
+a better mask rather than a braver shadow.

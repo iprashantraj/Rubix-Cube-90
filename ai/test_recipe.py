@@ -371,6 +371,90 @@ def test_the_tone_edge_is_not_a_visible_seam():
         f"blur the weight in renderer._apply_tone()")
 
 
+# ------------------------------------------------------------------------ shadow
+#
+# Spec §6.4. The largest visible difference between a cutout and a photograph, and the
+# cheapest: no model, no API, one blurred copy of a mask the pipeline already has.
+
+
+def _blob(w=2000, h=2000, box=(600, 500, 1400, 1500)):
+    """A solid object with room beneath it, which is where the shadow has to land.
+
+    **At the master's real size, on purpose.** `shadow_blur_px` is 40 pixels at the 2000px
+    master — the same convention as `FEATHER_PX` and `tone_edge_blur_px`, and safe because
+    `render()` only ever sees a master. On a 400px test image that same 40px blur spreads the
+    shadow to a peak of 8/255 and the stage looks broken when it is not. Testing at a size
+    production never uses would have measured the test rather than the code.
+    """
+    a = np.zeros((h, w), np.float32)
+    a[box[1]:box[3], box[0]:box[2]] = 1.0
+    return Image.new("RGB", (w, h), (255, 255, 255)), a
+
+
+def _rec_with_shadow(tier="A"):
+    r = _rec(tier=tier, box=(0, 0, 2000, 2000))
+    r["shadow"] = pipeline.shadow(_blob()[1], tier)
+    return r
+
+
+def test_the_shadow_is_tier_a_only():
+    """It is drawn from the mask's own outline, so a mask we do not trust would draw a shadow
+    we cannot trust. Tier C keeps the real background, which already has the real shadow."""
+    a = _blob()[1]
+    assert pipeline.shadow(a, "A") is not None
+    assert pipeline.shadow(a, "B") is None
+    assert pipeline.shadow(a, "C") is None
+
+
+def test_the_shadow_declines_when_there_is_no_product():
+    assert pipeline.shadow(np.zeros((80, 80), np.float32), "A") is None
+
+
+def test_null_shadow_renders_unchanged():
+    """Tier B and C, and every recipe written before this stage existed."""
+    img = _blob()[0]
+    assert renderer._apply_shadow(img, _blob()[1], None) is img
+
+
+def test_the_shadow_never_darkens_the_product():
+    """Rule 1's line: the product must look exactly as photographed. An object occludes its
+    own shadow, so not one product pixel may lose a single level of brightness."""
+    img, a = _blob()
+    img = Image.fromarray(np.full((2000, 2000, 3), 200, np.uint8))
+    out = np.asarray(renderer._apply_shadow(img, a, pipeline.shadow(a, "A")), np.int16)
+    inside = a > 0.5
+    assert (out[..., 0][inside] == 200).all(), "the product was darkened"
+
+
+def test_the_shadow_lands_below_the_product():
+    """Above the object it would be a reflection, not a shadow."""
+    img, a = _blob()
+    out = np.asarray(renderer._apply_shadow(img, a, pipeline.shadow(a, "A")))
+    dark = np.where(out.min(axis=2) < 250)
+    assert dark[0].size, "no shadow was drawn at all"
+    assert dark[0].min() > 1000, f"shadow reaches row {dark[0].min()}, above the object's middle"
+
+
+def test_the_shadow_leaves_the_corners_pure_white():
+    """**Marketplaces reject near-white**, and (252,252,252) is near-white — the same
+    invariant `composite()` asserts, which is why the shadow is drawn after it and not
+    inside it."""
+    img, a = _blob()
+    out = np.asarray(renderer._apply_shadow(img, a, pipeline.shadow(a, "A")))
+    for corner in (out[:60, :60], out[:60, -60:], out[-60:, :60], out[-60:, -60:]):
+        assert (corner == 255).all(), "a corner is no longer pure white"
+
+
+def test_the_shadow_is_visible_at_all():
+    """The spec's own recipe — bottom third, blur, offset 18px — draws the shadow *behind*
+    the product where `(1 - mask)` deletes it, leaving a fringe invisible at listing size.
+    The squash is what fixes that, and this is the test that would catch losing it."""
+    img, a = _blob()
+    out = np.asarray(renderer._apply_shadow(img, a, pipeline.shadow(a, "A")), np.int16)
+    darkest = 255 - int(out.min())
+    assert darkest >= 15, f"darkest shadow pixel is only {darkest}/255 — invisible"
+
+
 # ------------------------------------------------------------------ white balance
 #
 # The one stage that moves colour on purpose, so it is the one rule 4 exists to police.

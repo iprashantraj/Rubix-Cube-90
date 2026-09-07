@@ -568,6 +568,51 @@ def tone(image, mask):
     }
 
 
+def shadow(alpha, tier):
+    """Measure the contact shadow. **Returns parameters, not an image.**
+
+    Spec §6.4, and the reconciliation calls it "best visual gain per line in the pipeline".
+    Without it a cutout reads as pasted onto the page; with it, as photographed. It is the
+    largest remaining visible difference between our output and a marketplace listing.
+
+    **Tier A only, and that is a safety rule rather than a style choice.** The shadow is drawn
+    from the mask's own silhouette, so a wrong mask draws a wrong shadow — and tiers B and C
+    exist precisely because the mask is not trusted there. Tier C keeps the photograph's real
+    background, which already has whatever shadow the object really cast; adding a second one
+    would be inventing light.
+
+    **This does not fabricate product detail.** Nothing here touches a product pixel — the
+    render applies it only where the mask says background, and that background is already a
+    pure white one we substituted. What is added is the object's own outline, blurred, on a
+    surface we invented anyway. Rule 1 forbids inventing how the *product* looks; this changes
+    nothing about it.
+
+    ⚠️ `composite()`'s docstring says a contact shadow belongs to secondary images and never
+    the primary. **That line is the outlier and it is now wrong**: spec §6.4, §6.3's tier
+    table, PIPELINE-RECONCILIATION §2 and `docs/decisions.md` all put it on the Tier A
+    primary. What is true in that docstring is narrower — the shadow must not be drawn inside
+    `composite()`, whose invariant is that every transparent pixel comes out exactly
+    255,255,255. It is drawn after, by the renderer, so that invariant still holds where
+    `composite()` asserts it.
+    """
+    import numpy as np
+
+    if tier != "A":
+        return None
+    a = np.asarray(alpha, dtype=np.float32)
+    if not (a > 0.5).any():
+        return None
+
+    t = metrics.thresholds()
+    return {
+        "opacity": float(t["shadow_opacity"]),
+        "blur_px": int(t["shadow_blur_px"]),
+        "offset_px": int(t["shadow_offset_px"]),
+        "from_fraction": float(t["shadow_from_fraction"]),
+        "squash": float(t["shadow_squash"]),
+    }
+
+
 def denoise_sharpen(image, mask):
     """Texture is the selling point in handicraft. Weave, knot and grain must pop."""
     raise NotImplementedError
@@ -586,8 +631,10 @@ def composite(image, alpha):
     not approximately. That is what `_assert_transparent_is_white` verifies on every call, and
     it is cheap because it only looks at pixels the mask already said were background.
 
-    No shadow here. A contact shadow is a Tier A embellishment for secondary images
-    (`studio.py`), never the marketplace primary.
+    **No shadow here, and that is about this function rather than about the listing.** The
+    invariant above is why: a shadow darkens background pixels, and it cannot be drawn before
+    the line that asserts every transparent pixel is exactly white. `renderer._apply_shadow()`
+    draws it after, on Tier A only — spec §6.4.
 
     **Colour fringing was looked for and is not there**, so foreground colour estimation is
     not built. The concern is real in principle: a half-transparent edge pixel still holds
@@ -824,6 +871,7 @@ def run(image, targets, product_id="unknown", white_ref=None):
         tier       confidence decides how much of the mask we are willing to use
         crop_plan  geometry as numbers
         wb         the illuminant, from the tapped white patch or from neutral pixels
+        shadow     Tier A only: a contact shadow, so the cutout sits on the page
         tone       needs the mask: "how bright is the product" has no answer without one,
                    and needs the white balance, because it measures the lightness the
                    corrected channels produce
@@ -868,6 +916,7 @@ def run(image, targets, product_id="unknown", white_ref=None):
         fill=t["crop_fill_target"],
         white_balance=wb,
         clahe=tone(renderer._apply_white_balance(master, wb), alpha),
+        shadow=shadow(alpha, tier_name),
     )
     storage.write_mask(alpha, product_id, rec["mask_version"])
 
@@ -893,8 +942,8 @@ def run(image, targets, product_id="unknown", white_ref=None):
         "confidence": round(score, 2),
         "mask": signals,
         "recipe": rec,
-        "stages": ["gate", "master", "segment", "matte",
-                   f"tier_{tier_name}", "white_balance", "tone", "render", "export"],
+        "stages": ["gate", "master", "segment", "matte", f"tier_{tier_name}",
+                   "white_balance", "tone", "shadow", "render", "export"],
         "skipped": ["denoise_sharpen"],
     }
 

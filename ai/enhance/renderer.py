@@ -62,6 +62,9 @@ def render(original: Image.Image, mask, rec: dict) -> Image.Image:
     else:
         alpha = pipeline.feather(mask) if tier == "B" else mask
         composited = pipeline.composite(master, alpha)
+        # After compositing, never before: `composite()` asserts that every transparent pixel
+        # is exactly 255,255,255, and a shadow's whole job is to darken some of them.
+        composited = _apply_shadow(composited, alpha, rec.get("shadow"))
 
     return _crop_to(composited, rec["crop"])
 
@@ -160,6 +163,71 @@ def _tone_weight(mask):
     # tier B's edge treatment and answers a different question. One knob, one meaning.
     soft = Image.fromarray((w * 255).astype(np.uint8)).filter(ImageFilter.BoxBlur(radius))
     return np.asarray(soft, np.float32) / 255.0
+
+
+def _apply_shadow(image: Image.Image, mask, params) -> Image.Image:
+    """Lay a contact shadow under the product. Spec §6.4.
+
+    Null params means the stage did not run — tier B or C, or a recipe written before this
+    existed. Both render unchanged, which is why the field is null rather than absent.
+
+    **The bottom third of the mask, squashed flat, and the squash is not decoration.** The
+    spec's recipe — bottom third, blur, offset 18px — draws the shadow *behind* the product,
+    where `(1 - mask)` then deletes almost all of it: measured on `brass-rickshaw-inlay-01`,
+    the peak darkness is 0.25 and almost none of it survives, leaving a fringe you cannot see
+    at listing size. A real shadow lies on the surface the object stands on, so the silhouette
+    is flattened toward the contact line first. Then it emerges below the object instead of
+    hiding behind it.
+
+    Blurred hard and multiplied, because a shadow subtracts light rather than adding grey.
+
+    **`(1 - mask)` is what keeps this off the product.** The object occludes its own shadow,
+    so the darkness is applied to background pixels and fades out under the product's edge
+    rather than stopping at a line. No product pixel is darkened by any amount.
+
+    The listing's corners stay exactly white: the shadow is a blurred copy of the mask's
+    bottom third nudged 18px down, so it reaches nowhere near the frame's edges, and
+    `test_the_shadow_leaves_the_corners_pure_white` holds it there. Marketplaces reject
+    near-white, and (252,252,252) is near-white.
+    """
+    if not params:
+        return image
+
+    import numpy as np
+    from PIL import ImageFilter
+
+    a = np.clip(np.asarray(mask, dtype=np.float32), 0.0, 1.0)
+    rows = np.where(a.max(axis=1) > 0.5)[0]
+    if rows.size == 0:
+        return image
+
+    # The bottom third of the product's own extent, not of the frame.
+    top, bottom = int(rows[0]), int(rows[-1])
+    start = top + int(round((bottom - top + 1) * params["from_fraction"]))
+    foot = a[start:]
+    if foot.shape[0] < 2:
+        return image
+
+    # Flatten the foot toward the contact line: the shadow lies on the surface, so it is much
+    # wider than it is tall. `squash` is that ratio.
+    h = max(2, int(round(foot.shape[0] * float(params["squash"]))))
+    flat = np.asarray(
+        Image.fromarray((foot * 255).astype(np.uint8)).resize((a.shape[1], h), Image.BILINEAR),
+        np.float32) / 255.0
+
+    layer = np.zeros_like(a)
+    off = int(params["offset_px"])
+    y0 = min(bottom - h + off, a.shape[0] - h)
+    y0 = max(y0, 0)
+    layer[y0:y0 + h] = flat[:a.shape[0] - y0]
+
+    soft = np.asarray(
+        Image.fromarray((layer * 255).astype(np.uint8)).filter(
+            ImageFilter.GaussianBlur(int(params["blur_px"]))), np.float32) / 255.0
+
+    darkness = soft * float(params["opacity"]) * (1.0 - a)
+    out = np.asarray(image.convert("RGB"), np.float32) * (1.0 - darkness)[..., None]
+    return Image.fromarray(np.clip(out + 0.5, 0, 255).astype(np.uint8), "RGB")
 
 
 def _crop_to(image: Image.Image, crop: dict) -> Image.Image:
