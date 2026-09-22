@@ -46,6 +46,12 @@
   tr:last-child td{border-bottom:0}
   .pill{font-size:11.5px;padding:2.5px 9px;border-radius:99px;font-weight:500}
   .p-ok{background:#ecfdf5;color:var(--ok)} .p-wait{background:#fffbeb;color:var(--warn)} .p-bad{background:#fef2f2;color:var(--bad)}
+  .q-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  .q-head h2{margin:0}
+  .q-tools{display:flex;gap:8px}
+  .q-tools input,.q-tools select{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff;color:var(--ink)}
+  .q-tools input{width:170px}
+  .q-empty{color:var(--muted);font-size:13px;padding:10px 0 0}
   .gaps li{margin-bottom:10px;font-size:13px}
   .gaps b{display:block;font-size:13px}
   .gaps span{color:var(--muted);font-size:12.5px}
@@ -73,6 +79,27 @@
       document.querySelector('nav a.on')?.classList.remove('on');
       a.classList.add('on');
     }));
+
+    const qSearch = document.getElementById('q-search');
+    const qStatus = document.getElementById('q-status');
+    const qRows = [...document.querySelectorAll('#q-table tbody tr')];
+    const qEmpty = document.getElementById('q-empty');
+    function filterQueue(){
+      const term = qSearch.value.trim().toLowerCase();
+      const status = qStatus.value;
+      let shown = 0;
+      qRows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        const matchesTerm = !term || text.includes(term);
+        const matchesStatus = !status || row.querySelector('.pill').classList.contains(status);
+        const visible = matchesTerm && matchesStatus;
+        row.hidden = !visible;
+        if (visible) shown++;
+      });
+      qEmpty.hidden = shown > 0;
+    }
+    qSearch.addEventListener('input', filterQueue);
+    qStatus.addEventListener('change', filterQueue);
   </script>
 
   <main>
@@ -115,8 +142,19 @@
 
     <div class="grid">
       <div class="card">
-        <h2>Verification queue</h2>
-        <table>
+        <div class="q-head">
+          <h2>Verification queue</h2>
+          <div class="q-tools">
+            <input id="q-search" type="search" placeholder="Search artisan or cluster…">
+            <select id="q-status">
+              <option value="">All statuses</option>
+              <option value="p-wait">Pending review</option>
+              <option value="p-ok">Verified</option>
+              <option value="p-bad">Documents missing</option>
+            </select>
+          </div>
+        </div>
+        <table id="q-table">
           <thead><tr><th>Artisan</th><th>Cluster</th><th>Craft</th><th>Submitted</th><th>Status</th></tr></thead>
           <tbody>
             <tr><td>Sunita Devi</td><td>Jaipur</td><td>Blue pottery</td><td>2 days ago</td><td><span class="pill p-wait">Pending review</span></td></tr>
@@ -126,6 +164,7 @@
             <tr><td>Kavita Sharma</td><td>Jaipur</td><td>Block print</td><td>4 days ago</td><td><span class="pill p-ok">Verified</span></td></tr>
           </tbody>
         </table>
+        <p id="q-empty" class="q-empty" hidden>No matching artisans.</p>
       </div>
       <div class="card gaps">
         <h2>Identified gaps → action</h2>
