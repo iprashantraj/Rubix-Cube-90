@@ -14,6 +14,7 @@ SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Margina
 | `docs/app/Future-Implementations.md` | Vision, remaining questions, known gaps |
 | `docs/Abhay/PIPELINE-RECONCILIATION.md` | Image pipeline — what runs on device vs. server, and why. Read before the other files in `docs/Abhay/` |
 | `docs/Prashant/` | Change notes — what landed, when, and what it left open |
+| `CONTRIBUTING.md` | Architecture, the settled decisions, the non-negotiable rules, and every test command |
 
 ## Layout
 

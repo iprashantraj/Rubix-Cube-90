@@ -57,7 +57,7 @@ const gone = new Set<string>();
  * pointed at `http://…:8000/api/enhanced/…` is silently rewritten to `https://…:8000`,
  * finds no TLS listener, and paints nothing. The artisan sees an empty card — and on
  * /catalog/prefill that empty card is under the words "is this the real colour?", which is
- * the one question CLAUDE.md rule 4 says must never be asked about an image nobody can see.
+ * the one question CONTRIBUTING.md rule 4 says must never be asked about an image nobody can see.
  *
  * The photograph was fine, the pipeline was fine, and the file answered 200 to `curl` from
  * the phone itself. Only the `<img>` failed.

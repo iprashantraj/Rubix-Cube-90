@@ -76,7 +76,7 @@ Both land in the same silent `catch`.
 
 **The fix has two parts, and the second is the important one:**
 1. Split the `try` at `CaptureReview.tsx:72`. The image link is not optional the way
-   enhancement is — losing enhancement costs a prettier photo (CLAUDE.md rule 3), losing the
+   enhancement is — losing enhancement costs a prettier photo (CONTRIBUTING.md rule 3), losing the
    link costs the listing. Speak on failure and do not navigate.
 2. `base.py:105`'s `photo.missing` is the correct refusal, but it arrives four screens too
    late. The check belongs at the end of capture, where retaking is still possible.

@@ -10,7 +10,7 @@ previously enhanced product pointed at an address that no longer answered:
 
   * thumbnails on /home and /products went blank
   * /catalog/prefill asked "is this the real colour?" over an empty frame, which is the one
-    question CLAUDE.md rule 4 says must never be asked about an image nobody can see
+    question CONTRIBUTING.md rule 4 says must never be asked about an image nobody can see
 
 Rebuilding the app could not fix it, because the dead host was in the database, not in the
 bundle. `_publish_local` now stores root-relative urls and the app resolves them through

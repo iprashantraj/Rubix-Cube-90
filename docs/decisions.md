@@ -15,7 +15,7 @@ Spec §17. Close each with evidence from `research/`, then log the verdict here.
 Reasoning for the block below is in `docs/Application-Architecture.md`.
 
 - **The app is TypeScript + Tailwind 4 + shadcn/Radix + TanStack Query.** *Reverses the
-  earlier "JavaScript not TypeScript" rule in `CLAUDE.md`, 2026-08-28, by the app dev.* The
+  earlier "JavaScript not TypeScript" rule in `CONTRIBUTING.md`, 2026-08-28, by the app dev.* The
   reason is one stack across the owner's two apps rather than any property of this one:
   SplitFree already runs exactly this, and its `EmptyState`, `PageHeader`, `skeletons` and
   `bottom-nav` are being ported here — a shared stack makes those shared code instead of

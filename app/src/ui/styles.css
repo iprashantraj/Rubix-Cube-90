@@ -2301,7 +2301,7 @@ input {
  * this app can rely on.
  *
  * 🔒 A CSS filter on a local preview. It never touches the pixels, is never uploaded, and
- * clears the moment the work does. CLAUDE.md rule 1 forbids fabricating detail in a
+ * clears the moment the work does. CONTRIBUTING.md rule 1 forbids fabricating detail in a
  * listing image; this is the opposite — it temporarily shows LESS than we have.
  */
 .shotwork {

@@ -53,7 +53,7 @@ def test_portrait_upload_is_capped_on_its_long_edge():
 
 
 def test_aspect_ratio_survives_the_downscale():
-    """A stretched product is a misrepresented product (CLAUDE.md rule 1)."""
+    """A stretched product is a misrepresented product (CONTRIBUTING.md rule 1)."""
     src = _img(3840, 5760)
     out = segmenter.to_master(src)
     assert abs(out.size[0] / out.size[1] - src.size[0] / src.size[1]) < 1e-3
@@ -131,7 +131,7 @@ def test_crop_plan_centres_the_square_on_the_product():
 
 
 def test_crop_plan_degrades_rather_than_failing_on_an_empty_mask():
-    """CLAUDE.md rule 3. A poor listing image beats no listing image."""
+    """CONTRIBUTING.md rule 3. A poor listing image beats no listing image."""
     plan = pipeline.crop_plan(np.zeros((1500, 2000), np.float32))
     assert plan["degraded"] and plan["product_box"] is None
     assert plan["side"] == 1500

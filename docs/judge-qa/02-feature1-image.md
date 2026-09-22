@@ -53,7 +53,7 @@ reading our own repo, which a diligent judge could do if we publish it.
 
 **Answer. No — not yet, and the pipeline says so in every response.**
 
-`CLAUDE.md`, Current state, verbatim: *"Three stages inside that sequence are still unwritten and
+`CONTRIBUTING.md`, Current state, verbatim: *"Three stages inside that sequence are still unwritten and
 are **skipped explicitly**, with every response naming them: `white_balance()`, `tone()`,
 `denoise_sharpen()`. **Colour is the significant absence.**"*
 
@@ -76,7 +76,7 @@ artisan income far faster than an unattractive background does.**
   rectangle on `POST /enhance` — as *"ours, unanswered"* from the app side. **Until the app sends
   that rectangle, white balance is gray-world forever.** That is a coordination gap between two
   people, not a research problem, and it is the single most valuable unblocked hour in the repo.
-- **`colour_confirmed` gates publishing.** Non-negotiable rule 4 in `CLAUDE.md`: nothing publishes
+- **`colour_confirmed` gates publishing.** Non-negotiable rule 4 in `CONTRIBUTING.md`: nothing publishes
   without it. White balance moves colour, and **only the person holding the object can say whether
   it is still true.** `/capture/review` asks by voice: *"kya yeh asli rang hai?"*
 
@@ -130,7 +130,7 @@ resolution** — `blur_laplacian_variance_min` = 100 advisory, `blur_laplacian_v
 have not been.
 
 **Both gates read the same file.** `ai/thresholds.json`, fetched at runtime, never a second copy
-(`CLAUDE.md`). The luma, Laplacian and exposure functions live in one module — `ai/enhance/metrics.py`
+(`CONTRIBUTING.md`). The luma, Laplacian and exposure functions live in one module — `ai/enhance/metrics.py`
 — imported by both the server gate and `images/check.py`, because they were briefly duplicated and
 *"a second copy that drifted by a rounding rule would mean the gate no longer does what the
 fixtures say it does."* Every threshold was calibrated with those exact functions.
@@ -162,7 +162,7 @@ five models can agree and all be wrong. We wrote that caveat into the results fi
 quoting 0.99 as accuracy.
 
 **What handles it today.** A **tier system**. `apply_tier()` decides how much to trust the mask
-and degrades the output rather than producing a confidently wrong cutout. `CLAUDE.md` lists
+and degrades the output rather than producing a confidently wrong cutout. `CONTRIBUTING.md` lists
 SAM 2 / EdgeSAM as **rejected for MVP** with the reason: *"the tier system covers the failure
 case."*
 
@@ -286,7 +286,7 @@ Both are fixed by the same two-function swap, and neither is fixed yet.
 **Think.** This is an ethics question with a technical answer, and we have an unusually strong one.
 Lead with the rule, then the mechanism that makes the rule enforceable rather than aspirational.
 
-**The rule** (`CLAUDE.md`, non-negotiable rule 1, and `docs/Master-Technical-Reference.md` §5.6):
+**The rule** (`CONTRIBUTING.md`, non-negotiable rule 1, and `docs/Master-Technical-Reference.md` §5.6):
 
 > **Never change colour or shape. Enhance, don't misrepresent.**
 

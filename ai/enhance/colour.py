@@ -7,7 +7,7 @@ that property is what keeps the pipeline's numbers checkable by anyone who clone
 
 **Everything here works on lightness only and never touches a or b.** Spec §5.3 is explicit:
 CLAHE on RGB shifts hue, and a saree that changes shade between the photograph and the
-parcel is the misrepresentation `CLAUDE.md` rule 1 forbids and rule 4's colour lock exists to
+parcel is the misrepresentation `CONTRIBUTING.md` rule 1 forbids and rule 4's colour lock exists to
 catch. Operating on L means the contrast changes and the colour provably does not — a and b
 come out of `to_lab` and go back into `to_rgb` bit-for-bit unmodified.
 """

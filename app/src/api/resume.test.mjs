@@ -33,7 +33,7 @@ const assert = (c, m) => {
 
 // ── 3. Every "we do not know" ends in a clean upload, never a throw ──────────────
 // A resume cushion must never become the reason a photo cannot be uploaded at all
-// (CLAUDE.md rule 3: losing the optimisation must not cost the artisan the listing).
+// (CONTRIBUTING.md rule 3: losing the optimisation must not cost the artisan the listing).
 for (const [label, prior] of [
   ['no remembered id', null],
   ['a 404 that was swallowed', undefined],

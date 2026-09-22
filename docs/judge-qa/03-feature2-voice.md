@@ -117,7 +117,7 @@ way. *"Nothing in the app is gated on a model being reachable"* — because our 
 often, and a feature that only works with a working network is a feature that does not work.
 
 **TTS is deliberately not a live dependency.** Web Speech API for Indic TTS is on the **rejected**
-list in `CLAUDE.md` — voice availability across Android handsets is unreliable. **Pre-generated
+list in `CONTRIBUTING.md` — voice availability across Android handsets is unreliable. **Pre-generated
 audio instead.** That converts speech output from a per-request runtime dependency into a
 build-time asset: fixed cost, no rate limit, no latency, works offline.
 

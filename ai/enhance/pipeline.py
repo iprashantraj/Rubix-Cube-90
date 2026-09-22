@@ -280,7 +280,7 @@ def tier(alpha):
     worth believing.
 
     Tier C is the safety net for the whole feature and it is not a failure state. A chewed-up
-    saree edge looks worse to a buyer than an unedited photograph, and `CLAUDE.md` rule 3 is
+    saree edge looks worse to a buyer than an unedited photograph, and `CONTRIBUTING.md` rule 3 is
     explicit that losing the enhancement must never cost the artisan the listing. C removes
     nothing, so it cannot damage the product.
     """

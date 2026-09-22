@@ -60,7 +60,7 @@ every response lists them under `skipped`.
 
 Stages compute **parameters**, not images. `enhance/renderer.py` `render(original, mask,
 recipe)` is the only thing in the pipeline that produces pixels, which is what makes
-CLAUDE.md rule 2 hold by construction rather than by care.
+CONTRIBUTING.md rule 2 hold by construction rather than by care.
 
     POST /enhance/rerender   replay a stored recipe — no GPU while the mask is cached
 

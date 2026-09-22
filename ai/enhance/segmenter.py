@@ -58,7 +58,7 @@ def device() -> str:
 
     CPU works and is roughly twenty times slower. It is kept usable on purpose: enhancement
     degrading to slow is a bad afternoon, and enhancement degrading to unavailable costs the
-    artisan the listing (`CLAUDE.md` rule 3).
+    artisan the listing (`CONTRIBUTING.md` rule 3).
     """
     override = os.environ.get("AI_SEGMENT_DEVICE")
     if override:

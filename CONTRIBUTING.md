@@ -1,4 +1,4 @@
-# Project
+# Contributing
 
 AI cataloging app for artisans (SIH PS 26090). Voice + camera in, published marketplace
 listing out. The artisan may not be able to read, and may be on a rural tower.
@@ -25,7 +25,7 @@ the image pipeline and says which parts of each survive.
 ⚠️ `docs/Abhay/IMAGE_PIPELINE_SPEC_WEB.md` and `CLAUDE_CODE_PLAYBOOK_WEB.md` are **partly
 superseded**. They were written before this repo existed and assume the image processing
 runs on the device. It does not. Both carry a banner saying so. Do not follow the
-`CLAUDE.md` draft in the playbook's §0.1 — this file replaces it.
+`CONTRIBUTING.md` draft in the playbook's §0.1 — this file replaces it.
 
 `docs/app/Camera-Pipeline.md` is the current, accurate description of the photo path.
 

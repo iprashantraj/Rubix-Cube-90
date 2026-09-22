@@ -23,7 +23,7 @@
     //   api/policy.js, camera/gate.js, voice/micLifecycle.js, voice/engine.js,
     //   screens/homeTodos.js
     // Each carries a self-check that runs under bare `node`, which cannot import a .ts
-    // module — see CLAUDE.md's testing section. `checkJs` stays off so those five are
+    // module — see CONTRIBUTING.md's testing section. `checkJs` stays off so those five are
     // compiled but not analysed; everything else in src/ is .ts or .tsx and fully strict.
     "allowJs": true,
     "checkJs": false,

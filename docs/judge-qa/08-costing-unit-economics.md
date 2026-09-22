@@ -165,7 +165,7 @@ makes its volume rate the single most valuable unknown in this document.
 > already-built escape hatch, which is the cheapest position to negotiate from.
 
 **And TTS output is already off the variable line entirely.** Web Speech API for Indic TTS is on
-the **rejected** list in `CLAUDE.md` (unreliable voice availability across handsets) —
+the **rejected** list in `CONTRIBUTING.md` (unreliable voice availability across handsets) —
 **pre-generated audio instead.** 🧮 Roughly 2,000 strings × 5 languages, a **one-time
 ₹10,000–20,000**, then **₹0 marginal forever**, with no rate limit and no latency. A decision taken
 for reliability removes a recurring cost line.

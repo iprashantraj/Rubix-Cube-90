@@ -11,7 +11,7 @@ Drives the build in `IMAGE_PIPELINE_SPEC_WEB.md`.
 
 ## Part 0 — Setup before any prompt
 
-### 0.1 CLAUDE.md in the repo root
+### 0.1 CONTRIBUTING.md in the repo root
 
 Claude Code reads this at the start of every session. Without it you re-explain
 the project each time and it drifts.

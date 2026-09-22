@@ -155,7 +155,7 @@ Three multipliers, in order of size — and note that none of them is the model:
   same docstring records that this is slower *and* visibly worse.
 - **The 375ms gate is not fat.** Blur detection needs real pixels; downscaling first
   destroys the signal it measures. Raising or lowering the sample size is already on the
-  rejected list in `CLAUDE.md`.
+  rejected list in `CONTRIBUTING.md`.
 - **The database host is not the same problem as the storage host.** Both are in Sydney, but
   the DB costs 200–406ms per query across a handful of queries per request (~1–2s), where
   S3 cost ~7s. Moving the region fixes both at once. Standing up a local Postgres to dodge
@@ -195,4 +195,4 @@ from that first request and changes nothing else.
   stub sketch for F2 and was deleted on 2026-09-03: `interpret.py`, `catalog/describe.py`,
   `catalog/prefill.py` and `catalog/seo.py` are what got built instead, and
   `transcribe`/`speak` live in `web/api/routers/voice.py`, not in that service at all. See
-  the "Current state" section of `CLAUDE.md`.
+  the "Current state" section of `CONTRIBUTING.md`.

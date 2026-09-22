@@ -3,7 +3,7 @@
 Requested by docs/Abhay/PIPELINE-RECONCILIATION.md §4, which needs somewhere to store the
 enhancement as PARAMETERS rather than as a modified image. With a recipe on the row,
 `render(original, mask, recipe)` becomes the only thing that produces pixels — so rule 2 in
-CLAUDE.md ("never destroy the original") holds by construction instead of by discipline, and
+CONTRIBUTING.md ("never destroy the original") holds by construction instead of by discipline, and
 switching tier stops meaning "re-run segmentation".
 
 `recipe` is JSON and deliberately schemaless on this side: its shape belongs to ai/, and this

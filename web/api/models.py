@@ -200,7 +200,7 @@ class Product(Base):
 
     # 🔑 The enhancement, stored as PARAMETERS rather than as a modified image.
     #
-    # Rule 2 in CLAUDE.md — never destroy the original — is currently kept by discipline: the
+    # Rule 2 in CONTRIBUTING.md — never destroy the original — is currently kept by discipline: the
     # pipeline is a sequence of stages each returning a mutated image, and nothing structural
     # stops one from overwriting what the artisan photographed. A recipe makes it true by
     # construction. `render(original, mask, recipe)` is the only thing that produces pixels,
@@ -313,7 +313,7 @@ def _drop_embedded_host(target: ProductImage, _context) -> None:
     was therefore pinned to one laptop's DHCP lease. When the lease moved, 36 rows pointed at
     an address that no longer answered: thumbnails on /home and /products went blank, and
     /catalog/prefill asked "is this the real colour?" over an empty frame — the one question
-    CLAUDE.md rule 4 says must never be asked about an image nobody can see.
+    CONTRIBUTING.md rule 4 says must never be asked about an image nobody can see.
 
     The writer is fixed and stores relative urls now. This heals rows written before that, and
     it lives here rather than in a migration for two reasons:
