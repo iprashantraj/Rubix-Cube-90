@@ -237,6 +237,41 @@ def test_a_torn_last_line_does_not_lose_the_rest():
         assert len(observe.read(log)) == 1
 
 
+def test_the_log_lands_beside_the_renders_not_in_tmp():
+    """Three files read AI_OUTPUT_DIR and they must resolve to one directory. observe.py
+    shipped defaulting to /tmp/rubix-ai-out while storage.py and web/api/config.py had
+    already moved to the user data directory — so the log went to the one place systemd
+    sweeps. It fails silently by design, which is how that would have stayed hidden.
+
+    The empty-string case is why `or` rather than `.get(name, default)`: an exported but
+    empty AI_OUTPUT_DIR is falsy, not absent, and `.get` hands back "" — which puts the log
+    in the working directory while the renders go under home."""
+    from enhance import storage
+
+    # AI_OBSERVE and AI_OBSERVE_LOG are both set by earlier tests in this file and one of
+    # them is deliberately left at "0"; _path() answers None on either, so pin both here.
+    keys = ("AI_OUTPUT_DIR", "AI_OBSERVE", "AI_OBSERVE_LOG")
+    before = {k: os.environ.get(k) for k in keys}
+    try:
+        os.environ["AI_OBSERVE"] = "1"
+        os.environ.pop("AI_OBSERVE_LOG", None)
+        for value in (None, ""):
+            if value is None:
+                os.environ.pop("AI_OUTPUT_DIR", None)
+            else:
+                os.environ["AI_OUTPUT_DIR"] = value
+            assert observe._path().parent == storage.OUTPUT_DIR, (
+                f"AI_OUTPUT_DIR={value!r}: log -> {observe._path().parent}, "
+                f"renders -> {storage.OUTPUT_DIR}"
+            )
+    finally:
+        for k, v in before.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+
+
 if __name__ == "__main__":
     fns = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0

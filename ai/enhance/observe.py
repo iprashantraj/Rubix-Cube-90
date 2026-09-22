@@ -44,7 +44,11 @@ def _path() -> Path | None:
     explicit = os.environ.get("AI_OBSERVE_LOG")
     if explicit:
         return Path(explicit)
-    return Path(os.environ.get("AI_OUTPUT_DIR", "/tmp/rubix-ai-out")) / "observe.jsonl"
+    # 🐞 Same default as storage.py's OUTPUT_DIR, and the `or` form is deliberate: with
+    # AI_OUTPUT_DIR set but empty, `.get(name, default)` returns "" and the log lands in the
+    # working directory while the renders land under home. The two must agree.
+    base = os.environ.get("AI_OUTPUT_DIR") or (Path.home() / ".local" / "share" / "rubix-ai-out")
+    return Path(base) / "observe.jsonl"
 
 
 def write(event: str, product_id: str = "unknown", **fields) -> None:
