@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Kaarigar — Monitoring Dashboard (mockup)</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%231d4ed8%22/><text x=%2216%22 y=%2222%22 font-size=%2218%22 font-family=%22sans-serif%22 fill=%22white%22 text-anchor=%22middle%22>K</text></svg>">
 <style>
   :root{
     --bg:#f6f7f9; --card:#fff; --ink:#111827; --muted:#6b7280; --line:#e5e7eb;
@@ -35,7 +36,6 @@
   .bars div{flex:1;background:linear-gradient(180deg,#3b82f6,#1d4ed8);border-radius:6px 6px 0 0;position:relative}
   .bars div span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted)}
   .bars div i{position:absolute;top:-19px;left:0;right:0;text-align:center;font-size:11px;font-style:normal;color:var(--muted)}
-  .chart-foot{height:22px}
   .rows{display:flex;flex-direction:column;gap:11px}
   .row{display:flex;justify-content:space-between;font-size:13px;gap:10px}
   .track{height:7px;background:#eef1f5;border-radius:99px;overflow:hidden;margin-top:5px}
@@ -67,6 +67,13 @@
     <a href="#">Reports</a>
     <small>Monitoring Officer · District: Jaipur</small>
   </nav>
+  <script>
+    document.querySelectorAll('nav a').forEach(a=>a.addEventListener('click',e=>{
+      e.preventDefault();
+      document.querySelector('nav a.on')?.classList.remove('on');
+      a.classList.add('on');
+    }));
+  </script>
 
   <main>
     <header>
@@ -94,7 +101,6 @@
           <div style="height:72%"><i>1,180</i><span>Aug</span></div>
           <div style="height:92%"><i>1,510</i><span>Sep</span></div>
         </div>
-        <div class="chart-foot"></div>
       </div>
       <div class="card">
         <h2>Channel mix</h2>
