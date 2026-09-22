@@ -1,0 +1,217 @@
+/* Loaded by the browser rather than by `next/font`, deliberately: a build-time font
+ * fetch turns a network blip into a failed deploy, and every rule below already falls
+ * back to system-ui. */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500&display=swap');
+
+/* Admin console. Tokens and the panel/table language are lifted from
+ * `mockups/dashboard.html`, which is what the deck shows — the console and the slide
+ * should not look like two products.
+ *
+ * Scoped under `.adm` so nothing here reaches the marketplace, which is a different
+ * surface for a different audience and keeps `globals.css`. */
+
+.adm {
+  --canvas: #f4f6f9;
+  --panel: #fff;
+  --panel-2: #edf0f5;
+  --hair: #e4e8ef;
+  --hair-2: #cbd2dd;
+  --ink: #14181f;
+  --ink-2: #4c545f;
+  --ink-3: #7c848f;
+  --accent: #c77914;
+  --accent-dim: rgba(199, 121, 20, 0.15);
+  --c-indigo: #4338ca;
+  --c-teal: #0f766e;
+  --c-green: #15803d;
+  --c-rose: #be3455;
+  --c-blue: #1d6fd0;
+
+  min-height: 100vh;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: 'Geist', system-ui, 'Noto Sans Devanagari', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  display: grid;
+  grid-template-columns: 216px 1fr;
+}
+
+.adm .mono { font-family: 'Geist Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+.adm .eyebrow {
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 9.5px; font-weight: 500; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+
+/* ── rail ── */
+.adm > nav {
+  border-right: 1px solid var(--hair); background: #fff; padding: 20px 14px;
+  display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh;
+}
+.adm .mark { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; }
+.adm .mark .g {
+  width: 26px; height: 26px; border: 1px solid var(--accent); border-radius: 3px;
+  display: grid; place-items: center; color: var(--accent);
+  font-size: 13px; font-weight: 600; font-family: 'Noto Sans Devanagari', sans-serif;
+}
+.adm .mark b { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.adm .mark i { display: block; font-style: normal; font-size: 10px; color: var(--ink-3); }
+.adm > nav a {
+  display: block; padding: 8px 10px; border-radius: 4px; text-decoration: none;
+  font-size: 12.5px; font-weight: 450; color: var(--ink-2);
+}
+.adm > nav a:hover { background: rgba(20, 24, 31, 0.045); color: var(--ink); }
+.adm .railfoot { margin-top: auto; padding: 0 8px; }
+
+/* The demo badge. Deliberately loud — a fixture read as a live number is the one
+ * mistake this console must not cause. */
+.adm .demo {
+  display: block; border: 1px solid var(--accent); border-radius: 4px;
+  background: var(--accent-dim); color: #8a5209; padding: 8px 10px;
+  font-size: 10px; line-height: 1.5;
+}
+.adm .demo b { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* ── page ── */
+.adm > main { min-width: 0; padding: 22px 28px 40px; display: grid; gap: 18px; align-content: start; }
+.adm .head { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.adm .head h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.02em; margin: 2px 0 0; }
+.adm .head p { font-size: 12px; color: var(--ink-2); margin: 4px 0 0; max-width: 62ch; line-height: 1.6; }
+.adm .head .eyebrow { width: 100%; }
+
+.adm .panel {
+  border: 1px solid var(--hair); border-radius: 6px; background: var(--panel);
+  box-shadow: 0 1px 2px rgba(20, 24, 31, 0.04); padding: 16px 18px; min-width: 0;
+}
+.adm .ph { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; }
+.adm .ph h2 { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+.adm .ph .eyebrow { margin-left: auto; }
+
+/* ── hero band ── */
+.adm .band {
+  display: grid; grid-template-columns: 2.2fr 1fr 1fr 1fr 1fr;
+  border: 1px solid var(--hair); border-radius: 6px; background: var(--panel);
+  overflow: hidden; box-shadow: 0 1px 2px rgba(20, 24, 31, 0.04);
+}
+.adm .band > div { padding: 16px 20px; }
+.adm .band > div + div { border-left: 1px solid var(--hair); }
+.adm .lead { display: flex; align-items: flex-end; gap: 22px; background: linear-gradient(100deg, rgba(199, 121, 20, 0.07), transparent 62%); }
+.adm .lead .num { font-size: 42px; font-weight: 500; letter-spacing: -0.035em; line-height: 1; margin-top: 12px; }
+.adm .lead .num small { font-size: 20px; font-weight: 400; color: var(--ink-2); margin-left: 4px; }
+.adm .delta { display: inline-flex; gap: 5px; font-size: 11.5px; font-weight: 500; color: var(--c-green); margin-top: 10px; font-family: 'Geist Mono', ui-monospace, monospace; }
+.adm .lead .spark { flex: 1; height: 54px; min-width: 0; padding-bottom: 4px; }
+.adm .stat b { display: block; font-size: 22px; font-weight: 500; letter-spacing: -0.03em; margin-top: 13px; line-height: 1; }
+.adm .stat .sub { font-size: 10.5px; color: var(--ink-3); margin-top: 9px; }
+.adm .stat .sub em { font-style: normal; color: var(--accent); }
+.adm .track { height: 2px; background: rgba(20, 24, 31, 0.09); margin-top: 13px; position: relative; overflow: hidden; }
+.adm .track i { position: absolute; inset: 0 auto 0 0; background: var(--accent); opacity: 0.9; }
+.adm .c-indigo .track i { background: var(--c-indigo); } .adm .c-indigo .sub em { color: var(--c-indigo); }
+.adm .c-teal   .track i { background: var(--c-teal); }   .adm .c-teal   .sub em { color: var(--c-teal); }
+.adm .c-green  .track i { background: var(--c-green); }  .adm .c-green  .sub em { color: var(--c-green); }
+
+.adm .cols { display: grid; grid-template-columns: 1.7fr 1fr; gap: 18px; align-items: start; min-width: 0; }
+.adm .cols > div { display: grid; gap: 18px; min-width: 0; }
+
+/* ── chart ── */
+.adm .chart { display: grid; grid-template-columns: 40px 1fr; gap: 0 8px; }
+.adm .yax { display: flex; flex-direction: column; justify-content: space-between; font-size: 9.5px; color: var(--ink-3); text-align: right; font-family: 'Geist Mono', ui-monospace, monospace; height: 186px; }
+.adm .plot { position: relative; height: 186px; }
+.adm .gl { position: absolute; left: 0; right: 0; height: 1px; background: var(--hair); }
+.adm .xax { grid-column: 2; display: flex; justify-content: space-between; padding-top: 8px; font-size: 9px; color: var(--ink-3); font-family: 'Geist Mono', ui-monospace, monospace; }
+.adm .clegend { display: flex; gap: 18px; align-items: center; padding-top: 12px; font-size: 10.5px; color: var(--ink-3); }
+.adm .clegend u { display: inline-block; margin-right: 6px; text-decoration: none; vertical-align: middle; }
+
+/* ── tables ── */
+.adm table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.adm th {
+  text-align: left; font-weight: 500; color: var(--ink-3); padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--hair-2); white-space: nowrap;
+  font-family: 'Geist Mono', ui-monospace, monospace; font-size: 9.5px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+}
+.adm td { padding: 11px 12px 11px 0; border-bottom: 1px solid var(--hair); vertical-align: top; }
+.adm tr:last-child td { border-bottom: 0; }
+.adm td b { font-weight: 550; }
+.adm .num-c { text-align: right; }
+.adm .sub2 { display: block; font-size: 10.5px; color: var(--ink-3); margin-top: 3px; font-weight: 400; }
+.adm .rk { display: inline-block; width: 22px; color: var(--ink-3); font-family: 'Geist Mono', ui-monospace, monospace; font-size: 10px; }
+.adm .up { color: var(--c-green); }
+.adm td a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--hair-2); }
+.adm td a:hover { border-bottom-color: var(--accent); }
+
+.adm .bar-c { display: flex; align-items: center; gap: 8px; }
+.adm .bar-c u { flex: 1; height: 4px; background: rgba(20, 24, 31, 0.08); border-radius: 2px; overflow: hidden; text-decoration: none; min-width: 48px; }
+.adm .bar-c u i { display: block; height: 100%; background: var(--accent); }
+.adm .bar-c s { text-decoration: none; font-size: 10.5px; color: var(--ink-3); font-family: 'Geist Mono', ui-monospace, monospace; width: 32px; text-align: right; }
+
+/* ── pills ── */
+.adm .pill {
+  display: inline-block; padding: 2px 7px; border-radius: 3px; font-size: 10px;
+  font-weight: 500; letter-spacing: 0.04em; border: 1px solid var(--hair-2);
+  color: var(--ink-2); background: var(--panel-2); white-space: nowrap;
+}
+.adm .pill + .pill { margin-left: 4px; }
+.adm .pill.live, .adm .pill.settled, .adm .pill.delivered, .adm .pill.ok { border-color: rgba(21, 128, 61, 0.35); color: var(--c-green); background: rgba(21, 128, 61, 0.07); }
+.adm .pill.failed, .adm .pill.cancelled, .adm .pill.no { border-color: rgba(190, 52, 85, 0.35); color: var(--c-rose); background: rgba(190, 52, 85, 0.07); }
+.adm .pill.pending, .adm .pill.placed { border-color: rgba(199, 121, 20, 0.4); color: #8a5209; background: var(--accent-dim); }
+.adm .pill.file_ready, .adm .pill.shipped, .adm .pill.packed { border-color: rgba(67, 56, 202, 0.3); color: var(--c-indigo); background: rgba(67, 56, 202, 0.06); }
+
+/* Readiness flags. Booleans, and the console shows only the boolean — there is no
+ * document behind these columns to show, by design (models.py header). */
+.adm .flags { display: flex; gap: 4px; }
+.adm .flag {
+  width: 22px; height: 18px; display: grid; place-items: center; border-radius: 3px;
+  font-size: 9px; font-weight: 600; font-family: 'Geist Mono', ui-monospace, monospace;
+  border: 1px solid var(--hair-2); color: var(--ink-3); background: var(--panel-2);
+}
+.adm .flag.on { border-color: rgba(21, 128, 61, 0.35); color: var(--c-green); background: rgba(21, 128, 61, 0.07); }
+
+/* ── small lists ── */
+.adm .lr { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 11.5px; }
+.adm .lr .n { width: 68px; color: var(--ink-2); }
+.adm .lr .b { flex: 1; height: 5px; background: rgba(20, 24, 31, 0.07); border-radius: 2px; overflow: hidden; }
+.adm .lr .b i { display: block; height: 100%; }
+.adm .lr .v { width: 30px; text-align: right; font-size: 10.5px; color: var(--ink-3); font-family: 'Geist Mono', ui-monospace, monospace; }
+/* A rupee figure needs more than the 30px a percentage does — "₹41.2 Cr" wrapped. */
+.adm .lr.wide .v { width: 62px; white-space: nowrap; }
+
+.adm .strip { display: flex; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--hair); }
+.adm .strip > div { flex: 1; }
+.adm .strip b { display: block; font-size: 18px; font-weight: 500; letter-spacing: -0.02em; }
+.adm .strip span { display: block; font-size: 10px; color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
+
+.adm .chrow { display: flex; align-items: center; gap: 9px; padding: 7px 0; font-size: 11.5px; border-bottom: 1px solid var(--hair); }
+.adm .chrow:last-child { border-bottom: 0; }
+.adm .chrow u { width: 8px; height: 8px; border-radius: 2px; text-decoration: none; flex: 0 0 auto; }
+.adm .chrow em { font-style: normal; flex: 1; color: var(--ink-2); }
+.adm .chrow s { text-decoration: none; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; }
+
+.adm .ev { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--hair); }
+.adm .ev:last-child { border-bottom: 0; }
+.adm .ev .tag {
+  flex: 0 0 auto; border: 1px solid; border-radius: 3px; padding: 1px 5px; height: fit-content;
+  font-size: 8.5px; font-weight: 600; letter-spacing: 0.1em;
+  font-family: 'Geist Mono', ui-monospace, monospace;
+}
+.adm .ev .tx { flex: 1; font-size: 11.5px; line-height: 1.45; }
+.adm .ev .tx span { display: block; font-size: 10px; color: var(--ink-3); margin-top: 3px; }
+.adm .ev .tm { font-size: 10px; color: var(--ink-3); font-family: 'Geist Mono', ui-monospace, monospace; }
+
+/* A blocked row explains itself in place. A coordinator's whole job on this screen is
+ * "why is this stuck", so the answer is never one click away. */
+.adm .why { font-size: 10.5px; color: var(--c-rose); margin-top: 4px; display: block; }
+
+.adm .note {
+  font-size: 11px; color: var(--ink-2); line-height: 1.65; border-left: 2px solid var(--hair-2);
+  padding-left: 12px; margin: 0;
+}
+.adm .note b { color: var(--ink); font-weight: 550; }
+
+@media (max-width: 1100px) {
+  .adm { grid-template-columns: 1fr; }
+  .adm > nav { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--hair); }
+  .adm .railfoot { margin: 0; }
+  .adm .band { grid-template-columns: 1fr 1fr; }
+  .adm .cols { grid-template-columns: 1fr; }
+}
