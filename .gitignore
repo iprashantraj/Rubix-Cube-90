@@ -89,3 +89,17 @@ research/segmentation/out/*
 !research/segmentation/out/upscale/
 research/segmentation/out/upscale/*
 !research/segmentation/out/upscale/*.csv
+
+# Video working files. Source stays tracked (video/motion/src, the storyboards); the media
+# does not. `video/currently-edited-video/` is a 49MB phone capture and the feeds directory
+# is 40MB of screen-recording frames — both are inputs to a render, regenerable by
+# re-shooting, and GitHub starts warning at 50MB per file. Same rule as images/out/:
+# commit what an argument is made from, not the footage it was made out of.
+video/currently-edited-video/
+video/prototype-1/capture/feeds/
+
+# Vite dev fixtures. app/public/__seed.html and the __shot-*.png beside it are hand-made
+# stand-ins used to drive a screen without a camera; nothing in src/ imports them, and
+# anything in app/public/ is copied verbatim into the APK. Keep them off the device.
+app/public/__seed.html
+app/public/__shot-*.png

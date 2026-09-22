@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import type { Quote } from '../api/types';
 import { api, ApiError } from '../api/client';
+import { useDisplayImage } from '../api/useDisplayImage';
 import { useDraft, useSession } from '../store';
 import { useVoice } from '../voice/useVoice';
 import { hoursFrom } from '../voice/numbers';
@@ -52,6 +53,23 @@ export default function Price() {
   const [busy, setBusy] = useState(false);
 
   const productId = draft.listing?.product_id;
+
+  /*
+   * What is being priced, next to the price.
+   *
+   * This screen used to be a bare number. Four screens earlier the artisan photographed a
+   * matka and described it; by the time ₹1049 appears there is nothing on the display
+   * connecting that figure to the object, and the one question this screen asks — is this
+   * the right price for THIS — needs the object in the frame to be answerable. It matters
+   * most on the path this screen also serves, re-pricing an old product from /products/:id,
+   * where the artisan has not seen the thing in weeks.
+   *
+   * Enhanced rendition first, the artisan's own photo as the fallback, same as
+   * /catalog/prefill and /catalog/voice — `useDisplayImage` carries the mixed-content fix
+   * that makes a server image paint inside Capacitor at all.
+   */
+  const image = useDisplayImage(draft.images?.[0]?.url, draft.photoUrl);
+  const subject = (draft.listing?.title as string | undefined) ?? null;
 
   // Read through getState() rather than closing over the draft: this must fire once per
   // product (and once per retry), not every time an unrelated part of the draft moves.
@@ -227,6 +245,15 @@ export default function Price() {
 
   return (
     <Screen prompt="price.title">
+      {/* Title only when we have one: the thumbnail already says which object this is, and
+          an empty line where a title should be reads as a screen that failed to load. */}
+      {image && (
+        <div className="priced">
+          <img src={image} alt="" />
+          {subject && <b>{subject}</b>}
+        </div>
+      )}
+
       {/*
         🐞 The number is typeable now, and this is a deliberate exception to design law
         rule 3 ("nothing is typed except the OTP").

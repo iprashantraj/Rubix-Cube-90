@@ -1952,6 +1952,42 @@ input {
 }
 
 /*
+ * /price's subject strip — the object the number belongs to.
+ *
+ * Not `.subject` in a `Card`: at 30vh the photograph pushes the ± buttons and the accept
+ * button out of the thumb zone on a short phone, and this screen already has four targets
+ * competing for it. 64px is enough to recognise your own matka and small enough that the
+ * price stays the largest thing on the display, which it has to be.
+ */
+.priced {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.priced > img {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  background: var(--line);
+}
+
+.priced > b {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  /* Two lines, then ellipsis. A cataloguer title runs to "हस्तनिर्मित मिट्टी की सुराही, 2
+     लीटर — अजमेर"; wrapping that to four lines makes the strip taller than the price card
+     it is introducing. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/*
  * Progress WITHIN /catalog/voice, as dots. "सवाल 3, कुल 5" is a sentence with two numerals
  * in it and is exactly the kind of thing our users cannot read. Five dots, filling up, is
  * a progress bar anybody has seen before.
