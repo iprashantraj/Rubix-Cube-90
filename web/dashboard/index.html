@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kaarigar — Monitoring Dashboard (mockup)</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#111827; --muted:#6b7280; --line:#e5e7eb;
+    --brand:#1d4ed8; --ok:#059669; --warn:#d97706; --bad:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif}
+  .shell{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+  nav{background:#0f172a;color:#cbd5e1;padding:20px 14px;display:flex;flex-direction:column;gap:4px}
+  nav b{color:#fff;font-size:16px;display:block;margin-bottom:14px}
+  nav a{color:inherit;text-decoration:none;padding:9px 11px;border-radius:7px;font-size:14px}
+  nav a:hover{background:#1e293b;color:#fff}
+  nav a.on{background:var(--brand);color:#fff}
+  nav small{margin-top:auto;color:#64748b;font-size:11px}
+  main{padding:26px 30px}
+  header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+  h1{font-size:21px;margin:0}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+  .tag{font-size:11px;border:1px solid var(--line);background:#fff;border-radius:99px;padding:3px 10px;color:var(--muted)}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .kpi .n{font-size:27px;font-weight:650;letter-spacing:-.5px}
+  .kpi .l{color:var(--muted);font-size:12.5px;margin-bottom:6px}
+  .kpi .d{font-size:12px;margin-top:5px}
+  .up{color:var(--ok)} .down{color:var(--bad)} .flat{color:var(--muted)}
+  .grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px}
+  h2{font-size:14px;margin:0 0 14px;font-weight:600}
+  .bars{display:flex;align-items:flex-end;gap:14px;height:170px}
+  .bars div{flex:1;background:linear-gradient(180deg,#3b82f6,#1d4ed8);border-radius:6px 6px 0 0;position:relative}
+  .bars div span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted)}
+  .bars div i{position:absolute;top:-19px;left:0;right:0;text-align:center;font-size:11px;font-style:normal;color:var(--muted)}
+  .chart-foot{height:22px}
+  .rows{display:flex;flex-direction:column;gap:11px}
+  .row{display:flex;justify-content:space-between;font-size:13px;gap:10px}
+  .track{height:7px;background:#eef1f5;border-radius:99px;overflow:hidden;margin-top:5px}
+  .track i{display:block;height:100%;background:var(--brand);border-radius:99px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:0 10px 9px;border-bottom:1px solid var(--line)}
+  td{padding:11px 10px;border-bottom:1px solid #f1f3f6}
+  tr:last-child td{border-bottom:0}
+  .pill{font-size:11.5px;padding:2.5px 9px;border-radius:99px;font-weight:500}
+  .p-ok{background:#ecfdf5;color:var(--ok)} .p-wait{background:#fffbeb;color:var(--warn)} .p-bad{background:#fef2f2;color:var(--bad)}
+  .gaps li{margin-bottom:10px;font-size:13px}
+  .gaps b{display:block;font-size:13px}
+  .gaps span{color:var(--muted);font-size:12.5px}
+  ul{margin:0;padding-left:17px}
+  footer{color:var(--muted);font-size:11.5px;margin-top:22px}
+  @media(max-width:900px){.shell{grid-template-columns:1fr}.grid{grid-template-columns:1fr}nav{flex-direction:row;flex-wrap:wrap;align-items:center}nav small{display:none}main{padding:18px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav>
+    <b>Kaarigar</b>
+    <a class="on" href="#">Overview</a>
+    <a href="#">Beneficiary verification</a>
+    <a href="#">Listing queue</a>
+    <a href="#">Marketplace &amp; orders</a>
+    <a href="#">Gap analysis</a>
+    <a href="#">Schemes &amp; training</a>
+    <a href="#">Reports</a>
+    <small>Monitoring Officer · District: Jaipur</small>
+  </nav>
+
+  <main>
+    <header>
+      <h1>Monitoring dashboard</h1>
+      <span class="tag">Mockup · sample data</span>
+    </header>
+    <p class="sub">PS 26090 — AI-driven market linkage &amp; smart cataloging for marginalized artisans</p>
+
+    <section class="kpis">
+      <div class="card kpi"><div class="l">Registered artisans</div><div class="n">4,128</div><div class="d up">▲ 312 this month</div></div>
+      <div class="card kpi"><div class="l">Verified beneficiaries</div><div class="n">3,406</div><div class="d flat">82.5% of registered</div></div>
+      <div class="card kpi"><div class="l">Live listings</div><div class="n">11,972</div><div class="d up">▲ 1,043 this month</div></div>
+      <div class="card kpi"><div class="l">GMV (30 days)</div><div class="n">₹42.6L</div><div class="d up">▲ 18.4%</div></div>
+      <div class="card kpi"><div class="l">Pending verification</div><div class="n">198</div><div class="d down">42 over SLA</div></div>
+    </section>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Listings published per month</h2>
+        <div class="bars">
+          <div style="height:38%"><i>620</i><span>Apr</span></div>
+          <div style="height:46%"><i>760</i><span>May</span></div>
+          <div style="height:55%"><i>905</i><span>Jun</span></div>
+          <div style="height:51%"><i>840</i><span>Jul</span></div>
+          <div style="height:72%"><i>1,180</i><span>Aug</span></div>
+          <div style="height:92%"><i>1,510</i><span>Sep</span></div>
+        </div>
+        <div class="chart-foot"></div>
+      </div>
+      <div class="card">
+        <h2>Channel mix</h2>
+        <div class="rows">
+          <div style="flex:1"><div class="row"><span>Own marketplace</span><b>46%</b></div><div class="track"><i style="width:46%"></i></div></div>
+          <div style="flex:1"><div class="row"><span>ONDC</span><b>24%</b></div><div class="track"><i style="width:24%"></i></div></div>
+          <div style="flex:1"><div class="row"><span>GeM</span><b>18%</b></div><div class="track"><i style="width:18%"></i></div></div>
+          <div style="flex:1"><div class="row"><span>Amazon / Flipkart</span><b>12%</b></div><div class="track"><i style="width:12%"></i></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Verification queue</h2>
+        <table>
+          <thead><tr><th>Artisan</th><th>Cluster</th><th>Craft</th><th>Submitted</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Sunita Devi</td><td>Jaipur</td><td>Blue pottery</td><td>2 days ago</td><td><span class="pill p-wait">Pending review</span></td></tr>
+            <tr><td>Ramesh Meena</td><td>Sawai Madhopur</td><td>Wood carving</td><td>3 days ago</td><td><span class="pill p-ok">Verified</span></td></tr>
+            <tr><td>Anita Bai</td><td>Bhilwara</td><td>Handloom</td><td>6 days ago</td><td><span class="pill p-bad">Documents missing</span></td></tr>
+            <tr><td>Mohd. Irfan</td><td>Jodhpur</td><td>Leather juti</td><td>1 day ago</td><td><span class="pill p-wait">Pending review</span></td></tr>
+            <tr><td>Kavita Sharma</td><td>Jaipur</td><td>Block print</td><td>4 days ago</td><td><span class="pill p-ok">Verified</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card gaps">
+        <h2>Identified gaps → action</h2>
+        <ul>
+          <li><b>Low digital literacy — Bhilwara</b><span>38% of listings abandoned mid-flow. Suggest training camp.</span></li>
+          <li><b>Scheme uptake — Jodhpur</b><span>Only 11% enrolled in PM Vishwakarma. Push awareness drive.</span></li>
+          <li><b>Photo quality rejects</b><span>214 retakes from poor lighting. Ship lighting coach nudge.</span></li>
+          <li><b>Price below floor</b><span>96 listings under cost-up floor. Flag for pricing review.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <footer>Mockup for SIH 2026 presentation — numbers are illustrative, not live data.</footer>
+  </main>
+</div>
+</body>
+</html>

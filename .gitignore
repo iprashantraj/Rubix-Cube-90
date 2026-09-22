@@ -92,3 +92,5 @@ research/segmentation/out/upscale/*
 
 # Editor/agent scratch. launch.json is a local dev-server config, not project source.
 .claude/
+
+.vercel/
