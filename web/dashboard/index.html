@@ -52,6 +52,9 @@
   .q-tools input,.q-tools select{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:7px;padding:6px 9px;background:#fff;color:var(--ink)}
   .q-tools input{width:170px}
   .q-empty{color:var(--muted);font-size:13px;padding:10px 0 0}
+  .page{display:none}
+  .page.on{display:block}
+  .stub p{color:var(--muted);font-size:13.5px;max-width:56ch}
   .gaps li{margin-bottom:10px;font-size:13px}
   .gaps b{display:block;font-size:13px}
   .gaps span{color:var(--muted);font-size:12.5px}
@@ -64,13 +67,13 @@
 <div class="shell">
   <nav>
     <b>Kaarigar</b>
-    <a class="on" href="#">Overview</a>
-    <a href="#">Beneficiary verification</a>
-    <a href="#">Listing queue</a>
-    <a href="#">Marketplace &amp; orders</a>
-    <a href="#">Gap analysis</a>
-    <a href="#">Schemes &amp; training</a>
-    <a href="#">Reports</a>
+    <a class="on" href="#" data-page="overview">Overview</a>
+    <a href="#" data-page="verification">Beneficiary verification</a>
+    <a href="#" data-page="queue">Listing queue</a>
+    <a href="#" data-page="orders">Marketplace &amp; orders</a>
+    <a href="#" data-page="gaps">Gap analysis</a>
+    <a href="#" data-page="schemes">Schemes &amp; training</a>
+    <a href="#" data-page="reports">Reports</a>
     <small>Monitoring Officer · District: Jaipur</small>
   </nav>
   <script>
@@ -78,6 +81,8 @@
       e.preventDefault();
       document.querySelector('nav a.on')?.classList.remove('on');
       a.classList.add('on');
+      document.querySelector('.page.on')?.classList.remove('on');
+      document.getElementById('page-' + a.dataset.page)?.classList.add('on');
     }));
 
     const qSearch = document.getElementById('q-search');
@@ -109,6 +114,7 @@
     </header>
     <p class="sub">PS 26090 — AI-driven market linkage &amp; smart cataloging for marginalized artisans</p>
 
+    <div class="page on" id="page-overview">
     <section class="kpis">
       <div class="card kpi"><div class="l">Registered artisans</div><div class="n">4,128</div><div class="d up">▲ 312 this month</div></div>
       <div class="card kpi"><div class="l">Verified beneficiaries</div><div class="n">3,406</div><div class="d flat">82.5% of registered</div></div>
@@ -176,6 +182,14 @@
         </ul>
       </div>
     </div>
+    </div>
+
+    <div class="page" id="page-verification"><div class="card stub"><h2>Beneficiary verification</h2><p>Full ID-verification workflow — document review, approve/reject, status history. Not built yet in this mockup.</p></div></div>
+    <div class="page" id="page-queue"><div class="card stub"><h2>Listing queue</h2><p>Catalog items awaiting publish — image checks, pricing floor, SEO description review. Not built yet in this mockup.</p></div></div>
+    <div class="page" id="page-orders"><div class="card stub"><h2>Marketplace &amp; orders</h2><p>Order tracking across own marketplace, ONDC, GeM, and other channels. Not built yet in this mockup.</p></div></div>
+    <div class="page" id="page-gaps"><div class="card stub"><h2>Gap analysis</h2><p>Cluster-level breakdown of digital-literacy, scheme-uptake, and pricing gaps. Not built yet in this mockup.</p></div></div>
+    <div class="page" id="page-schemes"><div class="card stub"><h2>Schemes &amp; training</h2><p>Awareness campaigns and training-camp scheduling per cluster. Not built yet in this mockup.</p></div></div>
+    <div class="page" id="page-reports"><div class="card stub"><h2>Reports</h2><p>Exportable beneficiary, marketplace, and buyer reports for government review. Not built yet in this mockup.</p></div></div>
 
     <footer>Mockup for SIH 2026 presentation — numbers are illustrative, not live data.</footer>
   </main>
