@@ -6,6 +6,42 @@ repeats in `PIPELINE-RECONCILIATION.md` §9.
 
 ---
 
+## 2026-09-07 (4) — both of your open web-side requests are answered *(from the app/web side)*
+
+`origin/abhay/recipe-system` is merged. Tone, white balance and the observation log are in.
+The two things entries (2) and (3) asked the web side for:
+
+| You asked for | State |
+|---|---|
+| `white_ref` on `POST /enhance` | **Web hop only.** `POST /api/products/{id}/enhance` takes an optional `white_ref` and forwards it in the contract shape. Bounds-checked here, not trusted. The **tap is not built** — see below |
+| "this upload was a retry of that one" | **Done.** `products.retry_of`, migration `a1b6d3e40f92`, self-referential and indexed. Set by the app only when the *server gate* refused the previous shot |
+
+**Why the tap is not built, and it is a decision rather than a backlog item.** The pipe is
+open, so building it later is a UI change and nothing else. What stopped it is that the
+reference-free path is what every artisan gets today and it is not obviously the loser: your
+own table says 1.3 was chosen partly because 1.6 made 30 of 172 mild-cast fixtures worse, and
+the ground truth behind all of it is synthetic. A tap needs a spoken instruction in five
+languages telling an artisan to hold up printer paper, and we would be asking for that on the
+strength of a measurement `images/MANIFEST.md` says has not been taken. **Shoot `wb-v1`** —
+same object, with and without the paper — and the tap follows the week the numbers do.
+
+**`retry_of` is narrower than "a retake" on purpose.** Only a gate refusal sets it. A
+voluntary retake of a photograph we accepted proves nothing about the thresholds and would
+dilute exactly the signal you asked for. Write-once by construction: it is on the create
+model and not on `ProductIn`, which `PATCH` shares, so nothing can restate it afterwards.
+
+**One bug found while wiring it.** After a gate refusal the primary button relabelled itself
+`common.retry` and re-ran the upload with the same bytes, at a gate that is deterministic —
+identical refusal, another abandoned product row, another multi-megabyte upload over a rural
+tower, forever. The button is gone on a refusal now; retake is the only thing on screen that
+can succeed. It would also have poisoned `retry_of` with chains whose "retake" was the same
+photograph.
+
+Checks: `web/api/test_white_ref.py` and `web/api/test_retry_chain.py`, both listed in
+`CLAUDE.md`. Neither needs a server, a database or the AI service.
+
+---
+
 ## 2026-08-27 (8) — the server gate is built; step 3 of the list is done
 
 First working stage in `ai/enhance/`. `gate()` decides whether a photograph is worth
@@ -889,3 +925,156 @@ against real infrastructure with a real phone. The square-fixture blind spot in 
 are null rather than absent, so recipes written today keep rendering once they land. Colour
 remains the largest quality gap, and §9.2's `white_ref` rect is still the open question that
 decides whether white balance can be anything better than gray-world.
+
+---
+
+## 2026-09-07 — Tone: the first stage that changes how a photograph looks
+
+`ai/enhance/colour.py` is new, and `pipeline.tone()` is no longer `NotImplementedError`. It
+follows step 5's shape: `tone()` measures and returns parameters into `recipe["clahe"]`,
+`renderer.render()` applies them. So a tone correction replays, undoes and re-renders
+exactly like a tier change, and costs no GPU to redo.
+
+Two corrections, both on the **L channel of LAB and never on a or b**. Black and white
+points are percentiles of the product's own lightness taken inside the mask, then CLAHE for
+local contrast. Measured on two indoor fixtures:
+
+    textile-weaver-indoor-02    mean L 25.4 -> 33.2   contrast sd 29.2 -> 31.3
+    pottery-potter-indoor-04    mean L 38.3 -> 46.4   contrast sd 21.2 -> 26.4
+                                hue shift 0.25 and 0.33 degrees, max chroma rise 0.84
+
+**Colour cannot move, and that is enforced rather than intended.** `a` and `b` come out of
+`to_lab` and go back into `to_rgb` bit-for-bit. `to_rgb_in_gamut()` exists because a plain
+per-channel clip walked a deep maroon toward orange by up to 16.5 of a/b — out-of-gamut
+pixels now lose chroma and keep hue, so the answer is always a less saturated version of the
+same colour, never a different one.
+
+**The stretch is capped at 1.35x.** A dark product photographed in a dim room is a dark
+product; pulling it wide until it looks studio-lit invents an appearance the object does not
+have, which is rule 1 whether a diffusion model or arithmetic does it.
+
+**The mask edge needed a measurement nobody had taken.** `matte()` is a no-op because
+BiRefNet's alpha ramps over 3-4px, which RESULTS.md established is soft enough for fringes.
+It is not soft enough for a brightness change: on `pottery-potter-indoor-04` an 11.1 L
+correction across that ramp is **3.3 L per pixel**, which draws a visible line around the
+product on tier C, where the background is not replaced. `renderer._tone_weight()` softens
+the weight — never the mask, so compositing keeps every thread — to ~8px and 1.39 L/px.
+`tone_edge_blur_px: 4` is the only number in the tone block that is measured rather than
+copied from the spec.
+
+**What the tests prove, and what they do not.** Hue preserved, chroma never raised, cap
+held, background untouched, edge not a seam. Every one is a safety property: they show the
+stage cannot do harm. **None of them shows it does good**, because there is no ground truth
+for "correctly exposed" the way `degrade.py` gives ground truth for "blurred". The tone
+thresholds are still the spec's numbers, and the threshold file says so.
+
+**Still unwritten:** `white_balance()` and `denoise_sharpen()`. A maroon saree under a
+tungsten bulb still ships orange — tone fixes brightness, not colour cast, and §9.2's
+`white_ref` rect remains the open question. The `wb-v1` fixture set is declared in
+`images/MANIFEST.md` and empty; it needs photographs, not code.
+
+---
+
+## 2026-09-07 (2) — One line per upload, so the thresholds can be re-tuned on real traffic
+
+`ai/enhance/observe.py`. `gate()`, `run()` and `rerender()` now append a JSON row each.
+
+Every number in `thresholds.json` was calibrated against `images/raw` — 591 files, but only
+**93 distinct scenes**, and mostly stock photographs rather than an artisan's phone in an
+artisan's workshop. That set cannot answer what production will ask: *if the blur cutoff
+moved to 90, how many real uploads stop being refused, and were they any good?* Only real
+traffic answers that, and only if it was written down at the time. This is in before launch
+because the alternative is arguing from 93 scenes after 50,000 uploads have passed through
+unrecorded.
+
+    {"event":"gate","product_id":"p1","blur":303.1,"mean":89.9,"verdict":null}
+    {"event":"enhanced","product_id":"p1","tier":"A","confidence":1.0,"toned":true}
+    {"event":"gate","product_id":"p2","blur":1.8,"verdict":"blur_below_reject"}
+
+**Accepted photographs are logged too**, and that is the half worth insisting on: a cutoff
+can only be argued down if you know the distribution of what already passes.
+
+**Tier share is now countable.** Tier C keeps the background, so its share is the share of
+listings that do not meet the marketplace white-background rule — a number to watch rather
+than discover.
+
+**Numbers, never pixels.** A row is a few hundred bytes, holds no photograph and nothing an
+artisan typed. `AI_OBSERVE=0` switches it off, `AI_OBSERVE_LOG` moves it, and every failure
+inside `observe.py` is swallowed — an enhancement that fails because a log directory is
+read-only would be a far worse outcome than a lost row.
+
+**Web side — the signal I cannot see is the retake, and it is the most valuable one here.**
+A refusal followed by a retake that passes is a *correct* refusal. A refusal followed by
+three more and then silence is a false one that cost us a seller. That lives in the web
+side's records; `product_id` is on every row so the two join. If you can record "this upload
+was a retry of that one", the gate becomes tunable on evidence instead of on 93 photographs.
+
+**Suite: 118 passed** (gate 16, recipe 28, segment 34, service 10, price 30). `test_gate.py`
+and `test_recipe.py` still run on plain `python3` with nothing installed; the seam test needs
+the model and skips without it. Test files set `AI_OBSERVE=0` so a test run can never append
+to a real log.
+
+---
+
+## 2026-09-07 (3) — White balance: the stage rule 4 exists to police
+
+`pipeline.white_balance()` is written. It returns gains, `renderer._apply_white_balance()`
+applies them, and it runs **before** tone in both the measurement and the render — tone
+measures the lightness the corrected channels produce, so correcting after it would leave a
+permanent mismatch between the recipe's numbers and the picture.
+
+**Two methods, and the accurate one still needs one tap from the app.**
+
+*patch* — `white_ref`, the normalized rect from the artisan's tap on the white paper, now an
+optional field on `POST /enhance` and documented in `contracts.md`. That patch is a direct
+reading of the light. Blown or shadowed, it is refused rather than guessed at.
+
+*neutral* — no rect. **Deliberately not gray-world**, though §4's recipe sketch names that
+method: §5 finding 2 is right that gray-world pulls a maroon Sambalpuri toward orange, so
+only the *least chromatic slice* of the frame votes on the illuminant. A ranked slice rather
+than a fixed chroma cutoff, because a fixed cutoff fails exactly where it is needed — under a
+strong cast the genuinely grey wall photographs orange, fails the cutoff, and the estimate
+comes back "nothing to correct" on the photograph that most needed correcting. A frame where
+even the least coloured fifth is strongly coloured is **declined**, not guessed.
+
+**Measured — `images/wb_check.py`, 179 fixtures, three synthetic casts:**
+
+    cast ratio   uncorrected   corrected   declined   made worse
+    1.24               7.70        1.92          7           15
+    1.52              15.29        4.48         18            0
+    1.99              20.39        9.94         93            0
+
+Mean |chroma error| against the untouched original. **`wb_max_gain_ratio` is 1.3, and it is
+not the sweep's minimum.** No single cap is optimal at every cast strength — the minimum
+tracks the cast, which makes it circular. 1.6 scores better on the medium set (2.36) and puts
+30 of 172 mild-cast fixtures *further* from the truth than leaving them alone. Rule 1 makes
+that the wrong trade: under-correcting leaves the photograph closer to as-photographed,
+over-correcting invents. 1.3 is within noise of the mild-cast optimum, cuts error roughly
+threefold on the medium set and twofold on the strong one, and made nothing worse on either.
+
+**The ground truth is synthetic, and that bounds what the table means.** A known cast applied
+to a fixture measures whether the method recovers a *known* illuminant. It cannot say whether
+the method is right about a real bulb in a real workshop, because `images/raw` holds no
+photograph with a recorded illuminant. **`wb-v1` is what would** — the same object shot with
+and without a sheet of white paper — and `images/MANIFEST.md` has declared it empty since
+August. It needs a phone, printer paper and an afternoon, not code.
+
+**Rule 4 is wired.** Past `wb_warn_ratio` the response carries the warning `contracts.md` has
+promised since before the stage existed, and it **survives a re-render** — the artisan does
+not stop needing to confirm the colour because they changed the background.
+
+Gains are normalised so none exceeds 1, so the correction can only ever darken a channel and
+can never clip one into a colour the photograph did not hold. The brightness that costs is
+what tone's levels stretch is for, which is the other reason for the order.
+
+**Suite: 127 passed** (gate 16, recipe 37, segment 34, service 10, price 30).
+
+**Web side — `white_ref` is the last thing this stage is waiting on.** One tap on the review
+screen, one optional field, shape in `contracts.md`. Absent, nothing breaks and the neutral
+path runs exactly as it does today; present, the correction stops being an inference. It is
+also the only way past the honest ceiling above: a reference-free method cannot tell warm
+light from a warm object, and no threshold fixes that.
+
+**Still unwritten:** `denoise_sharpen()`, and the `shadow` recipe field. A cutout on flat
+white with no contact shadow reads as pasted on, and that is now the largest visible gap
+between our output and a marketplace listing photograph.

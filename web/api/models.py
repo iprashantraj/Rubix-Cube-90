@@ -12,6 +12,7 @@ If you are ever tempted to add `pan_number` to this file, read spec §14.2 first
 from __future__ import annotations
 
 import enum
+import re
 import uuid
 from datetime import datetime
 
@@ -26,6 +27,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -222,6 +224,21 @@ class Product(Base):
     # that come back. Replaced on every new enhance.
     enhance_job_id: Mapped[str | None] = mapped_column(String(64), index=True)
 
+    # The product this one is a retake of, when the gate refused the first photograph.
+    #
+    # 🔑 This is the only evidence that says whether a refusal was RIGHT. Every threshold in
+    # `ai/thresholds.json` was calibrated against 93 distinct scenes of mostly stock
+    # photography, and `ai/enhance/observe.py` now logs one row per upload so they can be
+    # re-tuned on real traffic. But a row only records what the gate decided, never whether
+    # the artisan agreed: refused-then-retaken-then-passed is a correct refusal that saved a
+    # bad listing, and refused-three-times-then-silence is a false one that cost a seller.
+    # Those two look identical in the AI's log. The chain lives here, and `product_id` on
+    # every observation row is the join. Requested in `docs/Abhay/CHANGELOG.md`,
+    # 2026-09-07 (2).
+    #
+    # Self-referential and nullable: the overwhelming majority of products are a first try.
+    retry_of: Mapped[str | None] = mapped_column(ForeignKey("products.id"), index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     artisan: Mapped[Artisan] = relationship(back_populates="products")
@@ -279,6 +296,43 @@ class ProductImage(Base):
     is_generated: Mapped[bool] = mapped_column(Boolean, default=False)
 
     product: Mapped[Product] = relationship(back_populates="images")
+
+
+# Anchored, and it requires the /api/enhanced/ path to follow. An S3 url, a CDN url or a
+# marketplace url has no business being rewritten — this shape is only ever produced by
+# `_publish_local`.
+_LOCAL_ENHANCED_HOST = re.compile(r"^https?://[^/]+(?=/api/enhanced/)")
+
+
+@event.listens_for(ProductImage, "load")
+def _drop_embedded_host(target: ProductImage, _context) -> None:
+    """Strip the hostname off locally-served enhanced urls as rows come out of the database.
+
+    🐞 `_publish_local` used to build absolute urls from whichever host the caller happened
+    to reach the API on, and `_record_variants` writes those to `url`. Every enhanced product
+    was therefore pinned to one laptop's DHCP lease. When the lease moved, 36 rows pointed at
+    an address that no longer answered: thumbnails on /home and /products went blank, and
+    /catalog/prefill asked "is this the real colour?" over an empty frame — the one question
+    CLAUDE.md rule 4 says must never be asked about an image nobody can see.
+
+    The writer is fixed and stores relative urls now. This heals rows written before that, and
+    it lives here rather than in a migration for two reasons:
+
+      * **Every reader is covered.** /products, /products/:id, the marketplace and the channel
+        adapters all reach for `image.url` independently. Normalising at each call site is how
+        one gets missed, and the one that gets missed is an adapter publishing a dead url into
+        a real listing.
+      * **No write to a shared database.** Teammates run against these same rows from
+        different addresses; a migration picks one host's answer for everyone and has to be
+        re-run after every lease change. This needs no coordination and cannot be forgotten.
+
+    Idempotent and write-free: a relative url does not match, and mutating an attribute during
+    `load` populates the instance without marking it dirty, so this never provokes an UPDATE.
+    `scripts/relativise_enhanced_urls.py` still tidies the stored values permanently, but is
+    no longer required for the app to work.
+    """
+    if target.url:
+        target.url = _LOCAL_ENHANCED_HOST.sub("", target.url)
 
 
 class ChannelStatus(Base):

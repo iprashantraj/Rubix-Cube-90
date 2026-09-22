@@ -258,8 +258,37 @@ export function absorb(answers, harvested) {
  */
 export function nextUnanswered(questions, from, answers) {
   let n = Math.max(0, from);
-  while (n < questions.length && has(answers, questions[n].field)) n += 1;
+  while (n < questions.length && (has(answers, questions[n].field) || isMoot(questions[n].field, answers)))
+    n += 1;
   return n;
+}
+
+/**
+ * A slot that no longer has a question worth asking, given what is already answered.
+ *
+ * 🐞 Only `lead_time`, and only when something is in stock.
+ *
+ * `time` asks "how long did it take?" — past, labour, and half of the price floor.
+ * `lead_time` asks "how many days to get it ready?" — future, dispatch, ONDC's
+ * `time_to_ship`. Different fields, different consumers, both correct.
+ *
+ * Spoken aloud, eight questions apart, they are the same question. Artisans reported being
+ * asked how long it takes twice, and they were right to: if the piece is already made and
+ * sitting there, "how many days to get it ready" has no meaning that the artisan can
+ * distinguish from the one they just answered.
+ *
+ * So it is asked only when `stock` is 0 — the made-to-order case, where a dispatch time is a
+ * real and different fact. With stock on hand the answer is "it ships now", which is what
+ * `stock >= 1` already told us.
+ *
+ * Checked at ask time, not in `plan()`: the interview freezes its plan at the start, and
+ * `stock` is answered during it. Filtering only at plan time would leave the question in the
+ * queue for exactly the artisans this is meant to spare.
+ */
+function isMoot(field, answers) {
+  if (field !== 'lead_time') return false;
+  if (!has(answers, 'stock')) return false; // unknown stock: ask, do not assume
+  return Number(answers.stock) > 0;
 }
 
 /** Which slots an answer to `field` might also supply, for the interpreter to look for. */
@@ -414,6 +443,31 @@ function demo() {
   assert(
     at(0, Object.fromEntries(queue.map((qq) => [qq.field, 'x']))) === queue.length,
     'everything answered runs off the end, which is the cue for review',
+  );
+
+  // ── "how long does it take" must be asked once, not twice ─────────────────────────
+  // `time` (past, labour, price floor) and `lead_time` (future, dispatch, ONDC) are
+  // different fields that sound identical spoken aloud. With stock on hand the second one
+  // has no meaning the artisan can tell apart from the first.
+  const ondcQ = plan({ channels: ['ondc'] });
+  const leadAt = ondcQ.findIndex((q) => q.field === 'lead_time');
+  assert(leadAt > -1, 'ondc asks lead_time at all');
+  assert(
+    ondcQ[nextUnanswered(ondcQ, leadAt, { stock: 2 })].field !== 'lead_time',
+    'in stock: no dispatch question, because "it ships now" is what stock already said',
+  );
+  assert(
+    ondcQ[nextUnanswered(ondcQ, leadAt, { stock: 0 })].field === 'lead_time',
+    'made to order: the dispatch time is a real and different fact, so it is asked',
+  );
+  assert(
+    ondcQ[nextUnanswered(ondcQ, leadAt, {})].field === 'lead_time',
+    'stock unknown: ask, never assume it ships now',
+  );
+  assert(
+    ondcQ[nextUnanswered(ondcQ, ondcQ.findIndex((q) => q.field === 'time'), { stock: 9 })]
+      .field === 'time',
+    'the labour question is never skipped — stock says nothing about how long it took',
   );
 
   const absorbed = absorb({ what: 'saree' }, { material: 'cotton', time: '3 din' });

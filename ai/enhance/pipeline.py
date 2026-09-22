@@ -17,7 +17,7 @@ from . import metrics, storage
 #   shadows on white           ->  composite()
 
 
-def gate(image):
+def gate(image, product_id="unknown"):
     """Reject before GPU: resolution, blur, extreme exposure. Thresholds from ../thresholds.json.
 
     Returns None when the photo is worth processing, or the rejection body from
@@ -45,27 +45,35 @@ def gate(image):
     t = metrics.thresholds()
 
     w, h = image.size
+    blur = None
+    exp = {}
+
+    def refuse(reason, message_key):
+        _observe_gate(product_id, w, h, blur, exp, reason)
+        return _reject(reason, message_key)
+
     if min(w, h) < t["resolution_min_px"]:
         # Not a coaching problem — no amount of holding still adds pixels that were never
         # captured, and upscaling to a 2000px listing image invents detail we are not
         # allowed to invent.
-        return _reject(f"resolution_below_{t['resolution_min_px']}px", "photo.too_small")
+        return refuse(f"resolution_below_{t['resolution_min_px']}px", "photo.too_small")
 
     blur, exp = metrics.full_res(image)
 
     # Light first: every other measurement is meaningless in the dark.
     if exp["mean"] < t["brightness_mean_min"]:
-        return _reject("brightness_below_min", "photo.too_dark")
+        return refuse("brightness_below_min", "photo.too_dark")
     if exp["mean"] > t["brightness_mean_max"]:
-        return _reject("brightness_above_max", "photo.too_bright")
+        return refuse("brightness_above_max", "photo.too_bright")
     if exp["blown"] > t["blown_pixel_fraction_max"]:
-        return _reject("blown_highlights", "photo.too_bright")
+        return refuse("blown_highlights", "photo.too_bright")
     if exp["crushed"] > t["crushed_pixel_fraction_max"]:
-        return _reject("crushed_shadows", "photo.too_dark")
+        return refuse("crushed_shadows", "photo.too_dark")
 
     if blur < t["blur_laplacian_variance_reject_min"]:
-        return _reject("blur_below_reject", "photo.blurry")
+        return refuse("blur_below_reject", "photo.blurry")
 
+    _observe_gate(product_id, w, h, blur, exp, None)
     return None
 
 
@@ -77,6 +85,16 @@ def _reject(reason: str, message_key: str) -> dict:
     is for us, in the logs, when a threshold looks wrong.
     """
     return {"reason": reason, "message_key": message_key}
+
+
+def _observe_gate(product_id, w, h, blur, exp, verdict):
+    """One row per upload, refused or not. **The accepted ones matter as much as the
+    refusals** — a threshold can only be moved if you know what moving it would let in, and
+    that is a distribution over the photographs that passed. See `observe.py`."""
+    from . import observe
+
+    observe.write("gate", product_id, w=w, h=h, blur=blur, verdict=verdict,
+                  mean=exp.get("mean"), blown=exp.get("blown"), crushed=exp.get("crushed"))
 
 
 def segment(image):
@@ -327,19 +345,199 @@ def feather(alpha):
     return np.asarray(soft, np.float32) / 255.0
 
 
-def white_balance(image):
-    """Most underrated stage — matters more than background removal for textiles.
+def white_balance(image, white_ref=None):
+    """Measure the illuminant. **Returns gains, not an image**, like every stage since step 5.
 
-    A maroon saree shot under a tungsten bulb photographs orange; the buyer returns it
-    and the artisan's rating drops. If a white reference paper is in frame, calibrate
-    the exact white point from it and crop it out. Free, and professional-grade.
+    A maroon saree shot under a tungsten bulb photographs orange. The buyer returns it, the
+    artisan takes the rating. No amount of brightness work fixes it — `tone()` moves L and
+    provably leaves a and b alone, which is the whole point of that stage and the reason this
+    one has to exist separately.
+
+    **This is the stage rule 4 exists to police.** Every other stage either preserves colour
+    by construction or refuses to run; this one moves colour deliberately, so it is the one
+    that can be wrong in a way only the person holding the object can see. When it moves
+    colour far enough to matter, `run()` emits the warning `contracts.md` already promises
+    and `colour_confirmed` is what gates publishing.
+
+    Two methods, and which one you get depends on what the app sent:
+
+    **patch** — `white_ref` is the normalized rect the artisan tapped on the white paper,
+    `{"x","y","w","h"}` in 0..1, the shape proposed in PIPELINE-RECONCILIATION §5 finding 2.
+    That patch is a direct reading of the illuminant, so the correction is a measurement
+    rather than an assumption. This is the accurate path and the one worth having.
+
+    **neutral** — no rect. **Deliberately not gray-world**, though §4's recipe sketch names
+    that method: gray-world assumes the average of the scene is grey, and a Sambalpuri saree
+    filling the frame makes that assumption false in exactly the direction that pulls a
+    natural dye off-colour. The reconciliation says so itself in finding 2. So only pixels
+    that are *already nearly neutral* vote on the illuminant — a wall, a floor, a white
+    fabric edge — and a maroon that fills the frame gets no vote on its own colour.
+
+    Returns None when it cannot measure honestly: a blown or shadowed reference patch, or a
+    photograph with too few plausibly-neutral pixels. **A declined correction leaves the
+    colour exactly as photographed**, which is the right answer far more often than a guess
+    is; the recipe field stays null and the render is unchanged.
     """
-    raise NotImplementedError
+    import numpy as np
+
+    t = metrics.thresholds()
+    rgb = np.asarray(image.convert("RGB"), dtype=np.float32)
+
+    if white_ref:
+        means = _patch_means(rgb, white_ref)
+        method = "patch"
+    else:
+        means = _neutral_means(rgb, t)
+        method = "neutral"
+    if means is None:
+        return None
+
+    # Equalise the three channels: whatever the reference reads as, it should read as grey.
+    gains = float(means.mean()) / np.maximum(means, 1e-6)
+
+    # **Cap how far colour may move.** An extreme correction is far more often a bad
+    # measurement — one orange wall filling the neutral selection — than a genuinely extreme
+    # illuminant, and rule 1 makes the cost of being wrong the artisan's, not ours. Pulling
+    # the gains toward 1 by a common exponent keeps their direction and shortens the step.
+    ratio = float(gains.max() / max(gains.min(), 1e-6))
+    cap = float(t["wb_max_gain_ratio"])
+    if ratio > cap:
+        gains = gains ** (np.log(cap) / np.log(ratio))
+        ratio = cap
+
+    # Normalise so nothing exceeds 1: the correction can only ever darken a channel, so it
+    # cannot clip a highlight into a colour that was never photographed. The brightness it
+    # costs is exactly what tone()'s levels stretch is for, and tone runs after this.
+    gains = gains / max(float(gains.max()), 1e-6)
+
+    return {"method": method, "gains": [round(float(g), 4) for g in gains],
+            "ratio": round(ratio, 3)}
+
+
+def _patch_means(rgb, ref):
+    """Per-channel means of the tapped reference patch, or None if it cannot be trusted.
+
+    Median rather than mean over the patch: a tap lands near an edge often enough that a few
+    pixels of the object behind the paper would otherwise drag the reading.
+    """
+    import numpy as np
+
+    h, w = rgb.shape[:2]
+    x0 = int(round(float(ref.get("x", 0)) * w))
+    y0 = int(round(float(ref.get("y", 0)) * h))
+    x1 = x0 + max(1, int(round(float(ref.get("w", 0)) * w)))
+    y1 = y0 + max(1, int(round(float(ref.get("h", 0)) * h)))
+    patch = rgb[max(0, y0):min(h, y1), max(0, x0):min(w, x1)]
+    if patch.size == 0:
+        return None
+
+    med = np.median(patch.reshape(-1, 3), axis=0)
+    # A blown patch holds no colour: every channel reads 255 whatever the light was. A dark
+    # one is mostly sensor noise. Either way the honest answer is "I cannot tell".
+    if med.max() >= 250 or med.min() <= 40:
+        return None
+    return med
+
+
+def _neutral_means(rgb, t):
+    """Per-channel means over pixels that are already nearly neutral, or None if too few.
+
+    Measured on a downscale: an illuminant is a property of the light, not of fine detail,
+    and this runs on every upload.
+    """
+    import numpy as np
+
+    from . import colour
+
+    small = rgb[::4, ::4] if max(rgb.shape[:2]) > 800 else rgb
+    lab = colour.to_lab(small.astype(np.uint8))
+    chroma = np.hypot(lab[..., 1], lab[..., 2])
+
+    # Clipped pixels have lost their ratios and near-black ones are noise; neither can say
+    # anything about the light.
+    usable = (small.max(axis=-1) < 250) & (small.min(axis=-1) > 20)
+    if float(np.count_nonzero(usable)) / max(usable.size, 1) < float(t["wb_neutral_min_fraction"]):
+        return None
+
+    # **The least chromatic slice, not an absolute cutoff**, and the difference is the whole
+    # method. A fixed threshold fails exactly where it is needed: under a strong tungsten cast
+    # the genuinely grey wall photographs orange, fails the threshold, and the only pixels
+    # left are ones whose own colour happens to cancel the light — so the estimate comes back
+    # "nothing to correct" on the photographs that most need correcting. Ranking asks the
+    # answerable question instead: of what is here, which is *least* coloured?
+    c = chroma[usable]
+    cutoff = float(np.percentile(c, float(t["wb_neutral_percentile"])))
+    if cutoff > float(t["wb_neutral_chroma_max"]):
+        # Even the least coloured part of this photograph is strongly coloured. Nothing here
+        # is plausibly grey, so any estimate would be an estimate of the product's own dye —
+        # which is the failure gray-world is named for.
+        return None
+
+    neutral = usable & (chroma <= cutoff)
+    return small[neutral].mean(axis=0)
 
 
 def tone(image, mask):
-    """Auto-levels, shadow lift, CLAHE — product region only."""
-    raise NotImplementedError
+    """Measure the tone correction. **Returns parameters, not an image.**
+
+    Like every stage since step 5, this computes and `renderer.render()` applies. What comes
+    back goes into `recipe["clahe"]` and can be replayed, undone, or re-applied against a
+    better mask without touching the original.
+
+    Two corrections, both on the L channel of LAB and neither touching a or b — see
+    `colour.py`. Contrast changes; colour provably does not.
+
+    **The black and white points are percentiles of the product's own lightness**, taken
+    inside the mask and nowhere else. Measuring the whole frame would let a dark floor or a
+    bright window decide how the product is exposed. Percentiles rather than min and max
+    because one blown speck or one dead pixel would otherwise set the whole range.
+
+    **The stretch is capped at `tone_max_stretch`.** A dark product photographed in a dim
+    room is *a dark product* — pulling its lightness range wide until it looks like studio
+    lighting is inventing an appearance the object does not have, which is rule 1 whether it
+    is done by a diffusion model or by arithmetic. The cap is what keeps this an exposure
+    correction rather than a re-lighting.
+
+    Returns None when there is no product region to measure, which leaves the recipe field
+    null and the render untouched.
+    """
+    import numpy as np
+
+    from . import colour
+
+    t = metrics.thresholds()
+    a = np.asarray(mask, dtype=np.float32)
+    inside = a > 0.5
+    if not inside.any():
+        return None
+
+    lab = colour.to_lab(np.asarray(image.convert("RGB")))
+    lightness = lab[..., 0][inside]
+    black = float(np.percentile(lightness, t["tone_black_percentile"]))
+    white = float(np.percentile(lightness, t["tone_white_percentile"]))
+    if white - black < 1.0:
+        # A nearly flat product — a swatch filling the frame. Stretching this amplifies
+        # sensor noise into visible grain and improves nothing.
+        return None
+
+    # Cap the stretch, keeping the midpoint fixed so the correction brightens and darkens
+    # symmetrically rather than dragging the whole product one way.
+    span = white - black
+    max_span_gain = float(t["tone_max_stretch"])
+    if 100.0 / span > max_span_gain:
+        mid = (white + black) / 2.0
+        span = 100.0 / max_span_gain
+        black, white = mid - span / 2.0, mid + span / 2.0
+
+    # Round outward, never inward: a wider window is a *smaller* stretch, so rounding can
+    # only ever move further inside `tone_max_stretch`. Rounding both to nearest shaved
+    # 0.004 off the window and put the capped case 1.35007 over its own cap.
+    return {
+        "black": float(np.floor(black * 100) / 100),
+        "white": float(np.ceil(white * 100) / 100),
+        "clip_limit": float(t["clahe_clip_limit"]),
+        "tiles": int(t["clahe_tiles"]),
+    }
 
 
 def denoise_sharpen(image, mask):
@@ -564,10 +762,16 @@ def master_for(image):
     return segmenter.to_master(image)
 
 
-def _warnings_for(tier_name, plan):
+def _warnings_for(tier_name, plan, wb=None):
     """What the app speaks to the artisan. Their words, not our measurements — they may not
     be able to read the screen, and "mask confidence 0.7" helps nobody holding a pot."""
     out = []
+    if wb and wb.get("ratio", 1.0) >= metrics.thresholds()["wb_warn_ratio"]:
+        # Rule 4. This is the one stage that moves colour on purpose, and only the person
+        # holding the object can say whether it is still true. `contracts.md` has promised
+        # this string since before the stage existed.
+        out.append("colour shifted during white balance — confirm with artisan "
+                   "before publishing")
     if tier_name == "B":
         out.append("the background could not be removed cleanly, so less of it was changed")
     elif tier_name == "C":
@@ -580,7 +784,7 @@ def _warnings_for(tier_name, plan):
     return out
 
 
-def run(image, targets, product_id="unknown"):
+def run(image, targets, product_id="unknown", white_ref=None):
     """First pass over a photograph. Returns the `GET /enhance/{job_id}` body.
 
     Order, and why it is this order:
@@ -591,6 +795,10 @@ def run(image, targets, product_id="unknown"):
         matte      currently a no-op, see its docstring
         tier       confidence decides how much of the mask we are willing to use
         crop_plan  geometry as numbers
+        wb         the illuminant, from the tapped white patch or from neutral pixels
+        tone       needs the mask: "how bright is the product" has no answer without one,
+                   and needs the white balance, because it measures the lightness the
+                   corrected channels produce
         recipe     everything above, written down
         render     the one call that produces pixels
         export     per-channel JPEGs
@@ -603,14 +811,16 @@ def run(image, targets, product_id="unknown"):
     The alpha is written to storage under the recipe's `mask_version`, because a re-render
     that had to segment again would buy nothing.
 
-    **`white_balance()`, `tone()` and `denoise_sharpen()` are not called, because they are
-    not written.** Their recipe fields are null, which is why an old recipe keeps rendering
-    once they land. Colour is the significant absence: a maroon saree under a tungsten bulb
-    still leaves here photographing orange.
+    **`denoise_sharpen()` is not called, because it is not written.** Its recipe field is
+    null, which is why an old recipe keeps rendering once it lands.
+
+    `white_ref` is the optional normalized rect from `POST /enhance` — the artisan's tap on
+    the white paper. Absent, white balance falls back to the neutral-pixel path and is a
+    weaker correction; see `white_balance()`.
     """
     from . import recipe as recipe_mod, renderer, storage
 
-    rejection = gate(image)
+    rejection = gate(image, product_id)
     if rejection:
         return {"status": "rejected", **rejection}
 
@@ -620,26 +830,44 @@ def run(image, targets, product_id="unknown"):
     plan = crop_plan(alpha)
     t = metrics.thresholds()
 
+    # Tone is measured against the white-balanced pixels, because that is what it will be
+    # applied to — `renderer.render()` corrects colour first. Measuring on the uncorrected
+    # master would bake in a small permanent mismatch between the numbers and the picture.
+    wb = white_balance(master, white_ref)
     rec = recipe_mod.new(
         tier=tier_name, confidence=score, mask_signals=signals,
         crop_box=plan["source_box"], canvas=t["listing_canvas_px"],
         fill=t["crop_fill_target"],
+        white_balance=wb,
+        clahe=tone(renderer._apply_white_balance(master, wb), alpha),
     )
     storage.write_mask(alpha, product_id, rec["mask_version"])
 
     squared = renderer.render(master, alpha, rec)
     images = export(squared, targets, product_id)
 
+    # The second row for this upload, joined to the gate's by product_id. Answers what the
+    # fixture set cannot: which tier does real traffic land in? **Tier C keeps the
+    # background**, so its share is the share of listings that do not meet the marketplace
+    # white-background rule — a number worth watching rather than discovering.
+    from . import observe
+    observe.write("enhanced", product_id, tier=tier_name, confidence=round(score, 3),
+                  upscale=round(plan["upscale"], 3), degraded=plan["degraded"],
+                  toned=rec["clahe"] is not None,
+                  wb_method=(wb or {}).get("method"), wb_ratio=(wb or {}).get("ratio"),
+                  **signals)
+
     return {
         "status": "done",
         "images": images,
-        "warnings": _warnings_for(tier_name, plan),
+        "warnings": _warnings_for(tier_name, plan, wb),
         "tier": tier_name,
         "confidence": round(score, 2),
         "mask": signals,
         "recipe": rec,
-        "stages": ["gate", "master", "segment", "matte", f"tier_{tier_name}", "render", "export"],
-        "skipped": ["white_balance", "tone", "denoise_sharpen"],
+        "stages": ["gate", "master", "segment", "matte",
+                   f"tier_{tier_name}", "white_balance", "tone", "render", "export"],
+        "skipped": ["denoise_sharpen"],
     }
 
 
@@ -672,10 +900,19 @@ def rerender(image, targets, product_id, rec):
     squared = renderer.render(master, alpha, rec)
     images = export(squared, targets, product_id)
 
+    # **An artisan overruling the tier is the only opinion in this pipeline that comes from
+    # someone who can see the actual object.** If a tier is overruled often the confidence
+    # thresholds are wrong, and no fixture set will ever say so.
+    from . import observe
+    observe.write("rerender", product_id, tier=rec["tier"],
+                  tier_source=rec.get("tier_source"), toned=rec.get("clahe") is not None)
+
     return {
         "status": "done",
         "images": images,
-        "warnings": _warnings_for(rec["tier"], None),
+        # The colour warning must survive a re-render: rule 4 does not stop applying because
+        # the artisan changed tier, and the stored gains are the same gains.
+        "warnings": _warnings_for(rec["tier"], None, rec.get("white_balance")),
         "tier": rec["tier"],
         "confidence": rec.get("confidence", 0.0),
         "recipe": rec,

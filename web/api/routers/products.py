@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -63,12 +63,26 @@ class ProductIn(BaseModel):
     quantity: int = 1
 
 
+class ProductCreate(ProductIn):
+    """Creation only. `retry_of` is deliberately NOT on `ProductIn`, which `PATCH` also
+    takes: a retake chain records what happened, and a field that can be rewritten later
+    records what somebody decided afterwards. Write-once by construction."""
+    retry_of: str | None = None
+
+
 @router.post("/products")
 def create(
-    body: ProductIn,
+    body: ProductCreate,
     db: Session = Depends(get_db),
     artisan: Artisan = Depends(current_artisan),
 ) -> dict:
+    # A chain may not point outside the caller's own catalogue. Unchecked, a product id is
+    # the one thing an artisan can guess about someone else's account, and the foreign key
+    # would happily accept it — which would put another artisan's id in a row they own and
+    # make the retake evidence read across accounts.
+    if body.retry_of is not None:
+        _own(body.retry_of, db, artisan)
+
     product = Product(artisan_id=artisan.id, **body.model_dump(exclude={"quantity"}))
     db.add(product)
     db.flush()
@@ -397,9 +411,45 @@ async def _ai_get(path: str) -> dict:
         return res.json()
 
 
+class WhiteRef(BaseModel):
+    """The artisan's tap on the white paper, normalized 0..1 against the image they saw.
+
+    `ai/contracts.md` §POST /enhance. Optional everywhere: absent, `white_balance()` falls
+    back to its neutral-pixel estimate, which is what shipped before this field existed.
+
+    Bounds are checked here rather than trusted, because this is a client-supplied rect that
+    ends up indexing a numpy array. `_patch_means` clamps too, but a trust boundary is the
+    wrong place to rely on the far side clamping.
+    """
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    w: float = Field(gt=0, le=1)
+    h: float = Field(gt=0, le=1)
+
+
+class EnhanceIn(BaseModel):
+    white_ref: WhiteRef | None = None
+
+
+def _enhance_payload(product_id: str, source: str, body: "EnhanceIn | None") -> dict:
+    """The `POST /enhance` body. Extracted so the white_ref hand-off is testable without a
+    database, an artisan or a running AI service."""
+    payload = {
+        "product_id": product_id, "image_url": source,
+        "targets": ["amazon", "gem", "whatsapp"],
+    }
+    # Only send the key when there is a rect. `white_balance()` branches on truthiness, so an
+    # explicit null costs nothing there, but it reads as "the app tried and failed" to anyone
+    # reading the AI's observation log, where method=patch vs method=neutral is the signal.
+    if body is not None and body.white_ref is not None:
+        payload["white_ref"] = body.white_ref.model_dump()
+    return payload
+
+
 @router.post("/products/{product_id}/enhance")
 async def enhance(
     product_id: str,
+    body: EnhanceIn | None = None,
     db: Session = Depends(get_db),
     artisan: Artisan = Depends(current_artisan),
 ) -> dict:
@@ -436,10 +486,7 @@ async def enhance(
                 # be refused for size, but the artisan hears a real reason either way.
                 log.warning("could not sign full variant for %s: %s", up.id, e)
 
-    job = await _ai("/enhance", {
-        "product_id": p.id, "image_url": source,
-        "targets": ["amazon", "gem", "whatsapp"],
-    })
+    job = await _ai("/enhance", _enhance_payload(p.id, source, body))
     # Bind the job to this product so the poll below can check ownership. Recorded before
     # the response leaves, or the app is handed a job id nothing on this side recognises.
     if job.get("job_id"):
@@ -655,19 +702,30 @@ def _publish_local(images: list, base_url: str) -> None:
     exact bytes rather than round-trip them through object storage. This is the mode the demo
     runs in, and it is chosen for latency: an upload no longer waits on Supabase.
 
-    ⚠️ CEILING: these urls are only valid from a machine that can reach THIS api, and they
-    embed whichever host the caller used — which on a phone hotspot is a DHCP lease that
-    `docs/app/START-SERVER.md` says moves within the hour. `_record_variants` writes them to
-    the database, so a row published in this mode goes stale when the laptop's address
-    changes, where an S3 url would not. Fine for a demo, wrong for anything durable. Turning
-    S3 back on and re-running `/enhance` overwrites the rows with permanent urls.
+    🐞 These urls are ROOT-RELATIVE — `/api/enhanced/…`, never `http://host:8000/api/…`.
 
-    `base_url` is empty when a caller has no request to derive it from; there is no useful
-    url to build then, so the `file://` url stays and the app degrades to the original photo
-    exactly as it does on a failed S3 publish.
+    They used to embed whichever host the caller happened to use, and `_record_variants`
+    writes them to the database, so every row published in this mode carried one laptop's
+    DHCP lease. When the lease moved from 10.169.219.181 to 172.29.32.131 every previously
+    enhanced product pointed at an address that no longer answered: the thumbnails on /home
+    and /products went blank, and /catalog/prefill asked "is this the real colour?" over an
+    empty frame — the one question CLAUDE.md rule 4 says must never be asked about an image
+    nobody can see. Rebuilding the app could not fix it, because the dead host was in the
+    database rather than in the bundle.
+
+    A relative url has no host to go stale. The app prefixes its own API base (see
+    `apiUrl()` and `useDisplayImage`), which is the same indirection every other call in the
+    app already goes through, so a row written on WiFi still resolves over `adb reverse` and
+    the other way round.
+
+    ⚠️ CEILING, unchanged: these still only resolve against a machine that can reach THIS
+    api, and the bytes still live on the AI box's local disk. Fine for a demo, wrong for
+    anything durable. Turning S3 back on and re-running `/enhance` overwrites the rows with
+    absolute, permanent urls — which `_record_variants` accepts alongside these.
+
+    `base_url` is now unused and kept only so callers need not change; there is nothing
+    host-specific left to derive.
     """
-    if not base_url:
-        return
     root = Path(settings().ai_output_dir).resolve()
     for img in images:
         url = img.get("url") or ""
@@ -679,7 +737,7 @@ def _publish_local(images: list, base_url: str) -> None:
         if not src.is_relative_to(root) or not src.is_file():
             log.warning("enhanced file missing or outside %s: %s", root, src)
             continue
-        img["url"] = f"{base_url.rstrip('/')}/api/enhanced/{src.relative_to(root).as_posix()}"
+        img["url"] = f"/api/enhanced/{src.relative_to(root).as_posix()}"
 
 
 @router.get("/enhanced/{path:path}")
@@ -757,7 +815,11 @@ def _record_variants(images: list, product: Product, db: Session) -> None:
         # A file:// url is one we failed to publish. Storing it would put a path on the AI
         # box into a listing, so the raw photo stays primary and the artisan keeps a
         # working screen.
-        if not url.startswith(("http://", "https://")):
+        #
+        # `/api/enhanced/…` is the local-serving mode from `_publish_local` and is stored
+        # deliberately: root-relative so no laptop's DHCP address ends up in the database.
+        # Anything else absolute is an S3 url. Both are real, neither is a filesystem path.
+        if not url.startswith(("http://", "https://", "/api/")):
             continue
         variant = VARIANT_FOR_TARGET.get(img.get("target") or "", img.get("target") or "out")
         row = (

@@ -9,7 +9,8 @@ import type { Lang } from '../i18n/index';
 import { useVoice } from '../voice/useVoice';
 import { Screen, BigButton, AccountButton } from '../ui/kit';
 import { HomeSkeleton } from '../ui/LoadState';
-import { todosFor } from './homeTodos.js';
+import { todosFor, isDraft } from './homeTodos.js';
+
 import {
   IconCreate,
   IconForward,
@@ -146,12 +147,36 @@ export default function Home() {
    * The icon is chosen here rather than there: homeTodos.js is pure data and has no
    * business importing React components.
    */
+  /*
+   * ⚠️ Every key `todosFor` can return needs a row here.
+   *
+   * A missing one renders `undefined` as a component, which is React error #130 — a blank
+   * screen at launch and a minified stack naming neither this file nor homeTodos.js. Adding
+   * a todo without adding its icon is a crash, not a missing picture, so the two files have
+   * to move together. The `?? IconAlert` below is the seatbelt for the next person.
+   */
   const ICONS: Record<string, typeof IconOrders> = {
     orders: IconOrders,
     pay: IconMoney,
+    draft: IconCreate, // unfinished: the thing to do about it is finish making it
     colour: IconAlert,
     setup: IconSettings,
   };
+  /*
+   * The shelf shows FINISHED products only.
+   *
+   * 🐞 It used to show everything, so a photographed-and-abandoned product appeared as a
+   * thumbnail with no name under it — four of them, and the dashboard read as a wall of
+   * anonymous pictures. Worse, tapping one went to /products/:id, which has nothing to show
+   * for a product with no title.
+   *
+   * Drafts are not hidden from the artisan: they are counted in the "still to be listed"
+   * row above, which says how many there are and leads to /products where each one resumes
+   * the interview. The shelf answers "what have I made?", and something with no name is not
+   * yet an answer to that.
+   */
+  const shelf = (products ?? []).filter((p) => !isDraft(p));
+
   const todos = todosFor(products, orders, me) as {
     key: string;
     urgent: boolean;
@@ -224,7 +249,9 @@ export default function Home() {
             lines. /publish renders these bare for the same reason.
           */}
           {todos.map((td) => {
-            const Icon = ICONS[td.key];
+            // Never undefined: an unmapped key would render as a component and take the
+            // whole screen down (React #130) rather than just looking wrong.
+            const Icon = ICONS[td.key] ?? IconAlert;
             return (
             <button key={td.key} className="chan" onClick={() => nav(td.to)}>
               <span className={`todo__icon${td.urgent ? ' todo__icon--urgent' : ''}`}>
@@ -248,7 +275,7 @@ export default function Home() {
         </>
       )}
 
-      {products && products.length > 0 && (
+      {shelf.length > 0 && (
         <>
           <div className="home__sec">
             <span>{t(lang, 'home.recent')}</span>
@@ -260,7 +287,7 @@ export default function Home() {
           <div className="home__shelf">
             {/* Four is what fits without scrolling on the shortest phone we target. The
                 rest live behind "see all" rather than turning this into a second catalog. */}
-            {products.slice(0, 4).map((p) => (
+            {shelf.slice(0, 4).map((p) => (
               <button key={p.id} className="shot" onClick={() => nav(`/products/${p.id}`)}>
                 <span className="shot__img">
                   {p.image ? (

@@ -1,13 +1,14 @@
 import {useState} from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { ServerImage } from '../api/useDisplayImage';
 import { useApiQuery } from '../api/useApi';
 import type { Channel, Product, PublishResult, PublishJob } from '../api/types';
+import { useDraft } from '../store';
 import { useVoice } from '../voice/useVoice';
 import { t } from '../i18n/index';
 import { Screen, BigButton, Card, Chip, StatusDot } from '../ui/kit';
-import { IconPublish, IconPhoto } from '../ui/icons';
+import { IconPublish, IconPhoto, IconWrite } from '../ui/icons';
 import { TIER } from './Channels';
 
 /**
@@ -36,7 +37,11 @@ import { TIER } from './Channels';
  */
 export default function ProductDetail() {
   const { id } = useParams();
+  const nav = useNavigate();
   const { lang, say } = useVoice();
+  // Seeds the in-memory draft from this row so the voice flow can reopen against it. See
+  // the note on `resume` in store.ts, and on the edit button at the bottom of this screen.
+  const resume = useDraft((s) => s.resume);
 
   // Both are the same cache entries the /products tab and /channels screen fill, so
   // tapping a product from the list it was just rendered in costs no request at all.
@@ -149,6 +154,34 @@ export default function ProductDetail() {
             onClick={republish}
             disabled={busy || !product.colour_confirmed || oneTap.length === 0}
           />
+
+          {/*
+            🐞 The way back into the details, which this screen did not have.
+
+            The docstring above still argues that editing "belongs in the voice create flow,
+            which already exists, or nowhere" — and that is right. What was missing is that
+            nothing carried the artisan back INTO that flow. So a product with a wrong
+            material, or a price they wanted to revisit, was frozen: the create flow only
+            ever ran forwards from /camera, and re-shooting the same saree to fix one spoken
+            answer is not an edit path, it is a punishment.
+
+            `resume` seeds the draft from this product, so the interview reopens against the
+            row that already exists and PATCHes it rather than creating a second one. Voice,
+            not fields — the reasoning in the docstring is unchanged, only reachable now.
+          */}
+          <div className="alt">
+            <button
+              className="help"
+              onClick={() => {
+                resume(product);
+                nav('/catalog/voice');
+              }}
+              disabled={busy}
+            >
+              <IconWrite size={18} aria-hidden="true" />
+              <span>{t(lang, 'product.edit')}</span>
+            </button>
+          </div>
         </>
       )}
     </Screen>

@@ -188,6 +188,22 @@ export default function Publish() {
   const inTier = (tier: Channel['tier']) =>
     channels?.filter((c: Channel) => c.tier === tier && owns(c)) ?? [];
 
+  /*
+   * 🐞 Only the tiers this artisan actually has channels in.
+   *
+   * `stage` used to index TIERS directly, and every card rendered `null` when its group was
+   * empty — but the Next/Done button lives INSIDE the active card. So an artisan whose
+   * `sells_on` is empty has no tier D (Meesho and WhatsApp are neither tier A/C nor
+   * connected), `sendAll()` set the stage to D anyway, D rendered nothing, and the screen
+   * lost every control that moved forward. It spoke "ek jagah bhej diya, ek jagah nahi
+   * bheja" and then trapped them there with no way to /products.
+   *
+   * Filtering the tier list is the fix at the source: a stage can now only ever point at a
+   * section that renders. The always-visible exit below is the belt to this braces — one of
+   * them alone would have left the other failure mode open.
+   */
+  const tiers = TIERS.filter((tr) => inTier(tr).length > 0);
+
   /** The channels in this tier we can actually fire right now, which is not all of them. */
   const sendable = (tier: Channel['tier']) =>
     inTier(tier).filter(
@@ -226,8 +242,9 @@ export default function Publish() {
     if (ids.length === 0) return;
     await sendChannels(ids);
     // Past the sections, since they have just been fired. Anything needing a connect or a
-    // manual upload is still below, and the rows now say so.
-    setStage(TIERS.length - 1);
+    // manual upload is still below, and the rows now say so. Clamped to the tiers that
+    // actually exist for this artisan — see the note on `tiers`.
+    setStage(Math.max(tiers.length - 1, 0));
   }
 
   async function send(tier: Channel['tier']) {
@@ -265,13 +282,14 @@ export default function Publish() {
 
   if (isPending) return <Screen prompt="common.loading" state="loading" loadingLabel="common.loading" />;
 
-  const current = TIERS[stage];
-  const last = stage === TIERS.length - 1;
+  // Clamped, not indexed blind: `skipped` can empty a tier after the stage has advanced.
+  const current = tiers[Math.min(stage, tiers.length - 1)];
+  const last = stage >= tiers.length - 1;
   const attempted = (tier: Channel['tier']) => sendable(tier).length > 0 && sendable(tier).every((c: Channel) => results[c.id]);
 
   // The prompt is per-section, so advancing re-speaks — every screen speaks on entry, and a
   // section the artisan cannot read is a section they were never told about.
-  const prompt = errKey ?? `publish.${current.toLowerCase()}_prompt`;
+  const prompt = errKey ?? (current ? `publish.${current.toLowerCase()}_prompt` : 'publish.a_prompt');
 
   /** A channel row. Tappable only when there is genuinely somewhere for it to go. */
   function row(c: Channel) {
@@ -313,6 +331,21 @@ export default function Publish() {
 
   return (
     <Screen prompt={prompt}>
+      {/*
+        The way out, and it is never inside a card.
+
+        Everything else on this screen is conditional on a tier, a connection or a result,
+        which is exactly how the screen managed to render with no forward control on it at
+        all. This one is not conditional on anything: whatever the fan-out did or failed to
+        do, the catalog is one tap away. It doubles as the demo skip.
+      */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="help" onClick={() => nav('/products')} disabled={busy}>
+          <span>{t(lang, 'common.skip')}</span>
+          <IconForward size={18} aria-hidden="true" />
+        </button>
+      </div>
+
       {errKey && <p className="warn">{t(lang, errKey)}</p>}
 
       {/*
@@ -379,9 +412,8 @@ export default function Publish() {
       </div>
 
       <div className="pub-rest">
-      {TIERS.slice(0, stage + 1).map((tr) => {
+      {tiers.slice(0, stage + 1).map((tr) => {
         const group = inTier(tr);
-        if (group.length === 0) return null;
         const active = tr === current;
         const canSend = active && SECTION[tr].sendKey && sendable(tr).length > 0 && !attempted(tr);
 

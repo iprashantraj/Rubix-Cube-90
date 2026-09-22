@@ -77,6 +77,39 @@ SARVAM_LANGS = {
 # Sarvam's own list rather than assumed, because `or-IN` failing silently would fall back to
 # Hindi under the .get() above and be heard as "the Odia voice is broken".
 
+# Every language the app can be set to. Kept here as a literal rather than imported, because
+# `web/` never imports from `ai/` (README rule) — the cost is this one list in two places and
+# the assert below, which is what makes the duplication safe instead of a time bomb.
+APP_LANGS = frozenset({"hi", "or", "ta", "bn", "en"})
+
+# Fail at import, not mid-demo. A missing entry here is silent by construction: `.get()`
+# returns Hindi, the artisan hears the wrong language, and the symptom ("the Tamil voice is
+# broken") points at the model, the key, the network — anywhere except a dict that is short
+# one row. Adding a language to the app and forgetting Sarvam now stops the service from
+# starting, which is the only moment anybody is looking.
+assert APP_LANGS <= SARVAM_LANGS.keys(), (
+    f"no Sarvam mapping for {sorted(APP_LANGS - SARVAM_LANGS.keys())} — "
+    "check Sarvam's own language list, do not assume the ISO code (Odia is od-IN, not or-IN)"
+)
+
+
+def _sarvam_lang(lang: str) -> str:
+    """Our two-letter code as Sarvam's BCP-47 tag, and loud when it cannot.
+
+    Still falls back to Hindi: the artisan hearing the wrong language beats a dead screen,
+    and that trade has not changed. What changes is that the fallback now says so. Silence
+    is what made this class of bug expensive twice already — `saarika:v2` and `bulbul:v2`
+    both failed into a working fallback and stayed invisible from the phone.
+    """
+    code = SARVAM_LANGS.get(lang)
+    if code is None:
+        log.warning(
+            "no Sarvam mapping for language %r — speaking Hindi. Add it to SARVAM_LANGS.",
+            lang,
+        )
+        return "hi-IN"
+    return code
+
 # ⚠️ en-IN is right for ASR — our English speakers are Indian — and is the only English
 # Sarvam's bulbul model offers for TTS. The app deliberately SPEAKS English with a
 # non-Indian voice (see the `en` entry in app/src/i18n/index.js: someone who picked English
@@ -130,7 +163,7 @@ async def _sarvam_tts(text: str, lang: str) -> bytes:
             headers={"api-subscription-key": s.sarvam_api_key},
             json={
                 "inputs": [text],
-                "target_language_code": SARVAM_LANGS.get(lang, "hi-IN"),
+                "target_language_code": _sarvam_lang(lang),
                 "speaker": SARVAM_TTS_SPEAKER,
                 "model": SARVAM_TTS_MODEL,
                 # Slower than default: these are instructions, not narration, and they are
@@ -153,7 +186,7 @@ async def _sarvam_asr(clip: bytes, filename: str, lang: str) -> dict:
             files={"file": (filename or "clip.webm", clip, "audio/webm")},
             data={
                 "model": SARVAM_ASR_MODEL,
-                "language_code": SARVAM_LANGS.get(lang, "hi-IN"),
+                "language_code": _sarvam_lang(lang),
             },
         )
         res.raise_for_status()

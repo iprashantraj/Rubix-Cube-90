@@ -1,4 +1,43 @@
 import { useEffect, useState, type ImgHTMLAttributes } from 'react';
+import { apiUrl } from './client';
+
+/**
+ * A stored image url as something fetchable from this device.
+ *
+ * The server stores enhanced renditions as `/api/enhanced/…` — root-relative, so that no
+ * laptop's DHCP address is baked into a database row (see `_publish_local`). Relative is
+ * exactly right for a browser and exactly wrong for Capacitor, where the app is served from
+ * `https://localhost` and a leading `/api` resolves into the app's OWN bundled assets: the
+ * request 404s against the WebView and never reaches a server at all. That is the failure
+ * `client.ts` documents as the most confusing this app can produce.
+ *
+ * So relative urls go through `apiUrl()`, which is the same indirection every other API call
+ * already uses. Absolute urls (S3, or anything already resolved) are returned untouched.
+ */
+function resolveSrc(url: string): string {
+  return url.startsWith('/api/') ? apiUrl(url.slice('/api'.length)) : url;
+}
+
+/*
+ * Urls that answered 404, so they are asked for once per session and not once per render.
+ *
+ * 🐞 The AI service used to write renders under /tmp, which is swept while the machine is
+ * up. The `product_images` rows survive in Postgres, so every enhanced image from before a
+ * sweep points at a file that is gone. Each one 404s — and because this hook refetches
+ * whenever a component mounts, the shelf on /home and the list on /products re-asked for
+ * the same dead files on every navigation. The server log was hundreds of 404s for a
+ * handful of products, and the artisan's connection paid for all of them.
+ *
+ * The storage default is fixed, but rows written before it are unrecoverable: the bytes do
+ * not exist anywhere. So a miss has to be remembered rather than retried forever.
+ *
+ * Deliberately a Set and deliberately not persisted: a 404 here means "this render is
+ * gone", which is true for the session, and clearing on relaunch is the free retry for the
+ * case where the file comes back — re-running /enhance rewrites the row and the url changes
+ * anyway. Only 404 is remembered; a timeout or a 5xx is the network having a bad moment and
+ * must stay retryable, or one dropped packet would blank an image until the app restarts.
+ */
+const gone = new Set<string>();
 
 /**
  * Turn a server image url into something the WebView will actually paint.
@@ -39,8 +78,11 @@ export function useDisplayImage(url?: string | null, fallback?: string | null) {
 
   useEffect(() => {
     // Not a server url — a blob: or data: url is already paintable, and the artisan's own
-    // photo is the fallback in every other case.
-    if (!url || !/^https?:/.test(url)) {
+    // photo is the fallback in every other case. `/api/…` counts as a server url: it is how
+    // enhanced renditions are stored, and resolveSrc turns it into a reachable one.
+    // A url already known to be gone: go straight to the fallback. Asking again costs the
+    // artisan data and the server a log line, and the answer will not have changed.
+    if (!url || gone.has(url) || !(/^https?:/.test(url) || url.startsWith('/api/'))) {
       setObjectUrl(null);
       return undefined;
     }
@@ -51,8 +93,14 @@ export function useDisplayImage(url?: string | null, fallback?: string | null) {
     // Show the fallback while the enhanced image is in flight rather than a blank frame.
     setObjectUrl(null);
 
-    fetch(url)
-      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(`HTTP ${res.status}`))))
+    fetch(resolveSrc(url))
+      .then((res) => {
+        if (res.ok) return res.blob();
+        // 404 is "this render does not exist", which is permanent for this session. Any
+        // other status is the server or the network having a moment and stays retryable.
+        if (res.status === 404) gone.add(url);
+        throw new Error(`HTTP ${res.status}`);
+      })
       .then((blob) => {
         if (!alive) return;
         created = URL.createObjectURL(blob);

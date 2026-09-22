@@ -33,14 +33,29 @@ assert Path(settings().ai_output_dir) == ROOT, settings().ai_output_dir
 BASE = "http://10.169.219.181:8000/"
 
 
-def test_rewrites_file_urls():
+def test_rewrites_file_urls_to_a_relative_path():
     images = [{"target": "amazon", "url": (ROOT / "prod1" / "amazon_2000.jpg").as_uri()}]
     _publish_local(images, BASE)
-    assert images[0]["url"] == (
-        "http://10.169.219.181:8000/api/enhanced/prod1/amazon_2000.jpg"
-    ), images[0]["url"]
-    # _record_variants only stores http(s), so this is the assertion that the row gets written.
-    assert images[0]["url"].startswith("http://")
+    assert images[0]["url"] == "/api/enhanced/prod1/amazon_2000.jpg", images[0]["url"]
+
+
+def test_no_host_is_ever_embedded():
+    """The regression this file now exists for.
+
+    These urls are written to `product_images.url`. An absolute one pins the row to one
+    laptop's DHCP lease, and when the lease moved every enhanced product went blank —
+    including under "is this the real colour?", which rule 4 forbids asking about an image
+    nobody can see. Rebuilding the app could not fix it; the dead host was in the database.
+
+    `BASE` is passed deliberately: a caller still supplies it, and the assertion is that the
+    host in it reaches neither the url nor the database.
+    """
+    images = [{"target": "amazon", "url": (ROOT / "prod1" / "amazon_2000.jpg").as_uri()}]
+    _publish_local(images, BASE)
+    url = images[0]["url"]
+    assert url.startswith("/api/"), url
+    assert "10.169.219.181" not in url, url
+    assert "://" not in url, url
 
 
 def test_leaves_already_published_and_missing_alone():
@@ -55,11 +70,17 @@ def test_leaves_already_published_and_missing_alone():
     assert outside["url"].startswith("file://")
 
 
-def test_no_base_url_is_a_no_op():
-    """No request to derive a host from: degrade, never emit a hostless url."""
+def test_no_base_url_still_publishes():
+    """Reversed deliberately, 2026-09-03.
+
+    This used to assert that an empty `base_url` degraded to `file://`, because there was no
+    host to build a url from. Relative urls need no host, so the caller having no request to
+    derive one from is no longer a reason to withhold a perfectly good image — the artisan
+    got their unprocessed photo for a reason that has stopped existing.
+    """
     images = [{"target": "amazon", "url": (ROOT / "prod1" / "amazon_2000.jpg").as_uri()}]
     _publish_local(images, "")
-    assert images[0]["url"].startswith("file://")
+    assert images[0]["url"] == "/api/enhanced/prod1/amazon_2000.jpg", images[0]["url"]
 
 
 def test_serves_a_file_in_the_tree():

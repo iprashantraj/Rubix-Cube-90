@@ -29,6 +29,17 @@ export default function CaptureReview() {
   const [pct, setPct] = useState(0);
   const [failed, setFailed] = useState<string | null>(null);
 
+  /*
+   * Whether `failed` is the SERVER GATE refusing the photograph, as opposed to a network or
+   * upload failure. The two need opposite buttons and used to get the same one.
+   *
+   * 🐞 After a rejection the yes-button relabelled itself `common.retry` and called accept()
+   * again — with the same bytes, at a gate that is deterministic. It refuses identically,
+   * forever, and every press costs a full upload over a rural tower and leaves another
+   * abandoned product row behind. The only action that can succeed is a new photograph.
+   */
+  const [rejected, setRejected] = useState(false);
+
   // Quarters, not every chunk. onProgress fires per 256KB chunk — speaking each one would
   // talk over itself for the whole upload and tell the artisan nothing new.
   const spokenQuarter = useRef(0);
@@ -40,6 +51,7 @@ export default function CaptureReview() {
   async function accept() {
     setBusy(true);
     setFailed(null);
+    setRejected(false);
     setPct(0);
     spokenQuarter.current = 0;
 
@@ -64,7 +76,17 @@ export default function CaptureReview() {
       // The product row is created here rather than at publish time because everything
       // downstream — enhance, prefill, the colour lock, the price — is keyed on a product
       // id. The catalog is ours whether or not this listing ever reaches a channel (§2).
-      const { id } = await api.post('/products', {});
+      // `retry_of` is set only when the server gate refused the previous shot (see the
+      // rejection branch below). It is what tells the AI side whether that refusal was
+      // right: a refused photograph followed by a retake that passes is a refusal that
+      // saved a listing, and one followed by silence is a refusal that cost a seller.
+      // The thresholds cannot be tuned on real traffic without it.
+      const { id } = await api.post('/products', {
+        ...(draft.retryOf ? { retry_of: draft.retryOf } : {}),
+      });
+      // Spent. A chain is one hop, and leaving the id set would attach whatever the artisan
+      // photographs next to a product it has nothing to do with.
+      useDraft.getState().setRetryOf(null);
       useDraft.getState().setListing({ ...draft.listing, product_id: id, image_url: url });
 
       /*
@@ -109,6 +131,13 @@ export default function CaptureReview() {
          */
         if (job.status === 'rejected') {
           setFailed(job.message_key ?? 'enhance.failed');
+          setRejected(true);
+          // Remember what was refused, so the next shot can be recorded as a second try at
+          // this one rather than as an unrelated product. Set here and nowhere else: only a
+          // gate refusal makes the next photograph a retake in the sense the gate cares
+          // about. A voluntary retake of a photo we accepted proves nothing about the
+          // thresholds.
+          useDraft.getState().setRetryOf(id);
           return;
         }
 
@@ -132,24 +161,51 @@ export default function CaptureReview() {
 
   return (
     <Screen prompt={failed ?? (busy ? 'capture.uploading' : 'capture.confirm')}>
+      {/*
+        The progress belongs ON the photograph, not under it.
+
+        It used to sit below the card as a bare spinner, so the thing being worked on and
+        the evidence that work was happening were in two different places — and the photo
+        stayed perfectly sharp throughout, which reads as "nothing is happening" no matter
+        what the spinner does.
+
+        Dimming and blurring the shot while it uploads says the picture is being worked on
+        in the one language that needs no reading. The blur deepens once the bytes are up
+        and the server is rendering, so the two phases look different: uploading is
+        something the artisan's connection is doing, enhancing is something we are doing.
+
+        🔒 The blur is a CSS filter on the preview and nothing else. It never touches the
+        pixels, is never uploaded, and is gone the moment `busy` clears — rule 1 forbids
+        fabricating detail, and a cosmetic overlay on a local preview is not that.
+      */}
       <Card>
-        <img
-          src={draft.photoUrl ?? undefined}
-          alt=""
-          style={{ width: '100%', display: 'block', borderRadius: 14 }}
-        />
+        <div className={`shotwork${busy ? ' shotwork--busy' : ''}`}>
+          <img
+            src={draft.photoUrl ?? undefined}
+            alt=""
+            style={{ width: '100%', display: 'block', borderRadius: 14 }}
+          />
+          {busy && (
+            <div className="shotwork__over">
+              <Spinner label={`${Math.round(pct * 100)}%`} />
+            </div>
+          )}
+        </div>
       </Card>
 
-      {busy ? (
-        <Spinner label={`${Math.round(pct * 100)}%`} />
-      ) : (
+      {busy ? null : (
         <>
-          <BigButton
-            icon={IconYes}
-            labelKey={failed ? 'common.retry' : 'capture.use'}
-            onClick={accept}
-            tone="yes"
-          />
+          {/* Gone on a gate refusal: the same bytes cannot pass a deterministic gate, and
+              the prompt above already says which way to fix the shot. Retake is the only
+              button left, which is the only thing that can work. */}
+          {rejected ? null : (
+            <BigButton
+              icon={IconYes}
+              labelKey={failed ? 'common.retry' : 'capture.use'}
+              onClick={accept}
+              tone="yes"
+            />
+          )}
           <BigButton
             icon={IconRetry}
             labelKey="capture.retake"

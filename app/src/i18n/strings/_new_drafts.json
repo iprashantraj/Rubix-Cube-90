@@ -1,0 +1,24 @@
+{
+  "_note": "Half-finished products: the /home row, the /products chip, and the button that resumes the interview. A product with no title never reached /catalog/review, so nothing has been written for it — that is 'still to be listed', not 'check the colour'. Hindi and Odia reviewed against the existing tone in hi.json/or.json; ta/bn fall back to English in an English voice, per resolve().",
+  "en": {
+    "home.todo_draft": "Products still to be listed",
+    "home.todo_draft_sub": "You took the photo. A few questions left.",
+    "products.draft": "still to be listed",
+    "products.resume": "Finish this product",
+    "product.edit": "Change the details"
+  },
+  "hi": {
+    "home.todo_draft": "अभी लिस्ट होना बाकी है",
+    "home.todo_draft_sub": "फोटो हो गया। बस कुछ सवाल बाकी हैं।",
+    "products.draft": "अभी बाकी है",
+    "products.resume": "इसे पूरा करें",
+    "product.edit": "जानकारी बदलें"
+  },
+  "or": {
+    "home.todo_draft": "ଏବେ ତାଲିକାଭୁକ୍ତ ହେବାକୁ ବାକି",
+    "home.todo_draft_sub": "ଫଟୋ ହୋଇଗଲା। ଆଉ କିଛି ପ୍ରଶ୍ନ ବାକି ଅଛି।",
+    "products.draft": "ଏବେ ବାକି ଅଛି",
+    "products.resume": "ଏହାକୁ ସମ୍ପୂର୍ଣ୍ଣ କରନ୍ତୁ",
+    "product.edit": "ବିବରଣୀ ବଦଳାନ୍ତୁ"
+  }
+}

@@ -16,9 +16,42 @@ import { queryClient, keyFor } from './queries';
  * res/xml/network_security_config.xml already whitelists cleartext for. Point
  * VITE_API_BASE at a real host for anything that is not a laptop-tethered demo.
  */
-const BASE =
+const BUILD_BASE: string =
   import.meta.env.VITE_API_BASE ??
   (Capacitor.isNativePlatform() ? 'http://localhost:8000/api' : '/api');
+
+/*
+ * ── Why this is discovered at runtime and not just read from the build ──────────────
+ *
+ * `VITE_API_BASE` is baked in at build time, and in dev the address it names keeps moving:
+ *
+ *   laptop hosts the hotspot   -> laptop is 10.42.0.1        (fixed, it is the gateway)
+ *   phone hosts the hotspot    -> laptop gets a lease         (moves every session)
+ *   cable + `adb reverse`      -> localhost:8000              (drops on every replug)
+ *
+ * All three were used within one afternoon, and every switch between them bricked the
+ * installed APK until somebody rebuilt it. The symptom is always the same and always
+ * misleading: "no network" on a phone with full signal, indistinguishable from a dead
+ * server, a wrong port, or a genuine outage.
+ *
+ * So the app asks. On startup it probes the handful of addresses the API is ever at, keeps
+ * the first that answers, and remembers it. Switching network mode now costs one relaunch
+ * instead of a rebuild and a reinstall.
+ *
+ * 🔒 Dev-only by construction. `discover()` returns immediately unless the app is running
+ * natively, and in a production build `VITE_API_BASE` is a real HTTPS host which answers on
+ * the first probe — the fallbacks are never reached and never contacted.
+ */
+const CANDIDATES: string[] = [
+  BUILD_BASE,
+  'http://localhost:8000/api', // cable, via `adb reverse tcp:8000 tcp:8000`
+  'http://10.42.0.1:8000/api', // laptop hosting the hotspot: always the gateway address
+];
+
+const REMEMBERED = 'api_base';
+
+let BASE: string =
+  (typeof localStorage !== 'undefined' && localStorage.getItem(REMEMBERED)) || BUILD_BASE;
 
 /**
  * Build an absolute API URL.
@@ -29,6 +62,62 @@ const BASE =
  * against the app itself and the failure looks like a server problem.
  */
 export const apiUrl = (path: string): string => BASE + path;
+
+/** Does this base answer? `/thresholds` is unauthenticated and cheap, and every build has it. */
+async function answers(base: string, ms = 2500): Promise<boolean> {
+  try {
+    const res = await fetch(`${base}/thresholds`, {
+      signal: AbortSignal.timeout(ms),
+      cache: 'no-store',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Find the API and remember it. Safe to call more than once.
+ *
+ * Tried in order, not in parallel: the first candidate is the one the build was configured
+ * with, and on a correctly configured install it answers immediately and nothing else is
+ * ever contacted. Racing them would put requests on addresses that are nobody's business
+ * on a network we do not own.
+ */
+export async function discoverApiBase(): Promise<string> {
+  if (!Capacitor.isNativePlatform()) return BASE; // browser: Vite proxies /api, nothing to find
+
+  // The remembered one first: it worked last time, and on an unchanged network it is right.
+  for (const base of [BASE, ...CANDIDATES]) {
+    if (await answers(base)) {
+      if (base !== BASE) {
+        BASE = base;
+        try {
+          localStorage.setItem(REMEMBERED, base);
+        } catch {
+          // Private mode, or storage full. The address still works for this session.
+        }
+      }
+      return BASE;
+    }
+  }
+
+  /*
+   * Nothing answered. Keep the build-time base rather than the last remembered one, and
+   * forget the memory: a stale entry that no longer resolves would otherwise be tried first
+   * forever, and the artisan would be told "no network" on a network that is fine.
+   *
+   * The app still starts. Every screen degrades to its offline path, which is the behaviour
+   * `OPENROUTER_API_KEY` unset already relies on — nothing here is gated on a reachable API.
+   */
+  BASE = BUILD_BASE;
+  try {
+    localStorage.removeItem(REMEMBERED);
+  } catch {
+    /* nothing to clear */
+  }
+  return BASE;
+}
 
 /** What the server sends back on a failure. `message_key` is what gets SPOKEN. */
 export type ApiErrorBody = { message_key?: string; detail?: string } | null;

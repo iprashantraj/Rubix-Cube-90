@@ -151,6 +151,13 @@ type Draft = {
   photoBlob: Blob | null;
   photoUrl: string | null;
   enhanceJobId: string | null;
+  /**
+   * The product whose photograph the server gate just refused, carried across the retake so
+   * the next `POST /products` can say what it is a second try at. Cleared as soon as it is
+   * spent — a chain of one retake is evidence, and a value left lying around would attach
+   * the next unrelated listing to it.
+   */
+  retryOf: string | null;
   images: { url: string }[] | null;
   colourConfirmed: boolean;
   prefill: Record<string, unknown> | null;
@@ -161,12 +168,14 @@ type Draft = {
   setPhoto: (blob: Blob | null, url: string | null) => void;
   setMode: (mode: 'standing' | 'flat') => void;
   setEnhance: (id: string | null) => void;
+  setRetryOf: (id: string | null) => void;
   setImages: (images: { url: string }[] | null) => void;
   confirmColour: () => void;
   setPrefill: (p: Record<string, unknown> | null) => void;
   answer: (key: string, value: string) => void;
   setListing: (l: Record<string, unknown> | null) => void;
   setPricing: (p: Record<string, unknown> | null) => void;
+  resume: (p: { id: string; title?: string | null; image?: string | null; colour_confirmed?: boolean }) => void;
   reset: () => void;
 };
 
@@ -174,6 +183,7 @@ export const useDraft = create<Draft>((set) => ({
   photoBlob: null,
   photoUrl: null,
   enhanceJobId: null,
+  retryOf: null,
   images: null,
   colourConfirmed: false,
   prefill: null,
@@ -185,17 +195,56 @@ export const useDraft = create<Draft>((set) => ({
   setPhoto: (photoBlob, photoUrl) => set({ photoBlob, photoUrl }),
   setMode: (mode) => set({ mode }),
   setEnhance: (enhanceJobId) => set({ enhanceJobId }),
+  setRetryOf: (retryOf) => set({ retryOf }),
   setImages: (images) => set({ images }),
   confirmColour: () => set({ colourConfirmed: true }),
   setPrefill: (prefill) => set({ prefill }),
   answer: (key, value) => set((s) => ({ answers: { ...s.answers, [key]: value } })),
   setListing: (listing) => set({ listing }),
   setPricing: (pricing) => set({ pricing }),
+
+  /*
+   * Re-enter the create flow for a product that already exists on the server.
+   *
+   * 🐞 Why this had to exist: the draft is in-memory and every screen after /camera reads
+   * `draft.listing.product_id` off it. So navigating to /catalog/voice or /price for a
+   * product created in an earlier session gave a screen with nothing in it and no way
+   * forward — the artisan had a half-finished product in their catalogue and literally
+   * could not finish it. Re-shooting was the only path, which throws away a photo the
+   * server already enhanced.
+   *
+   * Seeded from the `/products` list row, which is all any resuming screen needs: the id to
+   * PATCH against, the image to show, and whether the colour lock is still open. `answers`
+   * stays empty on purpose — those were spoken sentences, not stored fields, and offering a
+   * stale one back as though the artisan had just said it would be putting words in their
+   * mouth. The interview's `defaults` already carries anything worth carrying.
+   *
+   * `photoBlob` stays null: the bytes are on the server now. Screens that fall back to the
+   * local copy degrade to `photoUrl`, which is exactly what they do after a reload anyway.
+   */
+  resume: (p) =>
+    set({
+      photoBlob: null,
+      photoUrl: p.image ?? null,
+      enhanceJobId: null,
+      retryOf: null,
+      images: p.image ? [{ url: p.image }] : null,
+      // The server's answer, not an assumption. An undefined flag means the row predates
+      // the column; treating that as "confirmed" would walk the colour lock.
+      colourConfirmed: p.colour_confirmed === true,
+      prefill: null,
+      answers: {},
+      listing: { product_id: p.id, ...(p.title ? { title: p.title } : {}) },
+      pricing: null,
+      mode: 'standing',
+    }),
+
   reset: () =>
     set({
       photoBlob: null,
       photoUrl: null,
       enhanceJobId: null,
+      retryOf: null,
       images: null,
       colourConfirmed: false,
       prefill: null,

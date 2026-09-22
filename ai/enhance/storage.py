@@ -30,7 +30,23 @@ from PIL import Image
 
 # Where rendered listing images go. Same shape as web/api's STORAGE_DIR and overridable
 # for tests; in dev both services share a machine and therefore a filesystem.
-OUTPUT_DIR = Path(os.environ.get("AI_OUTPUT_DIR", "/tmp/rubix-ai-out"))
+#
+# 🐞 NOT /tmp. This default was `/tmp/rubix-ai-out` and it must stay in step with
+# `ai_output_dir` in web/api/config.py — that service serves these files back over
+# `GET /api/enhanced/...`, so a disagreement is a 404 on every enhanced image.
+#
+# /tmp is cleared on reboot and swept by systemd-tmpfiles while the machine is up, but the
+# `product_images` rows pointing at these files live in Postgres and survive. So a sweep
+# left every previously enhanced product pointing at a file that no longer existed: blank
+# thumbnails, and a server log full of 404s for products that had rendered fine an hour
+# before. Nothing in the app could detect it — the row was valid, the host was right, the
+# bytes were gone.
+#
+# Under the user's data directory instead: persistent, user-owned, no root needed, and
+# outside the repo so a render is never a candidate for `git add`.
+OUTPUT_DIR = Path(
+    os.environ.get("AI_OUTPUT_DIR") or (Path.home() / ".local" / "share" / "rubix-ai-out")
+)
 
 
 class SourceError(Exception):

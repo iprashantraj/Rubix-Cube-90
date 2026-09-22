@@ -64,9 +64,20 @@ export function ChannelBlock({
 
   return (
     <Card>
+      {/*
+        Connection state, on every row that has one.
+
+        Only `connected` was ever shown, so "we hold a token for this" and "you have not
+        joined this yet" rendered identically — a blank space next to the name. The absence
+        of a chip is not a message; somebody scanning the screen cannot tell a channel that
+        is ready from one that is waiting on them. Tier A says the useful thing instead:
+        there is no account to connect, which is the good news, not a missing state.
+      */}
       <p style={{ margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
         <strong className="chan__name">{channel.name}</strong>
+        {channel.tier === 'A' && <Chip tone="done">{t(lang, 'channels.nothing_needed')}</Chip>}
         {channel.connected && <Chip tone="done">{t(lang, 'channels.connected')}</Chip>}
+        {needsConnect && <Chip tone="blocked">{t(lang, 'publish.connect')}</Chip>}
       </p>
 
       {/* Goes to a page, not a fold. The artisan is about to spend a couple of minutes

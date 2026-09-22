@@ -39,7 +39,18 @@ class Settings(BaseSettings):
     # Where `ai/enhance/storage.py` writes rendered variants. Same env var and same default
     # as that module reads, so there is one setting with two readers rather than two copies
     # that can drift. Only consulted when S3 is unconfigured — see `_publish_local`.
-    ai_output_dir: str = "/tmp/rubix-ai-out"
+    #
+    # 🐞 NOT /tmp, and this cost a demo. It was `/tmp/rubix-ai-out`, and /tmp is cleared on
+    # reboot and swept by systemd-tmpfiles while the machine is up. The database keeps its
+    # `product_images` rows either way, so every enhanced product from before the sweep
+    # pointed at a file that no longer existed: `GET /api/enhanced/...` answered 404 for
+    # each one, the shelf went blank, and the server log filled with 404s for products that
+    # had rendered perfectly an hour earlier.
+    #
+    # Under the user's data directory instead: persistent, user-owned, needs no root, and
+    # outside the repo so a render is never a candidate for `git add`. Override with
+    # AI_OUTPUT_DIR — both services read that same variable.
+    ai_output_dir: str = str(Path.home() / ".local" / "share" / "rubix-ai-out")
 
     # Where uploaded chunks are assembled and kept.
     #
