@@ -54,7 +54,6 @@
   .q-empty{color:var(--muted);font-size:13px;padding:10px 0 0}
   .page{display:none}
   .page.on{display:block}
-  .stub p{color:var(--muted);font-size:13.5px;max-width:56ch}
   .gaps li{margin-bottom:10px;font-size:13px}
   .gaps b{display:block;font-size:13px}
   .gaps span{color:var(--muted);font-size:12.5px}
@@ -184,12 +183,108 @@
     </div>
     </div>
 
-    <div class="page" id="page-verification"><div class="card stub"><h2>Beneficiary verification</h2><p>Full ID-verification workflow — document review, approve/reject, status history. Not built yet in this mockup.</p></div></div>
-    <div class="page" id="page-queue"><div class="card stub"><h2>Listing queue</h2><p>Catalog items awaiting publish — image checks, pricing floor, SEO description review. Not built yet in this mockup.</p></div></div>
-    <div class="page" id="page-orders"><div class="card stub"><h2>Marketplace &amp; orders</h2><p>Order tracking across own marketplace, ONDC, GeM, and other channels. Not built yet in this mockup.</p></div></div>
-    <div class="page" id="page-gaps"><div class="card stub"><h2>Gap analysis</h2><p>Cluster-level breakdown of digital-literacy, scheme-uptake, and pricing gaps. Not built yet in this mockup.</p></div></div>
-    <div class="page" id="page-schemes"><div class="card stub"><h2>Schemes &amp; training</h2><p>Awareness campaigns and training-camp scheduling per cluster. Not built yet in this mockup.</p></div></div>
-    <div class="page" id="page-reports"><div class="card stub"><h2>Reports</h2><p>Exportable beneficiary, marketplace, and buyer reports for government review. Not built yet in this mockup.</p></div></div>
+    <div class="page" id="page-verification">
+      <div class="card">
+        <h2>Beneficiary verification</h2>
+        <table>
+          <thead><tr><th>Artisan</th><th>ID type</th><th>Cluster</th><th>Document status</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td>Sunita Devi</td><td>Aadhaar</td><td>Jaipur</td><td><span class="pill p-wait">Awaiting review</span></td><td>Review</td></tr>
+            <tr><td>Anita Bai</td><td>Aadhaar</td><td>Bhilwara</td><td><span class="pill p-bad">Photo mismatch</span></td><td>Request resubmit</td></tr>
+            <tr><td>Mohd. Irfan</td><td>Voter ID</td><td>Jodhpur</td><td><span class="pill p-wait">Awaiting review</span></td><td>Review</td></tr>
+            <tr><td>Ramesh Meena</td><td>Aadhaar</td><td>Sawai Madhopur</td><td><span class="pill p-ok">Approved</span></td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="page" id="page-queue">
+      <div class="card">
+        <h2>Listing queue</h2>
+        <table>
+          <thead><tr><th>Item</th><th>Artisan</th><th>Price check</th><th>Image check</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Blue pottery vase</td><td>Sunita Devi</td><td><span class="pill p-ok">Above floor</span></td><td><span class="pill p-ok">Passed</span></td><td>Ready to publish</td></tr>
+            <tr><td>Handloom dupatta</td><td>Anita Bai</td><td><span class="pill p-bad">Below floor</span></td><td><span class="pill p-ok">Passed</span></td><td>Pricing review</td></tr>
+            <tr><td>Leather juti (pair)</td><td>Mohd. Irfan</td><td><span class="pill p-ok">Above floor</span></td><td><span class="pill p-wait">Retake needed</span></td><td>Awaiting photo</td></tr>
+            <tr><td>Block-print stole</td><td>Kavita Sharma</td><td><span class="pill p-ok">Above floor</span></td><td><span class="pill p-ok">Passed</span></td><td>Ready to publish</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="page" id="page-orders">
+      <section class="kpis">
+        <div class="card kpi"><div class="l">Open orders</div><div class="n">318</div><div class="d up">▲ 24 today</div></div>
+        <div class="card kpi"><div class="l">In transit</div><div class="n">142</div><div class="d flat">avg 4.2 days</div></div>
+        <div class="card kpi"><div class="l">Delivered (30d)</div><div class="n">2,904</div><div class="d up">▲ 9.1%</div></div>
+        <div class="card kpi"><div class="l">Disputes</div><div class="n">7</div><div class="d down">3 over SLA</div></div>
+      </section>
+      <div class="card">
+        <h2>Recent orders</h2>
+        <table>
+          <thead><tr><th>Order</th><th>Buyer</th><th>Channel</th><th>Value</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>#KG-10482</td><td>Meera Textiles</td><td>ONDC</td><td>₹6,400</td><td><span class="pill p-ok">Delivered</span></td></tr>
+            <tr><td>#KG-10483</td><td>Craft Co-op Pune</td><td>Own marketplace</td><td>₹18,200</td><td><span class="pill p-wait">In transit</span></td></tr>
+            <tr><td>#KG-10484</td><td>Sanjay Traders</td><td>GeM</td><td>₹41,000</td><td><span class="pill p-wait">In transit</span></td></tr>
+            <tr><td>#KG-10485</td><td>Ritu Handicrafts</td><td>Amazon</td><td>₹2,150</td><td><span class="pill p-bad">Disputed</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="page" id="page-gaps">
+      <div class="grid">
+        <div class="card">
+          <h2>Gaps by cluster</h2>
+          <div class="rows">
+            <div style="flex:1"><div class="row"><span>Bhilwara — digital literacy</span><b>38%</b></div><div class="track"><i style="width:38%"></i></div></div>
+            <div style="flex:1"><div class="row"><span>Jodhpur — scheme uptake</span><b>11%</b></div><div class="track"><i style="width:11%"></i></div></div>
+            <div style="flex:1"><div class="row"><span>Sawai Madhopur — photo quality</span><b>27%</b></div><div class="track"><i style="width:27%"></i></div></div>
+            <div style="flex:1"><div class="row"><span>Jaipur — pricing below floor</span><b>14%</b></div><div class="track"><i style="width:14%"></i></div></div>
+          </div>
+        </div>
+        <div class="card gaps">
+          <h2>Recommended action</h2>
+          <ul>
+            <li><b>Bhilwara training camp</b><span>Digital literacy session, target 120 artisans, next 3 weeks.</span></li>
+            <li><b>Jodhpur scheme drive</b><span>Field push for PM Vishwakarma enrollment.</span></li>
+            <li><b>Lighting coach rollout</b><span>Ship in-app photo nudge to Sawai Madhopur cluster.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="page" id="page-schemes">
+      <div class="card">
+        <h2>Schemes &amp; training</h2>
+        <table>
+          <thead><tr><th>Program</th><th>Cluster</th><th>Enrolled</th><th>Target</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>PM Vishwakarma</td><td>Jodhpur</td><td>84</td><td>750</td><td><span class="pill p-bad">Behind</span></td></tr>
+            <tr><td>Digital literacy camp</td><td>Bhilwara</td><td>212</td><td>300</td><td><span class="pill p-wait">In progress</span></td></tr>
+            <tr><td>GI-tag awareness</td><td>Jaipur</td><td>310</td><td>320</td><td><span class="pill p-ok">On track</span></td></tr>
+            <tr><td>Photo &amp; listing workshop</td><td>Sawai Madhopur</td><td>96</td><td>150</td><td><span class="pill p-wait">In progress</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="page" id="page-reports">
+      <div class="card">
+        <h2>Reports</h2>
+        <table>
+          <thead><tr><th>Report</th><th>Period</th><th>Generated</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Beneficiary verification summary</td><td>Aug 2026</td><td>3 days ago</td><td>Download</td></tr>
+            <tr><td>Marketplace GMV by channel</td><td>Aug 2026</td><td>3 days ago</td><td>Download</td></tr>
+            <tr><td>Buyer &amp; RFQ activity</td><td>Aug 2026</td><td>5 days ago</td><td>Download</td></tr>
+            <tr><td>Govt. compliance snapshot</td><td>Q2 2026</td><td>2 weeks ago</td><td>Download</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
     <footer>Mockup for SIH 2026 presentation — numbers are illustrative, not live data.</footer>
   </main>
