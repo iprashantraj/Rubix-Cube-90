@@ -407,10 +407,10 @@ web-sourced photographs, so they must never leak into anything that looks like p
 
 ## 2026-08-27 (3) — repo now explains itself to a fresh session
 
-**`CONTRIBUTING.md` at the repo root — new.** There was none. Claude Code (and any other agent
+**`CONTRIBUTING.md` at the repo root — new.** There was none. A coding agent (and any other
 tooling) reads this file automatically at the start of every session; without it the
 architecture had to be re-explained each time, and the most likely place a new session
-would look was `CLAUDE_CODE_PLAYBOOK_WEB.md` §0.1 — whose draft describes the *withdrawn*
+would look was `WEB_BUILD_PLAYBOOK.md` §0.1 — whose draft describes the *withdrawn*
 device-side approach. That was a trap and it is now closed: the new file says explicitly
 that it replaces that draft.
 

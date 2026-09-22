@@ -1,4 +1,4 @@
-# Claude Code Playbook — Vite + React + Capacitor
+# Web Build Playbook — Vite + React + Capacitor
 
 Drives the build in `IMAGE_PIPELINE_SPEC_WEB.md`.
 
@@ -13,7 +13,7 @@ Drives the build in `IMAGE_PIPELINE_SPEC_WEB.md`.
 
 ### 0.1 CONTRIBUTING.md in the repo root
 
-Claude Code reads this at the start of every session. Without it you re-explain
+A coding agent reads this at the start of every session. Without it you re-explain
 the project each time and it drifts.
 
 ```markdown

@@ -3,7 +3,7 @@
 Read-only verification against the working tree at commit `c1e4304` (branch `main`).
 Nothing here is taken from a claim; every row cites the file and line that proves it.
 
-⚠️ **The working tree moved three times while this audit ran.** A second Claude session is
+⚠️ **The working tree moved three times while this audit ran.** A second editing session is
 actively editing `ai/interpret.py`, `ai/service.py`, `web/api/routers/catalog.py`,
 `web/api/routers/publish.py` and `app/src/screens/CatalogVoice.tsx` right now. Uncommitted
 line numbers in `ai/service.py` have already shifted by +24. See §R.
