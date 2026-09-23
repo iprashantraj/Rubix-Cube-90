@@ -29,16 +29,20 @@
   .shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
   nav{background:linear-gradient(165deg,var(--accent-ink) 0%,#5c2115 100%);color:#f2e4dd;padding:21px 13px;display:flex;flex-direction:column;gap:4px;box-shadow:2px 0 24px rgba(30,10,5,.12)}
   nav b{color:#fff;font-size:18px;display:block;margin-bottom:14px;letter-spacing:-.01em}
-  nav a{color:inherit;text-decoration:none;padding:11px 13px;border-radius:var(--r-sm);font-size:14.5px;font-weight:500;transition:background var(--dur) var(--ease),transform 100ms ease-out}
+  nav a{display:flex;align-items:center;gap:10px;color:inherit;text-decoration:none;padding:11px 13px;border-radius:var(--r-sm);font-size:14.5px;font-weight:500;transition:background var(--dur) var(--ease),transform 100ms ease-out}
   nav a:hover{background:rgba(255,255,255,.08);color:#fff}
   nav a:active{transform:scale(.97)}
   nav a.on{background:rgba(255,255,255,.14);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+  nav svg{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+  nav em{margin-left:auto;font-style:normal;font-size:11px;font-weight:700;min-width:20px;text-align:center;padding:1px 7px;border-radius:var(--r-full);background:rgba(255,255,255,.18);color:#fff}
+  nav em:empty{display:none}
   nav small{margin-top:auto;color:#d9beb2;font-size:11px}
   main{padding:34px}
-  header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin:-34px -34px 6px;padding:20px 34px 10px;background:rgba(248,243,241,.72);backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%)}
+  header{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin:-34px -34px 18px;padding:20px 34px 10px;background:rgba(248,243,241,.72);backdrop-filter:blur(16px) saturate(160%);-webkit-backdrop-filter:blur(16px) saturate(160%)}
   header::after{content:"";position:absolute;left:0;right:0;bottom:-16px;height:16px;background:linear-gradient(rgba(248,243,241,.5),transparent);pointer-events:none}
   h1{font-size:24px;margin:0;font-weight:650;letter-spacing:-.02em}
   .sub{color:var(--muted);font-size:13.5px;margin:0 0 21px}
+  .meta{color:var(--muted);font-size:13px;margin:3px 0 0}
   .tag{font-size:11px;border:1px solid var(--line);background:var(--surface-1);border-radius:var(--r-full);padding:3px 10px;color:var(--muted)}
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:13px;margin-bottom:21px}
   .card{background:linear-gradient(180deg,#fffefd 0%,var(--surface-1) 100%);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--e1);padding:21px;transition:box-shadow var(--dur) var(--ease),transform var(--dur) var(--ease)}
@@ -46,12 +50,24 @@
   .kpi .n{font-size:28px;font-weight:700;letter-spacing:-.03em}
   .kpi .l{color:var(--muted);font-size:12.5px;margin-bottom:6px;letter-spacing:.01em}
   .kpi .d{font-size:12px;margin-top:5px;font-weight:500}
+  .spark{display:block;width:100%;height:30px;margin-top:10px}
+  .av{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent-ink);font-size:11px;font-weight:700;letter-spacing:.02em;flex:none}
+  .av.lg{width:44px;height:44px;font-size:15px}
+  .who{display:inline-flex;align-items:center;gap:9px}
+  .dh{display:flex;align-items:center;gap:12px}
+  .dh h2{margin:0 0 4px}
   .up{color:var(--green-ink)} .down{color:var(--red-ink)} .flat{color:var(--muted)}
   .grid{display:grid;grid-template-columns:2fr 1fr;gap:13px;margin-bottom:13px}
   h2{font-size:14.5px;margin:0 0 14px;font-weight:650;letter-spacing:-.005em}
-  .bars{display:flex;align-items:flex-end;gap:14px;height:170px}
-  .bars div{flex:1;background:linear-gradient(180deg,#c1552f 0%,var(--accent) 55%,var(--accent-ink) 100%);border-radius:var(--r-sm) var(--r-sm) 0 0;position:relative;box-shadow:0 6px 16px -8px rgba(156,61,36,.5);transition:transform 180ms var(--ease);transform-origin:bottom}
-  .bars div:hover{transform:scaleY(1.015)}
+  .bars{display:flex;align-items:flex-end;gap:14px;height:170px;margin-top:24px;border-bottom:1px solid var(--line);background:repeating-linear-gradient(to top,transparent 0 calc(25% - 1px),var(--line) calc(25% - 1px) 25%)}
+  .bars div{flex:1;background:#ecd3c9;border-radius:var(--r-sm) var(--r-sm) 0 0;position:relative;transition:background 150ms ease-out,height 300ms var(--ease);cursor:default}
+  .bars div:hover,.bars div:focus-visible{background:#e0b9aa;outline:none}
+  .bars div.now{background:linear-gradient(180deg,#c1552f 0%,var(--accent) 55%,var(--accent-ink) 100%);box-shadow:0 6px 16px -8px rgba(156,61,36,.5)}
+  .bars div::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 26px);left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:11.5px;font-weight:500;padding:5px 9px;border-radius:8px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity 120ms ease-out;z-index:1}
+  .bars div:first-child::after{left:0;transform:none}
+  .bars div:last-child::after{left:auto;right:0;transform:none}
+  .bars div:hover::after,.bars div:focus-visible::after{opacity:1}
+  .bars div.now i{color:var(--accent-ink)}
   .bars div span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted)}
   .bars div i{position:absolute;top:-19px;left:0;right:0;text-align:center;font-size:11px;font-style:normal;color:var(--muted);font-weight:600}
   .rows{display:flex;flex-direction:column;gap:11px}
@@ -107,8 +123,9 @@
   .tl li.done{color:var(--ink)}
   .tl li::before{content:"";position:absolute;left:0;top:10px;width:8px;height:8px;border-radius:50%;background:var(--line)}
   .tl li.done::before{background:var(--green)}
-  #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--r-full);font-size:13.5px;box-shadow:var(--e2);transition:opacity 200ms var(--ease),transform 200ms var(--ease);pointer-events:none;z-index:10;max-width:calc(100% - 32px)}
-  #toast.on{opacity:1;transform:translate(-50%,0)}
+  #toast{display:flex;align-items:center;gap:14px;width:max-content;position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;padding:11px 18px;border-radius:14px;font-size:13.5px;box-shadow:var(--e2);transition:opacity 200ms var(--ease),transform 200ms var(--ease);pointer-events:none;z-index:10;max-width:calc(100% - 32px)}
+  #toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+  #toast button{background:none;border:0;padding:0;font:inherit;font-weight:700;color:#f5b49a;cursor:pointer}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.card:hover{transform:none}}
   @media(prefers-transparency:reduce),(prefers-contrast:more){header{background:var(--surface-0);backdrop-filter:none}}
   @media(max-width:900px){
@@ -120,10 +137,12 @@
     nav a{flex:none;padding:8px 12px;font-size:13.5px;white-space:nowrap}
     nav small{display:none}
     main{padding:18px 16px}
-    header{position:static;margin:0 0 4px;padding:0;background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+    header{position:static;margin:0 0 16px;padding:0;background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
     header::after{display:none}
     h1{font-size:21px}
     .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .kpis > :last-child:nth-child(odd){grid-column:1/-1}
+    nav a{gap:7px}
     .card{padding:16px}
     .card:hover{transform:none}
     .kpi .n{font-size:22px}
@@ -141,7 +160,7 @@
     tr:last-child{border-bottom:0}
     tr:hover td{background:none}
     td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:5px 0;border:0;text-align:right;white-space:normal}
-    td:first-child{font-weight:600;text-align:left;white-space:normal}
+    td:first-child{font-weight:600;text-align:left;white-space:normal;justify-content:flex-start}
     td::before{content:attr(data-label);color:var(--muted);font-size:12px;font-weight:500;text-align:left;flex:none}
     td:first-child::before{display:none}
     td[data-label=""]::before{display:none}
@@ -156,43 +175,35 @@
 <div class="shell">
   <nav>
     <b>Kala Setu</b>
-    <a class="on" href="#overview">Overview</a>
-    <a href="#verification">Beneficiary verification</a>
-    <a href="#queue">Listing queue</a>
-    <a href="#orders">Marketplace &amp; orders</a>
-    <a href="#gaps">Gap analysis</a>
-    <a href="#schemes">Schemes &amp; training</a>
-    <a href="#reports">Reports</a>
+    <a class="on" href="#overview"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Overview</span></a>
+    <a href="#verification"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span>Beneficiary verification</span><em id="b-ver"></em></a>
+    <a href="#queue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg><span>Listing queue</span><em id="b-lq"></em></a>
+    <a href="#orders"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg><span>Marketplace &amp; orders</span><em id="b-or"></em></a>
+    <a href="#gaps"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r=".6"/></svg><span>Gap analysis</span><em id="b-ga"></em></a>
+    <a href="#schemes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/></svg><span>Schemes &amp; training</span></a>
+    <a href="#reports"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4M9 13h6M9 17h6"/></svg><span>Reports</span></a>
     <small>Monitoring Officer · District: Jaipur</small>
   </nav>
 
   <main>
     <header>
-      <h1>Monitoring dashboard</h1>
+      <div><h1 id="title">Overview</h1><p class="meta" id="meta">Jaipur district</p></div>
       <span class="tag">Demo · sample data</span>
     </header>
-    <p class="sub">PS 26090 — AI-driven market linkage &amp; smart cataloging for marginalized artisans</p>
 
     <div class="page on" id="page-overview">
     <section class="kpis">
-      <div class="card kpi"><div class="l">Registered artisans</div><div class="n">4,128</div><div class="d up">▲ 312 this month</div></div>
-      <div class="card kpi"><div class="l">Verified beneficiaries</div><div class="n" id="k-verified"></div><div class="d flat" id="k-verified-d"></div></div>
-      <div class="card kpi"><div class="l">Live listings</div><div class="n" id="k-live"></div><div class="d up">▲ 1,043 this month</div></div>
-      <div class="card kpi"><div class="l">GMV (30 days)</div><div class="n">₹42.6L</div><div class="d up">▲ 18.4%</div></div>
-      <div class="card kpi"><div class="l">Pending verification</div><div class="n" id="k-pending"></div><div class="d down">42 over SLA</div></div>
+      <div class="card kpi" data-spark="3120,3310,3480,3640,3816,4128"><div class="l">Registered artisans</div><div class="n">4,128</div><div class="d up">▲ 312 this month</div></div>
+      <div class="card kpi" data-spark="2410,2620,2810,3010,3190,3406"><div class="l">Verified beneficiaries</div><div class="n" id="k-verified"></div><div class="d flat" id="k-verified-d"></div></div>
+      <div class="card kpi" data-spark="7020,7780,8690,9530,10929,11972"><div class="l">Live listings</div><div class="n" id="k-live"></div><div class="d up">▲ 1,043 this month</div></div>
+      <div class="card kpi" data-spark="24,27,29,33,36,42.6"><div class="l">GMV (30 days)</div><div class="n">₹42.6L</div><div class="d up">▲ 18.4%</div></div>
+      <div class="card kpi" data-spark="260,240,251,220,205,198"><div class="l">Pending verification</div><div class="n" id="k-pending"></div><div class="d down">42 over SLA</div></div>
     </section>
 
     <div class="grid">
       <div class="card">
         <h2>Listings published per month</h2>
-        <div class="bars">
-          <div style="height:38%"><i>620</i><span>Apr</span></div>
-          <div style="height:46%"><i>760</i><span>May</span></div>
-          <div style="height:55%"><i>905</i><span>Jun</span></div>
-          <div style="height:51%"><i>840</i><span>Jul</span></div>
-          <div style="height:72%"><i>1,180</i><span>Aug</span></div>
-          <div style="height:92%"><i>1,510</i><span>Sep</span></div>
-        </div>
+        <div class="bars" id="bars"></div>
       </div>
       <div class="card">
         <h2>Channel mix</h2>
@@ -287,10 +298,10 @@
 
     <div class="page" id="page-orders">
       <section class="kpis">
-        <div class="card kpi"><div class="l">Open orders</div><div class="n" id="k-open"></div><div class="d up">▲ 24 today</div></div>
-        <div class="card kpi"><div class="l">In transit</div><div class="n" id="k-transit"></div><div class="d flat">avg 4.2 days</div></div>
-        <div class="card kpi"><div class="l">Delivered (30d)</div><div class="n" id="k-delivered"></div><div class="d up">▲ 9.1%</div></div>
-        <div class="card kpi"><div class="l">Disputes</div><div class="n" id="k-disputes"></div><div class="d down">3 over SLA</div></div>
+        <div class="card kpi" data-spark="240,262,281,270,294,318"><div class="l">Open orders</div><div class="n" id="k-open"></div><div class="d up">▲ 24 today</div></div>
+        <div class="card kpi" data-spark="120,131,128,140,137,142"><div class="l">In transit</div><div class="n" id="k-transit"></div><div class="d flat">avg 4.2 days</div></div>
+        <div class="card kpi" data-spark="2100,2280,2410,2590,2660,2904"><div class="l">Delivered (30d)</div><div class="n" id="k-delivered"></div><div class="d up">▲ 9.1%</div></div>
+        <div class="card kpi" data-spark="12,9,11,8,9,7"><div class="l">Disputes</div><div class="n" id="k-disputes"></div><div class="d down">3 over SLA</div></div>
       </section>
       <div class="card">
         <div class="q-head">
@@ -365,12 +376,12 @@
       </div>
     </div>
 
-    <footer>Demo for SIH 2026 — numbers are illustrative, not live data. Reload the page to reset.</footer>
+    <footer>SIH 2026 · PS 26090 — AI-driven market linkage &amp; smart cataloging for marginalized artisans. Demo numbers are illustrative, not live data. Reload the page to reset.</footer>
   </main>
 </div>
 
 <dialog id="dlg" aria-labelledby="dlg-title"><div id="dlg-body"></div></dialog>
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="toast" role="status" aria-live="polite"><span id="toast-msg"></span><button data-act="undo" id="toast-undo" hidden>Undo</button></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -378,6 +389,8 @@ const inr = n => '₹' + n.toLocaleString('en-IN');
 const num = n => n.toLocaleString('en-IN');
 const pill = (cls, label) => `<span class="pill p-${cls}">${label}</span>`;
 const btn = (act, id, label, cls = '') => `<button class="btn ${cls}" data-act="${act}" data-id="${id}">${label}</button>`;
+const initials = n => n.split(/\s+/).map(w => w[0]).filter(c => /[A-Z]/.test(c)).slice(0, 2).join('');
+const who = (n, inner = n) => `<span class="who"><span class="av" aria-hidden="true">${initials(n)}</span>${inner}</span>`;
 const ago = d => d === 0 ? 'Today' : d === 1 ? '1 day ago' : d + ' days ago';
 
 // ---- Mock data (state lives here; reload resets) ----
@@ -447,17 +460,17 @@ const ORD = {placed:['wait','New'],transit:['wait','In transit'],delivered:['ok'
 
 // ---- Views: every table is filter(data) → rows ----
 const views = {
-  vq: {data: () => artisans, row: a => `<tr><td><a href="#" data-act="review" data-id="${a.id}">${a.name}</a></td><td>${a.cluster}</td><td>${a.craft}</td><td>${ago(a.days)}</td><td>${pill(...ART[a.status])}</td></tr>`, limit: 6},
-  ver: {data: () => artisans, row: a => `<tr><td>${a.name}</td><td>${a.idType}</td><td>${a.cluster}</td><td>${a.craft}</td><td>${pill(...ART[a.status])}</td><td>${
+  vq: {data: () => artisans, row: a => `<tr><td>${who(a.name, `<a href="#" data-act="review" data-id="${a.id}">${a.name}</a>`)}</td><td>${a.cluster}</td><td>${a.craft}</td><td>${ago(a.days)}</td><td>${pill(...ART[a.status])}</td></tr>`, limit: 6},
+  ver: {data: () => artisans, row: a => `<tr><td>${who(a.name)}</td><td>${a.idType}</td><td>${a.cluster}</td><td>${a.craft}</td><td>${pill(...ART[a.status])}</td><td>${
     a.status === 'pending' ? btn('review', a.id, 'Review', 'pri') :
     a.status === 'missing' ? btn('resubmit', a.id, a.requested ? 'Mark re-uploaded' : 'Request resubmit') :
     btn('review', a.id, 'View')}</td></tr>`},
-  lq: {data: () => listings, row: l => `<tr><td>${l.item}</td><td>${l.artisan}</td><td>${inr(l.price)} / ${inr(l.floor)}</td><td>${l.price >= l.floor ? pill('ok','Above floor') : pill('bad','Below floor')}</td><td>${l.img ? pill('ok','Passed') : pill('wait','Retake needed')}</td><td>${pill(...LST[l.status])}</td><td>${
+  lq: {data: () => listings, row: l => `<tr><td>${l.item}</td><td>${who(l.artisan)}</td><td>${inr(l.price)} / ${inr(l.floor)}</td><td>${l.price >= l.floor ? pill('ok','Above floor') : pill('bad','Below floor')}</td><td>${l.img ? pill('ok','Passed') : pill('wait','Retake needed')}</td><td>${pill(...LST[l.status])}</td><td>${
     l.status === 'ready' ? btn('publish', l.id, 'Publish', 'pri') :
     l.status === 'pricing' ? btn('floor', l.id, 'Set to floor') :
     l.status === 'photo' ? (l.nudged ? btn('photoIn', l.id, 'Mark photo received') : btn('nudge', l.id, 'Nudge artisan')) :
     btn('unpublish', l.id, 'Unpublish', 'warn')}</td></tr>`},
-  or: {data: () => orders, row: o => `<tr><td>#${o.id}</td><td>${o.buyer}</td><td>${o.artisan}</td><td>${o.channel}</td><td>${inr(o.value)}</td><td>${pill(...ORD[o.status])}</td><td>${btn('order', o.id, o.status === 'disputed' ? 'Resolve' : 'Details', o.status === 'disputed' ? 'pri' : '')}</td></tr>`},
+  or: {data: () => orders, row: o => `<tr><td>#${o.id}</td><td>${o.buyer}</td><td>${who(o.artisan)}</td><td>${o.channel}</td><td>${inr(o.value)}</td><td>${pill(...ORD[o.status])}</td><td>${btn('order', o.id, o.status === 'disputed' ? 'Resolve' : 'Details', o.status === 'disputed' ? 'pri' : '')}</td></tr>`},
   sc: {data: () => schemes, status: schemeStatus, row: s => `<tr><td>${s.name}</td><td>${s.cluster}</td><td><span class="mini"><i style="width:${Math.min(100, s.enrolled / s.target * 100)}%"></i></span>${Math.round(s.enrolled / s.target * 100)}%</td><td>${s.enrolled} / ${s.target}</td><td>${pill(schemeStatus(s), SCHEME_LABEL[schemeStatus(s)])}</td><td>${s.reminded ? btn('', s.id, 'Reminder sent ✓') : btn('remind', s.id, 'Send SMS reminder')}</td></tr>`},
 };
 
@@ -500,14 +513,45 @@ function drawAll() {
   $('#ga-body').innerHTML = actions.map(g => `<li><div><b>${g.title}</b><span>${g.text}${g.assigned ? ` Assigned to ${g.owner}.` : ''}</span></div>${
     g.assigned ? btn('', g.id, 'Assigned ✓') : btn('assign', g.id, 'Assign', 'pri')}</li>`).join('');
   document.querySelectorAll('button[data-act=""]').forEach(b => b.disabled = true);
+
+  const badge = (id, n) => $(id).textContent = n || '';
+  badge('#b-ver', count(artisans, 'pending'));
+  badge('#b-lq', count(listings, 'ready'));
+  badge('#b-or', count(orders, 'placed') + count(orders, 'disputed'));
+  badge('#b-ga', actions.filter(g => !g.assigned).length);
+
+  // Sep = this month, so publishing moves it.
+  const months = [['Apr',620],['May',760],['Jun',905],['Jul',840],['Aug',1180],['Sep',1510 + count(listings,'published') - init.published]];
+  const max = Math.max(...months.map(m => m[1])) * 1.08;
+  $('#bars').innerHTML = months.map(([m, v], i) => {
+    const prev = months[i - 1]?.[1];
+    const change = prev ? ` · ${v >= prev ? '+' : ''}${Math.round((v - prev) / prev * 100)}% vs ${months[i - 1][0]}` : '';
+    return `<div class="${i === months.length - 1 ? 'now' : ''}" style="height:${v / max * 100}%" tabindex="0" data-tip="${m} 2026 · ${num(v)} listings${change}" aria-label="${m}: ${num(v)} listings"><i>${num(v)}</i><span>${m}</span></div>`;
+  }).join('');
+
+  $('#meta').textContent = `Jaipur district · Updated ${new Date().toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'})}`;
 }
+
+// Sparkline for each KPI card: last six months, drawn once.
+document.querySelectorAll('.kpi[data-spark]').forEach(card => {
+  const v = card.dataset.spark.split(',').map(Number), lo = Math.min(...v), hi = Math.max(...v);
+  const pts = v.map((y, i) => `${i / (v.length - 1) * 100},${28 - (y - lo) / (hi - lo || 1) * 24}`).join(' ');
+  card.insertAdjacentHTML('beforeend', `<svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">
+    <polygon points="0,30 ${pts} 100,30" fill="var(--accent-soft)"/>
+    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.75" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg>`);
+});
 
 // ---- Toast + dialog ----
 let toastTimer;
 function toast(msg) {
-  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  const t = $('#toast'); $('#toast-msg').textContent = msg; $('#toast-undo').hidden = true; t.classList.add('on');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2800);
 }
+
+// Undo: snapshot all mock state before an action; if the action changed it, offer to restore.
+const state = {artisans, listings, orders, actions, schemes};
+const snapshot = () => JSON.stringify(state);
+let undoSnap = null;
 const dlg = $('#dlg');
 function openDialog(html) { $('#dlg-body').innerHTML = html; dlg.showModal(); }
 dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
@@ -516,7 +560,7 @@ const find = (arr, id) => arr.find(x => x.id === id);
 const acts = {
   review(id) {
     const a = find(artisans, id);
-    openDialog(`<h2 id="dlg-title">${a.name}</h2>${pill(...ART[a.status])}
+    openDialog(`<div class="dh"><span class="av lg" aria-hidden="true">${initials(a.name)}</span><div><h2 id="dlg-title">${a.name}</h2>${pill(...ART[a.status])}</div></div>
       <dl><dt>Craft</dt><dd>${a.craft}</dd><dt>Cluster</dt><dd>${a.cluster}, Rajasthan</dd>
       <dt>ID document</dt><dd>${a.idType} · ••••${id.slice(1)}47</dd><dt>Phone</dt><dd>${a.phone}</dd>
       <dt>Draft listings</dt><dd>${a.listings}</dd><dt>Submitted</dt><dd>${ago(a.days)}</dd>
@@ -564,6 +608,12 @@ const acts = {
   assign(id) { const g = find(actions, id); g.assigned = true; toast(`“${g.title}” assigned to ${g.owner}`); },
   remind(id) { const s = find(schemes, id); s.reminded = true; toast(`SMS reminder queued for ${s.target - s.enrolled} artisans in ${s.cluster}`); },
   close() {},
+  undo() {
+    if (!undoSnap) return;
+    const s = JSON.parse(undoSnap); undoSnap = null;
+    for (const k in state) state[k].splice(0, state[k].length, ...s[k]);
+    toast('Undone');
+  },
   download(id) { const r = reports[id]; downloadCsv(r.file, r.rows()); toast(`Downloaded ${r.file}`); },
 };
 
@@ -597,7 +647,13 @@ document.addEventListener('click', e => {
   if (!b || b.disabled || !acts[b.dataset.act]) return;
   e.preventDefault();
   if (b.closest('dialog')) dlg.close();
-  acts[b.dataset.act](b.dataset.id);
+  const act = b.dataset.act, before = act === 'undo' ? null : snapshot();
+  acts[act](b.dataset.id);
+  if (before && snapshot() !== before) {
+    undoSnap = before;
+    $('#toast-undo').hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').classList.remove('on'), 5000);
+  }
   drawAll();
 });
 Object.keys(views).forEach(k => {
@@ -611,6 +667,8 @@ function route() {
   document.querySelector('nav a.on')?.classList.remove('on');
   const link = document.querySelector(`nav a[href="#${page}"]`);
   link.classList.add('on');
+  $('#title').textContent = link.querySelector('span').textContent;
+  document.title = `${link.querySelector('span').textContent} — Kala Setu`;
   link.scrollIntoView({block: 'nearest', inline: 'center'});
   document.querySelector('.page.on')?.classList.remove('on');
   $('#page-' + page).classList.add('on');
