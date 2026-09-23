@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     # Runtime connection. On Supabase this is the TRANSACTION pooler (port 6543) — it is
     # what survives a lot of short-lived serverless-ish connections. See db.py for the two
     # settings pgbouncer forces on us.
-    database_url: str = "postgresql+psycopg://kaarigar:kaarigar@localhost:5432/kaarigar"
+    database_url: str = "postgresql+psycopg://kalasetu:kalasetu@localhost:5432/kalasetu"
 
     # Migrations need a different connection. Alembic takes advisory locks and runs long
     # DDL transactions, and neither survives transaction-mode pooling — so migrations go

@@ -46,8 +46,8 @@ Node 20+, and Postgres for the API:
 
 ```bash
 brew install postgresql@16 && brew services start postgresql@16
-psql -d postgres -c "CREATE ROLE kaarigar LOGIN PASSWORD 'kaarigar' SUPERUSER;"
-createdb -O kaarigar kaarigar
+psql -d postgres -c "CREATE ROLE kalasetu LOGIN PASSWORD 'kalasetu' SUPERUSER;"
+createdb -O kalasetu kalasetu
 cd web/api && cp .env.example .env      # then fill JWT_SECRET and TOKEN_ENCRYPTION_KEY
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/alembic upgrade head
