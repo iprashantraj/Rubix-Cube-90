@@ -118,7 +118,7 @@ The whole-gate trade, counting every check:
 | 100 (old) | 12/166 | 41/93 |
 
 Above 20 the exchange rate is roughly **one good photograph refused per one extra blurred
-photograph caught**, and rule 3 in `CLAUDE.md` prices that trade: a missed blur costs a
+photograph caught**, and rule 3 in `CONTRIBUTING.md` prices that trade: a missed blur costs a
 prettier photo, a false reject costs the artisan the listing. So 20.
 
 All 32 misses are motion, not defocus — the server catches every one of the 83 defocused

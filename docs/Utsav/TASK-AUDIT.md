@@ -3,7 +3,7 @@
 Read-only verification against the working tree at commit `c1e4304` (branch `main`).
 Nothing here is taken from a claim; every row cites the file and line that proves it.
 
-⚠️ **The working tree moved three times while this audit ran.** A second Claude session is
+⚠️ **The working tree moved three times while this audit ran.** A second editing session is
 actively editing `ai/interpret.py`, `ai/service.py`, `web/api/routers/catalog.py`,
 `web/api/routers/publish.py` and `app/src/screens/CatalogVoice.tsx` right now. Uncommitted
 line numbers in `ai/service.py` have already shifted by +24. See §R.
@@ -76,7 +76,7 @@ Both land in the same silent `catch`.
 
 **The fix has two parts, and the second is the important one:**
 1. Split the `try` at `CaptureReview.tsx:72`. The image link is not optional the way
-   enhancement is — losing enhancement costs a prettier photo (CLAUDE.md rule 3), losing the
+   enhancement is — losing enhancement costs a prettier photo (CONTRIBUTING.md rule 3), losing the
    link costs the listing. Speak on failure and do not navigate.
 2. `base.py:105`'s `photo.missing` is the correct refusal, but it arrives four screens too
    late. The check belongs at the end of capture, where retaking is still possible.

@@ -1,6 +1,6 @@
 """`render(original, mask, recipe)` — the only thing in the pipeline that produces pixels.
 
-Everything else computes parameters. That single rule is what makes `CLAUDE.md` rule 2
+Everything else computes parameters. That single rule is what makes `CONTRIBUTING.md` rule 2
 ("never destroy the original") true by construction: no stage writes an image, so no stage
 can write over the one the artisan gave us.
 

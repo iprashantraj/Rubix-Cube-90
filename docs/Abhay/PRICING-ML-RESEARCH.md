@@ -522,7 +522,7 @@ nothing because the pipeline already produces it.
 
 `L0` and the reconcile rule are **unchanged**. Everything new sits above them and can only refine
 the comparison class or widen/narrow the range. **A total failure of L1 and L2 degrades to
-exactly today's behaviour** — price at the floor, honestly, and say so. That is `CLAUDE.md` rule
+exactly today's behaviour** — price at the floor, honestly, and say so. That is `CONTRIBUTING.md` rule
 3 applied to pricing, and it is the property that makes this safe to build.
 
 ### 3.2 L1 — what "analyzes the image and description" concretely means
@@ -567,7 +567,7 @@ If she says "Sambalpuri saree" and the classifier says "printed cotton," we do *
 price her as a powerloom product. Fall back to `textiles.saree`, report lower confidence, price
 wider. The failure mode of overriding is that a misfiring classifier tells a master weaver her
 ikat is worth ₹900 — the exact harm this feature exists to prevent. It is the pricing analogue of
-`CLAUDE.md` rule 1.
+`CONTRIBUTING.md` rule 1.
 
 ### 3.3 L2 — comparables retrieval
 

@@ -58,7 +58,7 @@ photographs is roughly **fourteen hours** of queue. The API itself would survive
 the queue — auth, catalog reads and publish are cheap; **it is the GPU that falls over.**
 
 **And what the artisan sees today is the real failure**: a poll that stays `queued`, with no
-position and no estimate. Rule 3 in `CLAUDE.md` says every failure must speak; **a queue that is
+position and no estimate. Rule 3 in `CONTRIBUTING.md` says every failure must speak; **a queue that is
 merely slow is not currently treated as a failure, so it says nothing.** That is the bug.
 
 **What we would do, in order of effect per rupee:**

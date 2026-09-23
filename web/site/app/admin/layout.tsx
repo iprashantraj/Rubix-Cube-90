@@ -17,7 +17,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="mark">
           <span className="g">क</span>
           <span>
-            <b>Kaarigar</b>
+            <b>Kala Setu</b>
             <i>Admin console</i>
           </span>
         </div>

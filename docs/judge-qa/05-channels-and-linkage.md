@@ -199,7 +199,7 @@ claim loses its national reach. That is the largest single external risk in the 
 **Think.** They are probing for a Play Store / terms-of-service problem. There is one nearby, we
 already rejected it, and saying so is the answer.
 
-**What we rejected, explicitly and by name** (`CLAUDE.md`, rejected list): an
+**What we rejected, explicitly and by name** (`CONTRIBUTING.md`, rejected list): an
 **`AccessibilityService` overlay on top of the real Amazon/Flipkart apps.** Google Play permits
 that API only for genuine disability tools; **enforcement tightened 28 January 2026, and Android 17
 blocks non-accessibility apps from the API outright.** Misuse means app suspension and

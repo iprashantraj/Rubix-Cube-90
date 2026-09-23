@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Kaarigar</string>
-    <string name="title_activity_main">Kaarigar</string>
+    <string name="app_name">Kala Setu</string>
+    <string name="title_activity_main">Kala Setu</string>
     <string name="package_name">in.gov.sih.kaarigar</string>
     <string name="custom_url_scheme">in.gov.sih.kaarigar</string>
 </resources>

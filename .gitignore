@@ -103,3 +103,8 @@ video/prototype-1/capture/feeds/
 # anything in app/public/ is copied verbatim into the APK. Keep them off the device.
 app/public/__seed.html
 app/public/__shot-*.png
+
+# Editor/agent scratch. launch.json is a local dev-server config, not project source.
+.claude/
+
+.vercel/

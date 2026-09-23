@@ -38,7 +38,7 @@ can succeed. It would also have poisoned `retry_of` with chains whose "retake" w
 photograph.
 
 Checks: `web/api/test_white_ref.py` and `web/api/test_retry_chain.py`, both listed in
-`CLAUDE.md`. Neither needs a server, a database or the AI service.
+`CONTRIBUTING.md`. Neither needs a server, a database or the AI service.
 
 ---
 
@@ -107,7 +107,7 @@ for the gate as specified is 291, and the difference is 159 off-centre and too-f
 that now pass through to `crop()` as they should. The count of good photographs refused is
 unchanged at 25.
 
-**Also updated:** `CLAUDE.md`'s "Current state" no longer says everything in `ai/` is
+**Also updated:** `CONTRIBUTING.md`'s "Current state" no longer says everything in `ai/` is
 `NotImplementedError`, and its testing block lists the two new commands. Reconciliation §8
 marks step 3 done.
 
@@ -189,7 +189,7 @@ The spoken instruction is all they get, so a wrong one is close to no gate at al
 of 166 while refusing 2 good photographs; at full resolution it flags 152 of 166 but refuses
 24 of the 93. So the capture gate cannot hard-block at any threshold and stays advisory, and
 the server hard-blocks at 20 rather than 100. Above 20 the exchange rate is about one good
-photograph refused per one extra blurred photo caught, and rule 3 in `CLAUDE.md` prices that:
+photograph refused per one extra blurred photo caught, and rule 3 in `CONTRIBUTING.md` prices that:
 a missed blur costs a prettier photo, a false reject costs the artisan the listing.
 
 All 32 remaining misses are motion, never defocus — a horizontal smear leaves vertical edges
@@ -407,10 +407,10 @@ web-sourced photographs, so they must never leak into anything that looks like p
 
 ## 2026-08-27 (3) — repo now explains itself to a fresh session
 
-**`CLAUDE.md` at the repo root — new.** There was none. Claude Code (and any other agent
+**`CONTRIBUTING.md` at the repo root — new.** There was none. A coding agent (and any other
 tooling) reads this file automatically at the start of every session; without it the
 architecture had to be re-explained each time, and the most likely place a new session
-would look was `CLAUDE_CODE_PLAYBOOK_WEB.md` §0.1 — whose draft describes the *withdrawn*
+would look was `WEB_BUILD_PLAYBOOK.md` §0.1 — whose draft describes the *withdrawn*
 device-side approach. That was a trap and it is now closed: the new file says explicitly
 that it replaces that draft.
 
@@ -699,7 +699,7 @@ RTX 2050, 645 ms for the smaller ones.
 `tone()` and `denoise_sharpen()` remain unimplemented. Step 8's tier system is where the
 "model never signals doubt" finding gets handled.
 
-**Not touched.** No file in `app/` or `web/` was modified. `CLAUDE.md` gained one line in the
+**Not touched.** No file in `app/` or `web/` was modified. `CONTRIBUTING.md` gained one line in the
 testing block; `ai/README.md` gained the requirements split and a segmentation note.
 
 ### Same day — `crop()` and `composite()` built

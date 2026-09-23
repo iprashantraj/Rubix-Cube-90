@@ -709,7 +709,7 @@ def _publish_local(images: list, base_url: str) -> None:
     DHCP lease. When the lease moved from 10.169.219.181 to 172.29.32.131 every previously
     enhanced product pointed at an address that no longer answered: the thumbnails on /home
     and /products went blank, and /catalog/prefill asked "is this the real colour?" over an
-    empty frame — the one question CLAUDE.md rule 4 says must never be asked about an image
+    empty frame — the one question CONTRIBUTING.md rule 4 says must never be asked about an image
     nobody can see. Rebuilding the app could not fix it, because the dead host was in the
     database rather than in the bundle.
 
@@ -806,7 +806,7 @@ def _record_variants(images: list, product: Product, db: Session) -> None:
     `format_images` would then send three of.
 
     `is_generated` stays False. These are the artisan's own pixels — segmented, cropped and
-    composited, never fabricated (CLAUDE.md rule 1) — and the adapters that refuse generated
+    composited, never fabricated (CONTRIBUTING.md rule 1) — and the adapters that refuse generated
     images are right to accept these.
     """
     written: list[str] = []

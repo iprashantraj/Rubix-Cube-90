@@ -40,7 +40,7 @@ carries it.
 
 ## Notes
 
-- Repo house rules apply to this cut (`../README.md` and the project `CLAUDE.md`):
+- Repo house rules apply to this cut (`../README.md` and the project `CONTRIBUTING.md`):
   nothing on screen the repo cannot do today. `white_balance()`, `tone()`,
   `denoise_sharpen()` and `/catalog/prefill` are unwritten, so they never appear.
 - No stock footage of an artisan we did not film. Beats 2 and 8 are therefore typographic

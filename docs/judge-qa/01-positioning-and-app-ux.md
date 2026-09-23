@@ -88,7 +88,7 @@ resolution we would get ~2 fps and the live camera gate would be worthless.
 
 That is why the gate samples at **240×180 grayscale** (`docs/Master-Technical-Reference.md` §4.3)
 — 43,000 pixels instead of 12 million, one buffer read by all four checks, 10–15 checks/sec, which
-reads as "live" to the eye. Raising that sample size is on the **rejected** list in `CLAUDE.md`,
+reads as "live" to the eye. Raising that sample size is on the **rejected** list in `CONTRIBUTING.md`,
 because it is the single change that kills the feature.
 
 **At scale.** If frame throughput ever becomes the constraint, the fix is a small native Android
@@ -156,7 +156,7 @@ before claiming anything.
 **Breaks when.** The description path genuinely needs speech. If ASR word-error-rate is bad in
 noise, `compose_fallback` builds the listing from the artisan's own raw answers and marks it
 `confidence: 0` — the listing survives, the polish does not. **An unreachable model never raises**
-(`CLAUDE.md`, Current state).
+(`CONTRIBUTING.md`, Current state).
 
 ---
 
@@ -204,7 +204,7 @@ of it that demonstrates.
 
 **What we built instead, and it is the whole network story:** resumable chunked upload with
 retry and backoff (`app/src/api/upload.ts`, `app/src/api/resume.js`), and **spoken failure** —
-*"network nahi hai, thodi der me dobara"* — never a silent spinner. Rule 3 in `CLAUDE.md`: every
+*"network nahi hai, thodi der me dobara"* — never a silent spinner. Rule 3 in `CONTRIBUTING.md`: every
 failure degrades and speaks.
 
 **And one part genuinely is offline.** `stripCarrier()` and `matchCraft()` in
@@ -229,7 +229,7 @@ downscale-before-upload path today, and that is the cheapest fix available to us
 **Think.** Give the architecture-level answer, then concede the measurement we do not have.
 
 **Today.** The app carries **no model.** On-device segmentation (U²-Netp), OpenCV.js and ONNX
-Runtime Web are all on the **rejected** list in `CLAUDE.md` — one model, server-side. The camera
+Runtime Web are all on the **rejected** list in `CONTRIBUTING.md` — one model, server-side. The camera
 gate is arithmetic. What ships is React + Tailwind + the Capacitor shell.
 
 **The thing that is not in the bundle and should be noticed:** `ai/thresholds.json` is **fetched at

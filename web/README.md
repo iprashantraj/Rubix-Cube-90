@@ -1,8 +1,9 @@
 # web/ — API, marketplace, admin console
 
 ```
-api/     FastAPI + Postgres + Redis/RQ + channel adapters
-site/    Next.js — marketplace (SSR, public) + admin console (/admin)
+api/        FastAPI + Postgres + Redis/RQ + channel adapters
+site/       Next.js — marketplace (SSR, public) + admin console (/admin)
+dashboard/  Static monitoring-dashboard demo, mock data — https://kalasetu-web-dashboard.vercel.app
 ```
 
 Spec: `../docs/Master-Technical-Reference.md` · Architecture: `../docs/Application-Architecture.md`

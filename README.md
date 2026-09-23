@@ -1,4 +1,4 @@
-# Rubix-Cube-90
+# Rubix-Cube-90 — Kala Setu
 
 SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Marginalized Artisans
 
@@ -14,6 +14,7 @@ SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Margina
 | `docs/app/Future-Implementations.md` | Vision, remaining questions, known gaps |
 | `docs/Abhay/PIPELINE-RECONCILIATION.md` | Image pipeline — what runs on device vs. server, and why. Read before the other files in `docs/Abhay/` |
 | `docs/Prashant/` | Change notes — what landed, when, and what it left open |
+| `CONTRIBUTING.md` | Architecture, the settled decisions, the non-negotiable rules, and every test command |
 
 ## Layout
 
@@ -22,6 +23,7 @@ SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Margina
 | `app/` | Artisan mobile app (React + Vite + Capacitor). **Mobile only** | app dev | `app/README.md` |
 | `web/api/` | FastAPI backend + channel adapters | web dev | `web/README.md` |
 | `web/site/` | Next.js — marketplace (SSR) + admin console | web dev | `web/README.md` |
+| `web/dashboard/` | Monitoring dashboard demo — one static HTML file, mock data | web dev | [below](#monitoring-dashboard-demo) |
 | `ai/` | The three PS features — deployed as its own service | AI/ML | `ai/README.md` |
 | `research/` | Experiments that decide what `ai/` ships. Never imported | AI/ML | `research/README.md` |
 | `docs/` | Spec and decisions | everyone | |
@@ -44,8 +46,8 @@ Node 20+, and Postgres for the API:
 
 ```bash
 brew install postgresql@16 && brew services start postgresql@16
-psql -d postgres -c "CREATE ROLE kaarigar LOGIN PASSWORD 'kaarigar' SUPERUSER;"
-createdb -O kaarigar kaarigar
+psql -d postgres -c "CREATE ROLE kalasetu LOGIN PASSWORD 'kalasetu' SUPERUSER;"
+createdb -O kalasetu kalasetu
 cd web/api && cp .env.example .env      # then fill JWT_SECRET and TOKEN_ENCRYPTION_KEY
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/alembic upgrade head
@@ -71,6 +73,27 @@ cd app      && npm run dev
 
 `web/` calls `ai/` on port 8001, so `/price` answers 503 until the AI service is up — the
 app then offers "set the price later" rather than blocking the listing.
+
+## Monitoring dashboard (demo)
+
+**Live:** https://kalasetu-web-dashboard.vercel.app
+
+The district monitoring officer's view: beneficiary verification, listing queue, orders,
+gap analysis, schemes and reports. It is a single static file, `web/dashboard/index.html`,
+with no build step and no backend — every number is mock data held in the page.
+
+Every control works against that mock state: approve or reject an artisan, publish
+listings, ship or resolve orders, assign gap actions, send scheme reminders, and download
+CSV reports built from whatever you just changed. KPIs move with each action. Reload to
+reset. Works on phones — tables stack into cards below 900px.
+
+```bash
+python3 -m http.server 4173 -d web/dashboard    # http://localhost:4173
+```
+
+**Deploy:** push to `main`. The Vercel project `kalasetu-web-dashboard` is linked to this
+repo with Root Directory `web/dashboard`, so `vercel --prod` run from inside that folder
+fails — let the git push deploy it.
 
 ## The one-tap tiering
 

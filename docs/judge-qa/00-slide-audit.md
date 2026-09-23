@@ -194,7 +194,7 @@ what `learning.py` does.
 ## A0.7 🟡 "AI automatically removes cluttered backgrounds, **corrects lighting**, and enhances the photo" — slide 2
 
 Background removal is real (BiRefNet, 402 ms warm on an RTX 4060). **Lighting correction is not
-written.** `CLAUDE.md`, Current state, verbatim:
+written.** `CONTRIBUTING.md`, Current state, verbatim:
 
 > *"Three stages inside that sequence are still unwritten and are **skipped explicitly**, with
 > every response naming them: `white_balance()`, `tone()`, `denoise_sharpen()`. Colour is the
