@@ -65,7 +65,7 @@
   tr:last-child td{border-bottom:0}
   tr{transition:background 120ms ease-out}
   tr:hover td{background:var(--accent-soft)}
-  .pill{font-size:11.5px;padding:3px 10px;border-radius:var(--r-full);font-weight:600}
+  .pill{white-space:nowrap;font-size:11.5px;padding:3px 10px;border-radius:var(--r-full);font-weight:600}
   .p-ok{background:#e4f5ea;color:var(--green-ink)} .p-wait{background:#faf0dd;color:var(--amber-ink)} .p-bad{background:#f8e4e1;color:var(--red-ink)}
   .q-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px}
   .q-head h2{margin:0}
@@ -111,7 +111,45 @@
   #toast.on{opacity:1;transform:translate(-50%,0)}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.card:hover{transform:none}}
   @media(prefers-transparency:reduce),(prefers-contrast:more){header{background:var(--surface-0);backdrop-filter:none}}
-  @media(max-width:900px){.shell{grid-template-columns:1fr}.grid{grid-template-columns:1fr}nav{flex-direction:row;flex-wrap:wrap;align-items:center}nav small{display:none}main{padding:18px}header{margin:-18px -18px 6px;padding:14px 18px 10px}}
+  @media(max-width:900px){
+    .shell{grid-template-columns:1fr}
+    .grid{grid-template-columns:1fr}
+    nav{position:sticky;top:0;z-index:5;flex-direction:row;align-items:center;gap:2px;padding:10px 12px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    nav::-webkit-scrollbar{display:none}
+    nav b{margin:0 10px 0 4px;font-size:16px;flex:none}
+    nav a{flex:none;padding:8px 12px;font-size:13.5px;white-space:nowrap}
+    nav small{display:none}
+    main{padding:18px 16px}
+    header{position:static;margin:0 0 4px;padding:0;background:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+    header::after{display:none}
+    h1{font-size:21px}
+    .kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .card{padding:16px}
+    .card:hover{transform:none}
+    .kpi .n{font-size:22px}
+    .bars{gap:8px;height:150px}
+    .q-tools{flex-wrap:wrap;width:100%}
+    .q-tools input{flex:1 1 140px;width:auto;min-width:0}
+    .q-tools select{flex:1 1 120px}
+    .q-tools input,.q-tools select{font-size:16px}
+    .q-tools .btn{flex:1 1 100%}
+    .btn{padding:9px 14px;font-size:13px}
+    /* tables become stacked cards; labels come from data-label set in JS */
+    table,tbody,tr,td{display:block}
+    thead{display:none}
+    tr{border-bottom:1px solid var(--line);padding:10px 0}
+    tr:last-child{border-bottom:0}
+    tr:hover td{background:none}
+    td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:5px 0;border:0;text-align:right;white-space:normal}
+    td:first-child{font-weight:600;text-align:left;white-space:normal}
+    td::before{content:attr(data-label);color:var(--muted);font-size:12px;font-weight:500;text-align:left;flex:none}
+    td:first-child::before{display:none}
+    td[data-label=""]::before{display:none}
+    .gaps li{flex-direction:column}
+    dialog{padding:20px;max-height:calc(100dvh - 32px)}
+    dialog dl{grid-template-columns:100px 1fr}
+    dialog .acts .btn{flex:1 1 auto}
+  }
 </style>
 </head>
 <body>
@@ -432,6 +470,13 @@ function draw(key) {
   if (v.limit) rows = rows.slice(0, v.limit);
   $(`#${key}-body`).innerHTML = rows.map(v.row).join('');
   $(`#${key}-empty`).hidden = rows.length > 0;
+  labelCells($(`#${key}-body`));
+}
+
+// Copy each column header onto its cells so the phone layout can show "Label: value" rows.
+function labelCells(tbody) {
+  const heads = [...tbody.closest('table').querySelectorAll('th')].map(th => th.textContent);
+  tbody.querySelectorAll('tr').forEach(tr => [...tr.cells].forEach((td, i) => td.dataset.label = heads[i] || ''));
 }
 
 const count = (arr, s) => arr.filter(x => x.status === s).length;
@@ -537,6 +582,7 @@ const reports = {
     rows: () => [['Program','Cluster','Enrolled','Target','Status'], ...schemes.map(s => [s.name,s.cluster,s.enrolled,s.target,SCHEME_LABEL[schemeStatus(s)]])]},
 };
 $('#rp-body').innerHTML = Object.entries(reports).map(([k, r]) => `<tr><td>${r.name}</td><td>${r.period}</td><td>${r.gen}</td><td>${btn('download', k, 'Download CSV')}</td></tr>`).join('');
+labelCells($('#rp-body'));
 
 function downloadCsv(file, rows) {
   const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -563,7 +609,9 @@ function route() {
   const page = location.hash.slice(1) || 'overview';
   if (!$('#page-' + page)) return;
   document.querySelector('nav a.on')?.classList.remove('on');
-  document.querySelector(`nav a[href="#${page}"]`).classList.add('on');
+  const link = document.querySelector(`nav a[href="#${page}"]`);
+  link.classList.add('on');
+  link.scrollIntoView({block: 'nearest', inline: 'center'});
   document.querySelector('.page.on')?.classList.remove('on');
   $('#page-' + page).classList.add('on');
   window.scrollTo(0, 0);
