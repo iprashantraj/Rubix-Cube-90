@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kala Setu — Monitoring Dashboard (mockup)</title>
+<title>Kala Setu — Monitoring Dashboard</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%239c3d24%22/><text x=%2216%22 y=%2222%22 font-size=%2218%22 font-family=%22sans-serif%22 fill=%22white%22 text-anchor=%22middle%22>K</text></svg>">
 <style>
   /* Same tokens as app/src/ui/styles.css (terracotta palette) — kept in sync by hand since
-     this is a static mockup, not a Tailwind build. */
+     this is a static page, not a Tailwind build. */
   :root{
     --accent:#9c3d24; --accent-ink:#7a2e1a; --accent-soft:#f7e7e1;
     --surface-0:#f8f3f1; --surface-1:#fff; --line:#ecdfd9;
@@ -61,6 +61,7 @@
   table{width:100%;border-collapse:collapse;font-size:13.5px}
   th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:0 10px 9px;border-bottom:1px solid var(--line)}
   td{padding:12px 10px;border-bottom:1px solid var(--line)}
+  td:first-child{white-space:nowrap}
   tr:last-child td{border-bottom:0}
   tr{transition:background 120ms ease-out}
   tr:hover td{background:var(--accent-soft)}
@@ -76,11 +77,38 @@
   .page{display:none}
   .page.on{display:block;animation:fade 260ms var(--ease)}
   @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  .gaps li{margin-bottom:10px;font-size:13px}
+  .gaps li{margin-bottom:12px;font-size:13px}
   .gaps b{display:block;font-size:13px}
   .gaps span{color:var(--muted);font-size:12.5px}
   ul{margin:0;padding-left:17px}
   footer{color:var(--muted);font-size:11.5px;margin-top:21px}
+  .tbl{overflow-x:auto}
+  .btn{font:inherit;font-size:12.5px;font-weight:600;padding:6px 13px;border-radius:var(--r-full);border:1px solid var(--line);background:var(--surface-1);color:var(--accent-ink);cursor:pointer;white-space:nowrap;transition:background 120ms ease-out,transform 100ms ease-out}
+  .btn:hover{background:var(--accent-soft)}
+  .btn:active{transform:scale(.96)}
+  .btn:disabled{color:var(--muted);cursor:default;background:transparent;border-color:transparent;transform:none}
+  .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.pri:hover{background:var(--accent-ink)}
+  .btn.warn{color:var(--red-ink)}
+  .btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+  .more{font-size:12.5px;color:var(--accent);font-weight:600;text-decoration:none}
+  .gaps ul{padding:0;list-style:none}
+  .gaps li{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .mini{height:6px;width:90px;background:var(--accent-soft);border-radius:var(--r-full);overflow:hidden;display:inline-block;vertical-align:middle;margin-right:8px}
+  .mini i{display:block;height:100%;background:var(--accent)}
+  dialog{border:0;border-radius:var(--r-lg);padding:24px;max-width:460px;width:calc(100% - 32px);box-shadow:var(--e2);color:var(--ink)}
+  dialog::backdrop{background:rgba(28,25,23,.38);backdrop-filter:blur(2px)}
+  dialog h2{font-size:17px;margin-bottom:4px}
+  dialog dl{display:grid;grid-template-columns:120px 1fr;gap:8px 12px;font-size:13.5px;margin:16px 0}
+  dialog dt{color:var(--muted)} dialog dd{margin:0}
+  dialog .acts{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:18px}
+  .tl{list-style:none;padding:0;margin:12px 0;font-size:13px}
+  .tl li{padding:4px 0 4px 18px;position:relative;color:var(--muted)}
+  .tl li.done{color:var(--ink)}
+  .tl li::before{content:"";position:absolute;left:0;top:10px;width:8px;height:8px;border-radius:50%;background:var(--line)}
+  .tl li.done::before{background:var(--green)}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;background:var(--ink);color:#fff;padding:11px 18px;border-radius:var(--r-full);font-size:13.5px;box-shadow:var(--e2);transition:opacity 200ms var(--ease),transform 200ms var(--ease);pointer-events:none;z-index:10;max-width:calc(100% - 32px)}
+  #toast.on{opacity:1;transform:translate(-50%,0)}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.card:hover{transform:none}}
   @media(prefers-transparency:reduce),(prefers-contrast:more){header{background:var(--surface-0);backdrop-filter:none}}
   @media(max-width:900px){.shell{grid-template-columns:1fr}.grid{grid-template-columns:1fr}nav{flex-direction:row;flex-wrap:wrap;align-items:center}nav small{display:none}main{padding:18px}header{margin:-18px -18px 6px;padding:14px 18px 10px}}
@@ -90,60 +118,30 @@
 <div class="shell">
   <nav>
     <b>Kala Setu</b>
-    <a class="on" href="#" data-page="overview">Overview</a>
-    <a href="#" data-page="verification">Beneficiary verification</a>
-    <a href="#" data-page="queue">Listing queue</a>
-    <a href="#" data-page="orders">Marketplace &amp; orders</a>
-    <a href="#" data-page="gaps">Gap analysis</a>
-    <a href="#" data-page="schemes">Schemes &amp; training</a>
-    <a href="#" data-page="reports">Reports</a>
+    <a class="on" href="#overview">Overview</a>
+    <a href="#verification">Beneficiary verification</a>
+    <a href="#queue">Listing queue</a>
+    <a href="#orders">Marketplace &amp; orders</a>
+    <a href="#gaps">Gap analysis</a>
+    <a href="#schemes">Schemes &amp; training</a>
+    <a href="#reports">Reports</a>
     <small>Monitoring Officer · District: Jaipur</small>
   </nav>
-  <script>
-    document.querySelectorAll('nav a').forEach(a=>a.addEventListener('click',e=>{
-      e.preventDefault();
-      document.querySelector('nav a.on')?.classList.remove('on');
-      a.classList.add('on');
-      document.querySelector('.page.on')?.classList.remove('on');
-      document.getElementById('page-' + a.dataset.page)?.classList.add('on');
-    }));
-
-    const qSearch = document.getElementById('q-search');
-    const qStatus = document.getElementById('q-status');
-    const qRows = [...document.querySelectorAll('#q-table tbody tr')];
-    const qEmpty = document.getElementById('q-empty');
-    function filterQueue(){
-      const term = qSearch.value.trim().toLowerCase();
-      const status = qStatus.value;
-      let shown = 0;
-      qRows.forEach(row => {
-        const text = row.textContent.toLowerCase();
-        const matchesTerm = !term || text.includes(term);
-        const matchesStatus = !status || row.querySelector('.pill').classList.contains(status);
-        const visible = matchesTerm && matchesStatus;
-        row.hidden = !visible;
-        if (visible) shown++;
-      });
-      qEmpty.hidden = shown > 0;
-    }
-    qSearch.addEventListener('input', filterQueue);
-    qStatus.addEventListener('change', filterQueue);
-  </script>
 
   <main>
     <header>
       <h1>Monitoring dashboard</h1>
-      <span class="tag">Mockup · sample data</span>
+      <span class="tag">Demo · sample data</span>
     </header>
     <p class="sub">PS 26090 — AI-driven market linkage &amp; smart cataloging for marginalized artisans</p>
 
     <div class="page on" id="page-overview">
     <section class="kpis">
       <div class="card kpi"><div class="l">Registered artisans</div><div class="n">4,128</div><div class="d up">▲ 312 this month</div></div>
-      <div class="card kpi"><div class="l">Verified beneficiaries</div><div class="n">3,406</div><div class="d flat">82.5% of registered</div></div>
-      <div class="card kpi"><div class="l">Live listings</div><div class="n">11,972</div><div class="d up">▲ 1,043 this month</div></div>
+      <div class="card kpi"><div class="l">Verified beneficiaries</div><div class="n" id="k-verified"></div><div class="d flat" id="k-verified-d"></div></div>
+      <div class="card kpi"><div class="l">Live listings</div><div class="n" id="k-live"></div><div class="d up">▲ 1,043 this month</div></div>
       <div class="card kpi"><div class="l">GMV (30 days)</div><div class="n">₹42.6L</div><div class="d up">▲ 18.4%</div></div>
-      <div class="card kpi"><div class="l">Pending verification</div><div class="n">198</div><div class="d down">42 over SLA</div></div>
+      <div class="card kpi"><div class="l">Pending verification</div><div class="n" id="k-pending"></div><div class="d down">42 over SLA</div></div>
     </section>
 
     <div class="grid">
@@ -174,87 +172,107 @@
         <div class="q-head">
           <h2>Verification queue</h2>
           <div class="q-tools">
-            <input id="q-search" type="search" placeholder="Search artisan or cluster…">
-            <select id="q-status">
+            <input id="vq-search" type="search" placeholder="Search artisan or cluster…" aria-label="Search verification queue">
+            <select id="vq-status" aria-label="Filter by status">
               <option value="">All statuses</option>
-              <option value="p-wait">Pending review</option>
-              <option value="p-ok">Verified</option>
-              <option value="p-bad">Documents missing</option>
+              <option value="pending">Pending review</option>
+              <option value="verified">Verified</option>
+              <option value="missing">Documents missing</option>
             </select>
           </div>
         </div>
-        <table id="q-table">
+        <div class="tbl"><table>
           <thead><tr><th>Artisan</th><th>Cluster</th><th>Craft</th><th>Submitted</th><th>Status</th></tr></thead>
-          <tbody>
-            <tr><td>Sunita Devi</td><td>Jaipur</td><td>Blue pottery</td><td>2 days ago</td><td><span class="pill p-wait">Pending review</span></td></tr>
-            <tr><td>Ramesh Meena</td><td>Sawai Madhopur</td><td>Wood carving</td><td>3 days ago</td><td><span class="pill p-ok">Verified</span></td></tr>
-            <tr><td>Anita Bai</td><td>Bhilwara</td><td>Handloom</td><td>6 days ago</td><td><span class="pill p-bad">Documents missing</span></td></tr>
-            <tr><td>Mohd. Irfan</td><td>Jodhpur</td><td>Leather juti</td><td>1 day ago</td><td><span class="pill p-wait">Pending review</span></td></tr>
-            <tr><td>Kavita Sharma</td><td>Jaipur</td><td>Block print</td><td>4 days ago</td><td><span class="pill p-ok">Verified</span></td></tr>
-          </tbody>
-        </table>
-        <p id="q-empty" class="q-empty" hidden>No matching artisans.</p>
+          <tbody id="vq-body"></tbody>
+        </table></div>
+        <p id="vq-empty" class="q-empty" hidden>No matching artisans.</p>
+        <p style="margin:12px 0 0"><a class="more" href="#verification">Open full verification queue →</a></p>
       </div>
       <div class="card gaps">
         <h2>Identified gaps → action</h2>
         <ul>
-          <li><b>Low digital literacy — Bhilwara</b><span>38% of listings abandoned mid-flow. Suggest training camp.</span></li>
-          <li><b>Scheme uptake — Jodhpur</b><span>Only 11% enrolled in PM Vishwakarma. Push awareness drive.</span></li>
-          <li><b>Photo quality rejects</b><span>214 retakes from poor lighting. Ship lighting coach nudge.</span></li>
-          <li><b>Price below floor</b><span>96 listings under cost-up floor. Flag for pricing review.</span></li>
+          <li><div><b>Low digital literacy — Bhilwara</b><span>38% of listings abandoned mid-flow. Suggest training camp.</span></div></li>
+          <li><div><b>Scheme uptake — Jodhpur</b><span>Only 11% enrolled in PM Vishwakarma. Push awareness drive.</span></div></li>
+          <li><div><b>Photo quality rejects</b><span>214 retakes from poor lighting. Ship lighting coach nudge.</span></div></li>
+          <li><div><b>Price below floor</b><span>96 listings under cost-up floor. Flag for pricing review.</span></div></li>
         </ul>
+        <p style="margin:4px 0 0"><a class="more" href="#gaps">Assign actions →</a></p>
       </div>
     </div>
     </div>
 
     <div class="page" id="page-verification">
       <div class="card">
-        <h2>Beneficiary verification</h2>
-        <table>
-          <thead><tr><th>Artisan</th><th>ID type</th><th>Cluster</th><th>Document status</th><th>Action</th></tr></thead>
-          <tbody>
-            <tr><td>Sunita Devi</td><td>Aadhaar</td><td>Jaipur</td><td><span class="pill p-wait">Awaiting review</span></td><td>Review</td></tr>
-            <tr><td>Anita Bai</td><td>Aadhaar</td><td>Bhilwara</td><td><span class="pill p-bad">Photo mismatch</span></td><td>Request resubmit</td></tr>
-            <tr><td>Mohd. Irfan</td><td>Voter ID</td><td>Jodhpur</td><td><span class="pill p-wait">Awaiting review</span></td><td>Review</td></tr>
-            <tr><td>Ramesh Meena</td><td>Aadhaar</td><td>Sawai Madhopur</td><td><span class="pill p-ok">Approved</span></td><td>—</td></tr>
-          </tbody>
-        </table>
+        <div class="q-head">
+          <h2>Beneficiary verification</h2>
+          <div class="q-tools">
+            <input id="ver-search" type="search" placeholder="Search artisan, cluster, craft…" aria-label="Search beneficiaries">
+            <select id="ver-status" aria-label="Filter by status">
+              <option value="">All statuses</option>
+              <option value="pending">Pending review</option>
+              <option value="verified">Verified</option>
+              <option value="missing">Documents missing</option>
+            </select>
+          </div>
+        </div>
+        <div class="tbl"><table>
+          <thead><tr><th>Artisan</th><th>ID type</th><th>Cluster</th><th>Craft</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="ver-body"></tbody>
+        </table></div>
+        <p id="ver-empty" class="q-empty" hidden>No matching artisans.</p>
       </div>
     </div>
 
     <div class="page" id="page-queue">
       <div class="card">
-        <h2>Listing queue</h2>
-        <table>
-          <thead><tr><th>Item</th><th>Artisan</th><th>Price check</th><th>Image check</th><th>Status</th></tr></thead>
-          <tbody>
-            <tr><td>Blue pottery vase</td><td>Sunita Devi</td><td><span class="pill p-ok">Above floor</span></td><td><span class="pill p-ok">Passed</span></td><td>Ready to publish</td></tr>
-            <tr><td>Handloom dupatta</td><td>Anita Bai</td><td><span class="pill p-bad">Below floor</span></td><td><span class="pill p-ok">Passed</span></td><td>Pricing review</td></tr>
-            <tr><td>Leather juti (pair)</td><td>Mohd. Irfan</td><td><span class="pill p-ok">Above floor</span></td><td><span class="pill p-wait">Retake needed</span></td><td>Awaiting photo</td></tr>
-            <tr><td>Block-print stole</td><td>Kavita Sharma</td><td><span class="pill p-ok">Above floor</span></td><td><span class="pill p-ok">Passed</span></td><td>Ready to publish</td></tr>
-          </tbody>
-        </table>
+        <div class="q-head">
+          <h2>Listing queue</h2>
+          <div class="q-tools">
+            <input id="lq-search" type="search" placeholder="Search item or artisan…" aria-label="Search listings">
+            <select id="lq-status" aria-label="Filter by status">
+              <option value="">All statuses</option>
+              <option value="ready">Ready to publish</option>
+              <option value="pricing">Pricing review</option>
+              <option value="photo">Awaiting photo</option>
+              <option value="published">Published</option>
+            </select>
+            <button class="btn pri" data-act="publishAll">Publish all ready</button>
+          </div>
+        </div>
+        <div class="tbl"><table>
+          <thead><tr><th>Item</th><th>Artisan</th><th>Price / floor</th><th>Price check</th><th>Image check</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="lq-body"></tbody>
+        </table></div>
+        <p id="lq-empty" class="q-empty" hidden>No matching listings.</p>
       </div>
     </div>
 
     <div class="page" id="page-orders">
       <section class="kpis">
-        <div class="card kpi"><div class="l">Open orders</div><div class="n">318</div><div class="d up">▲ 24 today</div></div>
-        <div class="card kpi"><div class="l">In transit</div><div class="n">142</div><div class="d flat">avg 4.2 days</div></div>
-        <div class="card kpi"><div class="l">Delivered (30d)</div><div class="n">2,904</div><div class="d up">▲ 9.1%</div></div>
-        <div class="card kpi"><div class="l">Disputes</div><div class="n">7</div><div class="d down">3 over SLA</div></div>
+        <div class="card kpi"><div class="l">Open orders</div><div class="n" id="k-open"></div><div class="d up">▲ 24 today</div></div>
+        <div class="card kpi"><div class="l">In transit</div><div class="n" id="k-transit"></div><div class="d flat">avg 4.2 days</div></div>
+        <div class="card kpi"><div class="l">Delivered (30d)</div><div class="n" id="k-delivered"></div><div class="d up">▲ 9.1%</div></div>
+        <div class="card kpi"><div class="l">Disputes</div><div class="n" id="k-disputes"></div><div class="d down">3 over SLA</div></div>
       </section>
       <div class="card">
-        <h2>Recent orders</h2>
-        <table>
-          <thead><tr><th>Order</th><th>Buyer</th><th>Channel</th><th>Value</th><th>Status</th></tr></thead>
-          <tbody>
-            <tr><td>#KG-10482</td><td>Meera Textiles</td><td>ONDC</td><td>₹6,400</td><td><span class="pill p-ok">Delivered</span></td></tr>
-            <tr><td>#KG-10483</td><td>Craft Co-op Pune</td><td>Own marketplace</td><td>₹18,200</td><td><span class="pill p-wait">In transit</span></td></tr>
-            <tr><td>#KG-10484</td><td>Sanjay Traders</td><td>GeM</td><td>₹41,000</td><td><span class="pill p-wait">In transit</span></td></tr>
-            <tr><td>#KG-10485</td><td>Ritu Handicrafts</td><td>Amazon</td><td>₹2,150</td><td><span class="pill p-bad">Disputed</span></td></tr>
-          </tbody>
-        </table>
+        <div class="q-head">
+          <h2>Recent orders</h2>
+          <div class="q-tools">
+            <input id="or-search" type="search" placeholder="Search order, buyer, channel…" aria-label="Search orders">
+            <select id="or-status" aria-label="Filter by status">
+              <option value="">All statuses</option>
+              <option value="placed">New</option>
+              <option value="transit">In transit</option>
+              <option value="delivered">Delivered</option>
+              <option value="disputed">Disputed</option>
+            </select>
+          </div>
+        </div>
+        <div class="tbl"><table>
+          <thead><tr><th>Order</th><th>Buyer</th><th>Artisan</th><th>Channel</th><th>Value</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="or-body"></tbody>
+        </table></div>
+        <p id="or-empty" class="q-empty" hidden>No matching orders.</p>
       </div>
     </div>
 
@@ -271,47 +289,288 @@
         </div>
         <div class="card gaps">
           <h2>Recommended action</h2>
-          <ul>
-            <li><b>Bhilwara training camp</b><span>Digital literacy session, target 120 artisans, next 3 weeks.</span></li>
-            <li><b>Jodhpur scheme drive</b><span>Field push for PM Vishwakarma enrollment.</span></li>
-            <li><b>Lighting coach rollout</b><span>Ship in-app photo nudge to Sawai Madhopur cluster.</span></li>
-          </ul>
+          <ul id="ga-body"></ul>
         </div>
       </div>
     </div>
 
     <div class="page" id="page-schemes">
       <div class="card">
-        <h2>Schemes &amp; training</h2>
-        <table>
-          <thead><tr><th>Program</th><th>Cluster</th><th>Enrolled</th><th>Target</th><th>Status</th></tr></thead>
-          <tbody>
-            <tr><td>PM Vishwakarma</td><td>Jodhpur</td><td>84</td><td>750</td><td><span class="pill p-bad">Behind</span></td></tr>
-            <tr><td>Digital literacy camp</td><td>Bhilwara</td><td>212</td><td>300</td><td><span class="pill p-wait">In progress</span></td></tr>
-            <tr><td>GI-tag awareness</td><td>Jaipur</td><td>310</td><td>320</td><td><span class="pill p-ok">On track</span></td></tr>
-            <tr><td>Photo &amp; listing workshop</td><td>Sawai Madhopur</td><td>96</td><td>150</td><td><span class="pill p-wait">In progress</span></td></tr>
-          </tbody>
-        </table>
+        <div class="q-head">
+          <h2>Schemes &amp; training</h2>
+          <div class="q-tools">
+            <input id="sc-search" type="search" placeholder="Search program or cluster…" aria-label="Search programs">
+            <select id="sc-status" aria-label="Filter by status">
+              <option value="">All statuses</option>
+              <option value="ok">On track</option>
+              <option value="wait">In progress</option>
+              <option value="bad">Behind</option>
+            </select>
+          </div>
+        </div>
+        <div class="tbl"><table>
+          <thead><tr><th>Program</th><th>Cluster</th><th>Progress</th><th>Enrolled / target</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="sc-body"></tbody>
+        </table></div>
+        <p id="sc-empty" class="q-empty" hidden>No matching programs.</p>
       </div>
     </div>
 
     <div class="page" id="page-reports">
       <div class="card">
         <h2>Reports</h2>
-        <table>
+        <p class="sub" style="margin-bottom:12px">CSV exports are generated from the current dashboard state, so actions you take above show up in them.</p>
+        <div class="tbl"><table>
           <thead><tr><th>Report</th><th>Period</th><th>Generated</th><th></th></tr></thead>
-          <tbody>
-            <tr><td>Beneficiary verification summary</td><td>Aug 2026</td><td>3 days ago</td><td>Download</td></tr>
-            <tr><td>Marketplace GMV by channel</td><td>Aug 2026</td><td>3 days ago</td><td>Download</td></tr>
-            <tr><td>Buyer &amp; RFQ activity</td><td>Aug 2026</td><td>5 days ago</td><td>Download</td></tr>
-            <tr><td>Govt. compliance snapshot</td><td>Q2 2026</td><td>2 weeks ago</td><td>Download</td></tr>
-          </tbody>
-        </table>
+          <tbody id="rp-body"></tbody>
+        </table></div>
       </div>
     </div>
 
-    <footer>Mockup for SIH 2026 presentation — numbers are illustrative, not live data.</footer>
+    <footer>Demo for SIH 2026 — numbers are illustrative, not live data. Reload the page to reset.</footer>
   </main>
 </div>
+
+<dialog id="dlg" aria-labelledby="dlg-title"><div id="dlg-body"></div></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const inr = n => '₹' + n.toLocaleString('en-IN');
+const num = n => n.toLocaleString('en-IN');
+const pill = (cls, label) => `<span class="pill p-${cls}">${label}</span>`;
+const btn = (act, id, label, cls = '') => `<button class="btn ${cls}" data-act="${act}" data-id="${id}">${label}</button>`;
+const ago = d => d === 0 ? 'Today' : d === 1 ? '1 day ago' : d + ' days ago';
+
+// ---- Mock data (state lives here; reload resets) ----
+const artisans = [
+  ['A01','Sunita Devi','Jaipur','Blue pottery','Aadhaar',2,'pending'],
+  ['A02','Ramesh Meena','Sawai Madhopur','Wood carving','Aadhaar',3,'verified'],
+  ['A03','Anita Bai','Bhilwara','Handloom','Aadhaar',6,'missing','Photo on ID does not match selfie'],
+  ['A04','Mohd. Irfan','Jodhpur','Leather juti','Voter ID',1,'pending'],
+  ['A05','Kavita Sharma','Jaipur','Block print','Aadhaar',4,'verified'],
+  ['A06','Lakshmi Prajapat','Jaipur','Terracotta','Aadhaar',0,'pending'],
+  ['A07','Gopal Chhipa','Bagru','Dabu print','Ration card',5,'pending'],
+  ['A08','Rekha Kumari','Bhilwara','Phad painting','Aadhaar',8,'missing','Artisan card not uploaded'],
+  ['A09','Abdul Rehman','Jodhpur','Bandhani','Aadhaar',2,'verified'],
+  ['A10','Pushpa Regar','Barmer','Applique work','Voter ID',3,'pending'],
+  ['A11','Bhanwar Lal','Udaipur','Miniature painting','Aadhaar',7,'verified'],
+  ['A12','Seema Jangid','Sawai Madhopur','Lac bangles','Aadhaar',1,'pending'],
+].map(([id,name,cluster,craft,idType,days,status,note='']) =>
+  ({id,name,cluster,craft,idType,days,status,note,phone:'+91 9' + id.slice(1).padStart(9,'8'),listings:(id.charCodeAt(2)*7)%14+2}));
+
+const listings = [
+  ['L01','Blue pottery vase','Sunita Devi',1850,1400,true,'ready'],
+  ['L02','Handloom dupatta','Anita Bai',650,780,true,'pricing'],
+  ['L03','Leather juti (pair)','Mohd. Irfan',1200,900,false,'photo'],
+  ['L04','Block-print stole','Kavita Sharma',980,720,true,'ready'],
+  ['L05','Carved sheesham box','Ramesh Meena',2400,1900,true,'published'],
+  ['L06','Dabu-print bedsheet','Gopal Chhipa',1450,1600,true,'pricing'],
+  ['L07','Bandhani saree','Abdul Rehman',3200,2500,true,'ready'],
+  ['L08','Lac bangle set (12)','Seema Jangid',540,380,false,'photo'],
+  ['L09','Miniature painting — Bani Thani','Bhanwar Lal',5600,4200,true,'published'],
+  ['L10','Terracotta diya set','Lakshmi Prajapat',320,260,true,'ready'],
+].map(([id,item,artisan,price,floor,img,status]) => ({id,item,artisan,price,floor,img,status,nudged:false}));
+
+const orders = [
+  ['KG-10482','Meera Textiles','Kavita Sharma','ONDC',6400,'delivered',9,'Block-print stole × 6'],
+  ['KG-10483','Craft Co-op Pune','Sunita Devi','Own marketplace',18200,'transit',4,'Blue pottery vase × 10'],
+  ['KG-10484','Sanjay Traders','Ramesh Meena','GeM',41000,'transit',5,'Carved sheesham box × 17'],
+  ['KG-10485','Ritu Handicrafts','Abdul Rehman','Amazon',2150,'disputed',11,'Bandhani saree × 1 — buyer reports colour mismatch'],
+  ['KG-10486','Rajasthan Tourism (RTDC)','Bhanwar Lal','GeM',56000,'placed',0,'Miniature painting × 10'],
+  ['KG-10487','Priya Mehta','Seema Jangid','Own marketplace',1080,'placed',0,'Lac bangle set × 2'],
+  ['KG-10488','Dilli Haat Stores','Gopal Chhipa','ONDC',14500,'transit',3,'Dabu-print bedsheet × 10'],
+  ['KG-10489','Aarav Kapoor','Lakshmi Prajapat','Flipkart',960,'delivered',7,'Terracotta diya set × 3'],
+  ['KG-10490','Hotel Umaid Heritage','Mohd. Irfan','Own marketplace',24000,'placed',1,'Leather juti × 20'],
+  ['KG-10491','Neha Singh','Anita Bai','Amazon',1300,'disputed',6,'Handloom dupatta × 2 — delayed delivery'],
+].map(([id,buyer,artisan,channel,value,status,days,items]) => ({id,buyer,artisan,channel,value,status,days,items}));
+
+const actions = [
+  ['G1','Bhilwara training camp','Digital literacy session, target 120 artisans, next 3 weeks.','Bhilwara cluster coordinator'],
+  ['G2','Jodhpur scheme drive','Field push for PM Vishwakarma enrollment.','Jodhpur DIC office'],
+  ['G3','Lighting coach rollout','Ship in-app photo nudge to Sawai Madhopur cluster.','Product team'],
+  ['G4','Pricing review sweep','Review 96 listings under cost-up floor with artisans.','Jaipur cluster coordinator'],
+].map(([id,title,text,owner]) => ({id,title,text,owner,assigned:false}));
+
+const schemes = [
+  ['S1','PM Vishwakarma','Jodhpur',84,750],
+  ['S2','Digital literacy camp','Bhilwara',212,300],
+  ['S3','GI-tag awareness','Jaipur',310,320],
+  ['S4','Photo & listing workshop','Sawai Madhopur',96,150],
+  ['S5','Mudra loan facilitation','Barmer',41,200],
+  ['S6','ONDC seller onboarding','Udaipur',188,200],
+].map(([id,name,cluster,enrolled,target]) => ({id,name,cluster,enrolled,target,reminded:false}));
+const schemeStatus = s => { const p = s.enrolled / s.target; return p >= .9 ? 'ok' : p >= .3 ? 'wait' : 'bad'; };
+const SCHEME_LABEL = {ok:'On track',wait:'In progress',bad:'Behind'};
+
+const ART = {pending:['wait','Pending review'],verified:['ok','Verified'],missing:['bad','Documents missing']};
+const LST = {ready:['ok','Ready to publish'],pricing:['bad','Pricing review'],photo:['wait','Awaiting photo'],published:['ok','Published']};
+const ORD = {placed:['wait','New'],transit:['wait','In transit'],delivered:['ok','Delivered'],disputed:['bad','Disputed']};
+
+// ---- Views: every table is filter(data) → rows ----
+const views = {
+  vq: {data: () => artisans, row: a => `<tr><td><a href="#" data-act="review" data-id="${a.id}">${a.name}</a></td><td>${a.cluster}</td><td>${a.craft}</td><td>${ago(a.days)}</td><td>${pill(...ART[a.status])}</td></tr>`, limit: 6},
+  ver: {data: () => artisans, row: a => `<tr><td>${a.name}</td><td>${a.idType}</td><td>${a.cluster}</td><td>${a.craft}</td><td>${pill(...ART[a.status])}</td><td>${
+    a.status === 'pending' ? btn('review', a.id, 'Review', 'pri') :
+    a.status === 'missing' ? btn('resubmit', a.id, a.requested ? 'Mark re-uploaded' : 'Request resubmit') :
+    btn('review', a.id, 'View')}</td></tr>`},
+  lq: {data: () => listings, row: l => `<tr><td>${l.item}</td><td>${l.artisan}</td><td>${inr(l.price)} / ${inr(l.floor)}</td><td>${l.price >= l.floor ? pill('ok','Above floor') : pill('bad','Below floor')}</td><td>${l.img ? pill('ok','Passed') : pill('wait','Retake needed')}</td><td>${pill(...LST[l.status])}</td><td>${
+    l.status === 'ready' ? btn('publish', l.id, 'Publish', 'pri') :
+    l.status === 'pricing' ? btn('floor', l.id, 'Set to floor') :
+    l.status === 'photo' ? (l.nudged ? btn('photoIn', l.id, 'Mark photo received') : btn('nudge', l.id, 'Nudge artisan')) :
+    btn('unpublish', l.id, 'Unpublish', 'warn')}</td></tr>`},
+  or: {data: () => orders, row: o => `<tr><td>#${o.id}</td><td>${o.buyer}</td><td>${o.artisan}</td><td>${o.channel}</td><td>${inr(o.value)}</td><td>${pill(...ORD[o.status])}</td><td>${btn('order', o.id, o.status === 'disputed' ? 'Resolve' : 'Details', o.status === 'disputed' ? 'pri' : '')}</td></tr>`},
+  sc: {data: () => schemes, status: schemeStatus, row: s => `<tr><td>${s.name}</td><td>${s.cluster}</td><td><span class="mini"><i style="width:${Math.min(100, s.enrolled / s.target * 100)}%"></i></span>${Math.round(s.enrolled / s.target * 100)}%</td><td>${s.enrolled} / ${s.target}</td><td>${pill(schemeStatus(s), SCHEME_LABEL[schemeStatus(s)])}</td><td>${s.reminded ? btn('', s.id, 'Reminder sent ✓') : btn('remind', s.id, 'Send SMS reminder')}</td></tr>`},
+};
+
+function draw(key) {
+  const v = views[key];
+  const term = ($(`#${key}-search`)?.value || '').trim().toLowerCase();
+  const st = $(`#${key}-status`)?.value || '';
+  let rows = v.data().filter(x => (!st || (v.status ? v.status(x) : x.status) === st)
+    && (!term || Object.values(x).join(' ').toLowerCase().includes(term)));
+  if (v.limit) rows = rows.slice(0, v.limit);
+  $(`#${key}-body`).innerHTML = rows.map(v.row).join('');
+  $(`#${key}-empty`).hidden = rows.length > 0;
+}
+
+const count = (arr, s) => arr.filter(x => x.status === s).length;
+const init = {
+  verified: count(artisans,'verified'), pending: count(artisans,'pending'), published: count(listings,'published'),
+  placed: count(orders,'placed'), transit: count(orders,'transit'), delivered: count(orders,'delivered'), disputed: count(orders,'disputed'),
+};
+// KPI = illustrative district total, shifted by whatever changed in the sample rows.
+const kpi = (id, base, arr, s) => $(id).textContent = num(base + count(arr, s) - init[s]);
+
+function drawAll() {
+  Object.keys(views).forEach(draw);
+  kpi('#k-verified', 3406, artisans, 'verified');
+  $('#k-verified-d').textContent = (($('#k-verified').textContent.replace(/,/g,'') / 4128) * 100).toFixed(1) + '% of registered';
+  kpi('#k-pending', 198, artisans, 'pending');
+  kpi('#k-live', 11972, listings, 'published');
+  $('#k-open').textContent = num(318 + count(orders,'placed') + count(orders,'transit') - init.placed - init.transit);
+  kpi('#k-transit', 142, orders, 'transit');
+  kpi('#k-delivered', 2904, orders, 'delivered');
+  kpi('#k-disputes', 7, orders, 'disputed');
+  $('#ga-body').innerHTML = actions.map(g => `<li><div><b>${g.title}</b><span>${g.text}${g.assigned ? ` Assigned to ${g.owner}.` : ''}</span></div>${
+    g.assigned ? btn('', g.id, 'Assigned ✓') : btn('assign', g.id, 'Assign', 'pri')}</li>`).join('');
+  document.querySelectorAll('button[data-act=""]').forEach(b => b.disabled = true);
+}
+
+// ---- Toast + dialog ----
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2800);
+}
+const dlg = $('#dlg');
+function openDialog(html) { $('#dlg-body').innerHTML = html; dlg.showModal(); }
+dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+
+const find = (arr, id) => arr.find(x => x.id === id);
+const acts = {
+  review(id) {
+    const a = find(artisans, id);
+    openDialog(`<h2 id="dlg-title">${a.name}</h2>${pill(...ART[a.status])}
+      <dl><dt>Craft</dt><dd>${a.craft}</dd><dt>Cluster</dt><dd>${a.cluster}, Rajasthan</dd>
+      <dt>ID document</dt><dd>${a.idType} · ••••${id.slice(1)}47</dd><dt>Phone</dt><dd>${a.phone}</dd>
+      <dt>Draft listings</dt><dd>${a.listings}</dd><dt>Submitted</dt><dd>${ago(a.days)}</dd>
+      <dt>AI face match</dt><dd>${a.status === 'missing' ? '41% — below threshold' : (86 + a.days) + '% — selfie matches ID photo'}</dd>
+      ${a.note ? `<dt>Note</dt><dd>${a.note}</dd>` : ''}</dl>
+      <div class="acts">${a.status === 'pending'
+        ? btn('reject', id, 'Reject — documents missing', 'warn') + btn('approve', id, 'Approve', 'pri')
+        : btn('close', id, 'Close')}</div>`);
+  },
+  approve(id) { const a = find(artisans, id); a.status = 'verified'; a.note = ''; toast(`${a.name} verified — PM Vishwakarma eligibility unlocked`); },
+  reject(id) { const a = find(artisans, id); a.status = 'missing'; a.note = 'Rejected by monitoring officer'; toast(`${a.name} marked documents missing`); },
+  resubmit(id) {
+    const a = find(artisans, id);
+    if (a.requested) { a.status = 'pending'; a.requested = false; a.days = 0; toast(`${a.name} re-uploaded documents — back in review`); return; }
+    a.requested = true; toast(`SMS sent to ${a.name} (${a.phone}) asking to re-upload documents`);
+  },
+  publish(id) { const l = find(listings, id); l.status = 'published'; toast(`“${l.item}” is live on marketplace, ONDC and GeM`); },
+  publishAll() {
+    const ready = listings.filter(l => l.status === 'ready');
+    ready.forEach(l => l.status = 'published');
+    toast(ready.length ? `Published ${ready.length} listing${ready.length > 1 ? 's' : ''}` : 'No listings are ready to publish');
+  },
+  unpublish(id) { const l = find(listings, id); l.status = 'ready'; toast(`“${l.item}” taken down`); },
+  floor(id) { const l = find(listings, id); l.price = l.floor; l.status = l.img ? 'ready' : 'photo'; toast(`Price raised to ${inr(l.floor)} — artisan notified`); },
+  nudge(id) { const l = find(listings, id); l.nudged = true; toast(`Lighting-coach nudge sent to ${l.artisan}`); },
+  photoIn(id) { const l = find(listings, id); l.img = true; l.status = l.price >= l.floor ? 'ready' : 'pricing'; toast(`New photo for “${l.item}” passed image check`); },
+  order(id) {
+    const o = find(orders, id);
+    const steps = ['Order placed','Artisan confirmed','Shipped','Delivered'];
+    const reached = {placed:1, transit:3, delivered:4, disputed:4}[o.status];
+    openDialog(`<h2 id="dlg-title">Order #${o.id}</h2>${pill(...ORD[o.status])}
+      <dl><dt>Buyer</dt><dd>${o.buyer}</dd><dt>Artisan</dt><dd>${o.artisan}</dd><dt>Items</dt><dd>${o.items}</dd>
+      <dt>Channel</dt><dd>${o.channel}</dd><dt>Value</dt><dd>${inr(o.value)}</dd><dt>Placed</dt><dd>${ago(o.days)}</dd></dl>
+      <ul class="tl">${steps.map((s, i) => `<li class="${i < reached ? 'done' : ''}">${s}</li>`).join('')}${o.status === 'disputed' ? '<li class="done" style="color:var(--red-ink)">Dispute raised</li>' : ''}</ul>
+      <div class="acts">${
+        o.status === 'placed' ? btn('ship', id, 'Mark shipped', 'pri') :
+        o.status === 'transit' ? btn('deliver', id, 'Mark delivered', 'pri') :
+        o.status === 'disputed' ? btn('refund', id, 'Refund buyer', 'warn') + btn('resolve', id, 'Resolve with artisan', 'pri') :
+        btn('close', id, 'Close')}</div>`);
+  },
+  ship(id) { const o = find(orders, id); o.status = 'transit'; toast(`#${o.id} shipped — tracking shared with ${o.buyer}`); },
+  deliver(id) { const o = find(orders, id); o.status = 'delivered'; toast(`#${o.id} delivered — ${inr(o.value)} payout queued to ${o.artisan}`); },
+  resolve(id) { const o = find(orders, id); o.status = 'delivered'; toast(`#${o.id} dispute resolved — replacement arranged`); },
+  refund(id) { const o = find(orders, id); o.status = 'delivered'; o.items += ' (refunded)'; toast(`#${o.id} refunded ${inr(o.value)} to ${o.buyer}`); },
+  assign(id) { const g = find(actions, id); g.assigned = true; toast(`“${g.title}” assigned to ${g.owner}`); },
+  remind(id) { const s = find(schemes, id); s.reminded = true; toast(`SMS reminder queued for ${s.target - s.enrolled} artisans in ${s.cluster}`); },
+  close() {},
+  download(id) { const r = reports[id]; downloadCsv(r.file, r.rows()); toast(`Downloaded ${r.file}`); },
+};
+
+// ---- Reports: CSV built from current state ----
+const reports = {
+  ver: {name:'Beneficiary verification summary', period:'Sep 2026', gen:'Live', file:'verification-summary.csv',
+    rows: () => [['Artisan','Cluster','Craft','ID type','Status','Note'], ...artisans.map(a => [a.name,a.cluster,a.craft,a.idType,ART[a.status][1],a.note])]},
+  gmv: {name:'Marketplace GMV by channel', period:'Sep 2026', gen:'Live', file:'gmv-by-channel.csv',
+    rows: () => { const by = {}; orders.forEach(o => { by[o.channel] = by[o.channel] || [0,0]; by[o.channel][0]++; by[o.channel][1] += o.value; });
+      return [['Channel','Orders','GMV (INR)'], ...Object.entries(by).map(([c,[n,v]]) => [c,n,v])]; }},
+  ord: {name:'Buyer & order activity', period:'Sep 2026', gen:'Live', file:'orders.csv',
+    rows: () => [['Order','Buyer','Artisan','Channel','Items','Value (INR)','Status'], ...orders.map(o => [o.id,o.buyer,o.artisan,o.channel,o.items,o.value,ORD[o.status][1]])]},
+  lst: {name:'Listing quality & pricing', period:'Sep 2026', gen:'Live', file:'listings.csv',
+    rows: () => [['Item','Artisan','Price','Floor','Image check','Status'], ...listings.map(l => [l.item,l.artisan,l.price,l.floor,l.img ? 'Passed' : 'Retake',LST[l.status][1]])]},
+  gov: {name:'Govt. compliance snapshot', period:'Q3 2026', gen:'Live', file:'scheme-compliance.csv',
+    rows: () => [['Program','Cluster','Enrolled','Target','Status'], ...schemes.map(s => [s.name,s.cluster,s.enrolled,s.target,SCHEME_LABEL[schemeStatus(s)]])]},
+};
+$('#rp-body').innerHTML = Object.entries(reports).map(([k, r]) => `<tr><td>${r.name}</td><td>${r.period}</td><td>${r.gen}</td><td>${btn('download', k, 'Download CSV')}</td></tr>`).join('');
+
+function downloadCsv(file, rows) {
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], {type: 'text/csv'}));
+  a.download = file; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ---- Wiring ----
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b || b.disabled || !acts[b.dataset.act]) return;
+  e.preventDefault();
+  if (b.closest('dialog')) dlg.close();
+  acts[b.dataset.act](b.dataset.id);
+  drawAll();
+});
+Object.keys(views).forEach(k => {
+  $(`#${k}-search`)?.addEventListener('input', () => draw(k));
+  $(`#${k}-status`)?.addEventListener('change', () => draw(k));
+});
+
+function route() {
+  const page = location.hash.slice(1) || 'overview';
+  if (!$('#page-' + page)) return;
+  document.querySelector('nav a.on')?.classList.remove('on');
+  document.querySelector(`nav a[href="#${page}"]`).classList.add('on');
+  document.querySelector('.page.on')?.classList.remove('on');
+  $('#page-' + page).classList.add('on');
+  window.scrollTo(0, 0);
+}
+addEventListener('hashchange', route);
+route();
+drawAll();
+</script>
 </body>
 </html>
