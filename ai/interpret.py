@@ -545,7 +545,7 @@ async def interpret(req: dict) -> dict:
                     "Content-Type": "application/json",
                     # OpenRouter attribution headers. Not secrets, and not artisan data.
                     "HTTP-Referer": "https://github.com/iprashantraj/Rubix-Cube-90",
-                    "X-Title": "Kala-Setu",
+                    "X-Title": "Kala Setu",
                 },
                 json=body,
             )
@@ -619,7 +619,7 @@ async def _call_model(
                     "Authorization": f"Bearer {_api_key()}",
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://github.com/iprashantraj/Rubix-Cube-90",
-                    "X-Title": "Kala-Setu",
+                    "X-Title": "Kala Setu",
                 },
                 json=body,
             )

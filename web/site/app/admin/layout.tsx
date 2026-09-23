@@ -6,7 +6,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="side">
       <nav>
-        <b>Kala-Setu admin</b>
+        <b>Kala Setu admin</b>
         <Link href="/admin/artisans">Artisans</Link>
         <Link href="/admin/queue">Listing queue</Link>
         <Link href="/admin/gem-recon">GeM reconciliation</Link>

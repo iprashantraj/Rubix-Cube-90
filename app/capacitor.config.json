@@ -1,6 +1,6 @@
 {
   "appId": "in.gov.sih.kaarigar",
-  "appName": "Kala-Setu",
+  "appName": "Kala Setu",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

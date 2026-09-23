@@ -1,5 +1,5 @@
 /**
- * The Kala-Setu mark.
+ * The Kala Setu mark.
  *
  * ⚠️ Placeholder, and honestly so. It is geometry we can draw ourselves rather than a
  * designed identity, and it exists because the app was shipping the stock Capacitor logo —

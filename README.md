@@ -1,4 +1,4 @@
-# Rubix-Cube-90 — Kala-Setu
+# Rubix-Cube-90 — Kala Setu
 
 SIH 2026 · PS 26090 — AI-Driven Market Linkage & Smart Cataloging for Marginalized Artisans
 
