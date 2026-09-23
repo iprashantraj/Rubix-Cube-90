@@ -1,4 +1,4 @@
-"""Kaarigar API.
+"""Kala-Setu API.
 
 Surfaces: the artisan app (Capacitor), the admin console and the public marketplace
 (Next.js). The AI service is a separate deploy unit reached over HTTP — see ai/.
@@ -26,7 +26,7 @@ from .routers import (
     voice,
 )
 
-app = FastAPI(title="Kaarigar API", version="0.1.0")
+app = FastAPI(title="Kala-Setu API", version="0.1.0")
 
 log = logging.getLogger("kaarigar.api")
 

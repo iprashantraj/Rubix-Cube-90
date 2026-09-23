@@ -2,7 +2,7 @@
   "_note": "Strings added by the chrome/theme/camera-recovery pass. One file, every language, folded into the base bundles by i18n/index.js — see the comment there for why these live apart from en/hi/or.json. Odia is deliberately absent: an unreviewed Odia draft spoken to someone who cannot read it is worse than honest English in an English voice, and resolve() already handles that fallback. Add `or` here only after a native speaker has checked it.",
 
   "en": {
-    "app.name": "Kaarigar",
+    "app.name": "Kala-Setu",
 
     "camera.opening": "Opening the camera",
     "camera.insecure": "This phone cannot open the camera here",
@@ -20,7 +20,7 @@
   },
 
   "hi": {
-    "app.name": "कारीगर",
+    "app.name": "कला-सेतु",
 
     "camera.opening": "कैमरा खुल रहा है",
     "camera.insecure": "यह फ़ोन यहाँ कैमरा नहीं खोल सकता",

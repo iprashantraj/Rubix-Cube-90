@@ -15,7 +15,7 @@ import Mark from './Mark';
  * pure statement — nothing is being asked, nothing has to be understood. So it shows the
  * work, not the brand: five warp threads are laid down, five weft threads cross them, the
  * cloth becomes the ikat lozenge, and one thread lifts off the loom and goes somewhere.
- * That last stroke is the entire product. Someone who cannot read the word "Kaarigar" can
+ * That last stroke is the entire product. Someone who cannot read the word "Kala-Setu" can
  * watch a piece of weaving happen.
  *
  * ⏱ It is not a loading screen and must never become one. Nothing is fetched here, the
